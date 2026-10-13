@@ -217,6 +217,7 @@ const translations: Record<LanguageType, Record<string, string>> = {
     mediaTaskAccountMismatch: '该媒体任务属于其他账号，无法操作。',
     enterpriseMediaQuotaUnavailable: '当前团队的媒体生成额度暂不可用。',
     mediaImageProviderNotConfigured: '尚未配置图片模型，请在设置中添加图片模型后再试。',
+    mediaVideoProviderNotConfigured: '尚未配置视频模型，请在设置中添加视频模型后再试。',
 
     // Data migration dialogs
     dataMigrationBackupDialogTitle: '备份 LobsterAI 数据',
@@ -639,6 +640,7 @@ const translations: Record<LanguageType, Record<string, string>> = {
     mediaTaskAccountMismatch: 'This media task belongs to another account.',
     enterpriseMediaQuotaUnavailable: 'Media generation quota is unavailable for this team.',
     mediaImageProviderNotConfigured: 'No image model is configured. Add an image model in Settings and try again.',
+    mediaVideoProviderNotConfigured: 'No video model is configured. Add a video model in Settings and try again.',
 
     // Data migration dialogs
     dataMigrationBackupDialogTitle: 'Back Up LobsterAI Data',

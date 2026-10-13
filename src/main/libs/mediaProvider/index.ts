@@ -2,15 +2,15 @@
  * Media provider registry.
  *
  * `main.ts` only forwards to this layer; all upstream protocol knowledge lives
- * in the per-kind adapters. Only the image kind has a local adapter so far —
- * the video path still goes through the LobsterAI server and is wired up in a
- * later change.
+ * in the per-kind adapters: OpenAI-compatible images and MiniMax video.
  */
 import type { SqliteStore } from '../../sqliteStore';
+import { createMiniMaxVideoAdapter } from './minimaxVideo';
 import { createOpenAIImageAdapter } from './openaiCompatImage';
 import { type MediaProvider,MediaProviderKind } from './types';
 
 export * from './store';
+export * from './taskRegistry';
 export * from './types';
 
 const providers = new Map<string, MediaProvider>();
@@ -33,12 +33,18 @@ export interface MediaProviderInitOptions {
  * again replaces the registrations, so startup re-init is safe.
  */
 export const initMediaProviders = (options: MediaProviderInitOptions): void => {
-  registerMediaProvider(createOpenAIImageAdapter({
+  const shared = {
     store: options.store,
     ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
-  }));
+  };
+  registerMediaProvider(createOpenAIImageAdapter(shared));
+  registerMediaProvider(createMiniMaxVideoAdapter(shared));
 };
 
 export const getImageMediaProvider = (): MediaProvider | undefined => (
   getMediaProvider(MediaProviderKind.Image)
+);
+
+export const getVideoMediaProvider = (): MediaProvider | undefined => (
+  getMediaProvider(MediaProviderKind.Video)
 );

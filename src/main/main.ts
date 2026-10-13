@@ -141,9 +141,7 @@ import {
   EnterpriseAccountIpcChannel,
   EnterpriseAccountMode,
   EnterpriseApiErrorCode,
-  EnterpriseQuotaMessageMetadataKey,
 } from '../shared/enterpriseAccount/constants';
-import { resolveEnterpriseQuotaError } from '../shared/enterpriseAccount/quotaError';
 import {
   HtmlShareAccessMode,
   type HtmlShareAccessMode as HtmlShareAccessModeValue,
@@ -176,7 +174,7 @@ import {
   type LocalWebService,
   LocalWebServicesIpc,
 } from '../shared/localWebServices/constants';
-import { canonicalizeMediaModelId, HAPPYHORSE_1_1_MODEL_ID, mediaModelDisplayName } from '../shared/mediaModelAliases';
+import { canonicalizeMediaModelId, mediaModelDisplayName } from '../shared/mediaModelAliases';
 import {
   normalizeNotificationSettings,
   type NotificationSettings,
@@ -385,7 +383,6 @@ import { DesktopNotificationManager } from './libs/desktopNotificationManager';
 import {
   getHtmlSharePublicBaseUrl,
   getKitStoreUrl,
-  getPortalTasksUrl,
   getServerApiBaseUrl,
   getSkillStoreUrl,
   refreshEndpointsTestMode,
@@ -4722,109 +4719,6 @@ const mediaModelIdForOutput = (model: unknown, fallback?: string): string => {
   return mediaModelDisplayName(rawModel, rawModel) || 'default';
 };
 
-type HappyHorse11Selection = {
-  type: 't2v' | 'i2v' | 'r2v';
-  upstreamModel: string;
-  reason: string;
-  imageCount: number;
-};
-
-const isHappyHorse11Model = (modelId: string): boolean =>
-  canonicalizeMediaModelId(modelId) === HAPPYHORSE_1_1_MODEL_ID;
-
-const addImageInputValue = (values: Set<string>, value: unknown): void => {
-  if (value == null) return;
-  if (Array.isArray(value)) {
-    value.forEach(item => addImageInputValue(values, item));
-    return;
-  }
-  const text = String(value).trim();
-  if (text) values.add(text);
-};
-
-const nestedMediaUrl = (value: unknown): unknown => {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return (value as Record<string, unknown>).url;
-  }
-  return value;
-};
-
-const addImageMediaItems = (values: Set<string>, media: unknown): void => {
-  if (!Array.isArray(media)) return;
-  for (const item of media) {
-    if (typeof item === 'string') {
-      addImageInputValue(values, item);
-      continue;
-    }
-    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
-    const record = item as Record<string, unknown>;
-    const mediaType = typeof record.type === 'string' ? record.type.toLowerCase() : '';
-    if (mediaType.includes('video') || mediaType.includes('audio')) continue;
-    addImageInputValue(values, record.url ?? nestedMediaUrl(record.image_url));
-  }
-};
-
-const countVideoImageInputs = (params: Record<string, unknown>): number => {
-  const images = new Set<string>();
-  addImageInputValue(images, params.images);
-  addImageInputValue(images, params.imageUrls);
-  addImageInputValue(images, params.referenceImages);
-  addImageInputValue(images, params.firstFrame);
-  addImageInputValue(images, params.first_frame);
-  addImageInputValue(images, params.firstFrameImage);
-  addImageInputValue(images, params.first_frame_image);
-  addImageInputValue(images, params.image);
-  addImageInputValue(images, params.imageUrl);
-  addImageInputValue(images, params.image_url);
-  addImageInputValue(images, params.referenceImage);
-  addImageInputValue(images, params.lastFrame);
-  addImageInputValue(images, params.last_frame);
-  addImageInputValue(images, params.lastFrameImage);
-  addImageInputValue(images, params.last_frame_image);
-  addImageMediaItems(images, params.media);
-
-  const providerOptions = params.providerOptions;
-  if (providerOptions && typeof providerOptions === 'object' && !Array.isArray(providerOptions)) {
-    addImageMediaItems(images, (providerOptions as Record<string, unknown>).media);
-  }
-  const input = params.input;
-  if (input && typeof input === 'object' && !Array.isArray(input)) {
-    addImageMediaItems(images, (input as Record<string, unknown>).media);
-  }
-
-  return images.size;
-};
-
-const resolveHappyHorse11Selection = (
-  modelId: string,
-  params: Record<string, unknown>,
-): HappyHorse11Selection | null => {
-  if (!isHappyHorse11Model(modelId)) return null;
-  const imageCount = countVideoImageInputs(params);
-  if (imageCount === 0) {
-    return {
-      type: 't2v',
-      upstreamModel: 'happyhorse-1.1-t2v',
-      reason: '未检测到输入图片，使用文生视频子模型 happyhorse-1.1-t2v',
-      imageCount,
-    };
-  }
-  if (imageCount === 1) {
-    return {
-      type: 'i2v',
-      upstreamModel: 'happyhorse-1.1-i2v',
-      reason: '检测到 1 张输入图片，使用图生视频子模型 happyhorse-1.1-i2v',
-      imageCount,
-    };
-  }
-  return {
-    type: 'r2v',
-    upstreamModel: 'happyhorse-1.1-r2v',
-    reason: `检测到 ${imageCount} 张输入图片，使用参考生视频子模型 happyhorse-1.1-r2v`,
-    imageCount,
-  };
-};
-
 type MediaStatusPollUpdate = {
   sessionId: string;
   toolCallId: string;
@@ -6321,7 +6215,6 @@ if (!gotTheLock) {
       return skinRuntime.handleToolRequest(request);
     }
     const action = (args.action as string) || 'generate';
-    const serverBaseUrl = getServerApiBaseUrl();
     const sessionId = extractSessionIdFromKey(request.context.sessionKey);
     const requestAccountScope = resolveMediaTurnAccountScopeForSession(sessionId);
     const isRequestAccountCurrent = (): boolean => (
@@ -6398,55 +6291,12 @@ if (!gotTheLock) {
       if (action === 'list') {
         const mediaType = tool === MediaGenerationTool.Image ? 'image' : 'video';
 
-        // Local image models come from the user's own media provider config;
-        // video models still come from the LobsterAI server.
-        if (mediaType === 'image') {
-          const localModels = getImageMediaProvider()?.resolver.listModels() ?? [];
-          console.log(`[MediaGeneration] loaded ${localModels.length} local image models from user config.`);
-          const localText = localModels.length > 0
-            ? `Available ${mediaType} models:\n\n${localModels.map(m => {
-                let line = `### ${m.displayName} (model: "${m.modelId}")`;
-                if (m.capabilities) line += `\n${m.capabilities}`;
-                return line;
-              }).join('\n\n')}`
-            : `No ${mediaType} models available.`;
-          let localNote = localText;
-          if (resolvedModelFromSelection) {
-            localNote += `\n\n---\n**Note:** The user has already selected model "${resolvedModelFromSelection}" for this session. You MUST use this model for the generate action. Do NOT choose a different model.`;
-          } else if (localModels.length === 0) {
-            localNote += '\n\nAsk the user to add an image model in Settings before generating images.';
-          }
-          return { content: [{ type: 'text', text: localNote }], details: { status: 'succeeded', models: localModels } };
-        }
-
-        const endpoint = mediaType === 'image' ? '/api/media/images/models' : '/api/media/videos/models';
-        console.log(`[MediaGeneration] listing ${mediaType} models from server.`);
-        const resp = await fetchWithAuth(`${serverBaseUrl}${endpoint}`);
-        console.log(`[MediaGeneration] server returned HTTP ${resp.status} for ${mediaType} model list.`);
-        const body = await resp.json() as { code: number; data?: unknown[]; message?: string };
-        if (!isRequestAccountCurrent()) return staleAccountResult();
-        if (handleEnterpriseAccountContextMismatch(body.code, requestAccountScope)) {
-          return {
-            content: [{ type: 'text', text: t('enterpriseAccountContextMismatchMessage') }],
-            isError: true,
-          };
-        }
-        if (body.code !== 0) {
-          console.warn('[MediaGeneration] server rejected model list request:', serializeForLog({ mediaType, code: body.code, message: body.message }));
-          return { content: [{ type: 'text', text: body.message || 'Failed to list models.' }], isError: true };
-        }
-        const models = (body.data || []).map(model => {
-          const mediaModel = model as { modelId?: string; displayName?: string };
-          const modelId = canonicalizeMediaModelId(mediaModel.modelId);
-          return {
-            ...(model as Record<string, unknown>),
-            modelId,
-            displayName: mediaModelDisplayName(modelId, mediaModel.displayName),
-          };
-        });
-        console.log(`[MediaGeneration] server returned ${models.length} ${mediaType} models.`);
-        let text = models.length > 0
-          ? `Available ${mediaType} models:\n\n${(models as Array<{ modelId: string; displayName: string; capabilities?: string; parameterSpec?: Record<string, unknown> }>).map(m => {
+        // Media models come entirely from the user's own provider config.
+        const mediaProvider = mediaType === 'image' ? getImageMediaProvider() : getVideoMediaProvider();
+        const localModels = mediaProvider?.resolver.listModels() ?? [];
+        console.log(`[MediaGeneration] loaded ${localModels.length} local ${mediaType} models from user config.`);
+        let text = localModels.length > 0
+          ? `Available ${mediaType} models:\n\n${localModels.map(m => {
               let line = `### ${m.displayName} (model: "${m.modelId}")`;
               if (m.capabilities) line += `\n${m.capabilities}`;
               if (m.parameterSpec) line += `\nSupported parameters:\n${JSON.stringify(m.parameterSpec, null, 2)}`;
@@ -6455,8 +6305,10 @@ if (!gotTheLock) {
           : `No ${mediaType} models available.`;
         if (resolvedModelFromSelection) {
           text += `\n\n---\n**Note:** The user has already selected model "${resolvedModelFromSelection}" for this session. You MUST use this model for the generate action. Do NOT choose a different model.`;
+        } else if (localModels.length === 0) {
+          text += `\n\nAsk the user to add a ${mediaType} model in Settings before generating.`;
         }
-        return { content: [{ type: 'text', text }], details: { status: 'succeeded', models } };
+        return { content: [{ type: 'text', text }], details: { status: 'succeeded', models: localModels } };
       }
 
       if (action === 'status') {
@@ -6477,40 +6329,31 @@ if (!gotTheLock) {
         );
         const mediaType = tool === MediaGenerationTool.Image ? 'images' : 'videos';
         const statusMediaType = tool === MediaGenerationTool.Image ? 'image' : 'video';
-        console.log(`[MediaGeneration] checking ${mediaType} task status for task ${taskId}.`);
-        const resp = await fetchWithAuth(`${serverBaseUrl}/api/media/${mediaType}/tasks/${taskId}`);
-        console.log(`[MediaGeneration] server returned HTTP ${resp.status} for ${mediaType} task status.`);
-        const body = await resp.json() as { code: number; data?: Record<string, unknown>; message?: string };
-        if (!isRequestAccountCurrent()) return staleAccountResult();
-        if (handleEnterpriseAccountContextMismatch(body.code, requestAccountScope)) {
+        const statusProvider = tool === MediaGenerationTool.Image
+          ? getImageMediaProvider()
+          : getVideoMediaProvider();
+        // Local tasks are polled upstream, so the owning provider target has to
+        // be recovered from the task id recorded at creation time.
+        const statusTarget = resolveMediaTaskTarget(getStore(), taskId);
+        if (!statusProvider || !statusTarget) {
           return {
-            content: [{ type: 'text', text: t('enterpriseAccountContextMismatchMessage') }],
+            content: [{ type: 'text', text: `Task "${taskId}" is not tracked by a local media provider.` }],
             isError: true,
-            details: {
-              status: 'failed',
-              warnings: ['ENTERPRISE_ACCOUNT_CONTEXT_MISMATCH'],
-            },
+            details: { status: 'failed', warnings: ['MEDIA_TASK_UNKNOWN'] },
           };
         }
-        if (body.code !== 0) {
-          console.warn('[MediaGeneration] server rejected task status request:', serializeForLog({ mediaType, taskId, code: body.code, message: body.message }));
-          return { content: [{ type: 'text', text: body.message || 'Failed to get task status.' }], isError: true };
-        }
-        const task = body.data!;
+        console.log(`[MediaGeneration] checking ${mediaType} task status for local task ${taskId}.`);
+        const task = await statusProvider.status(taskId, statusTarget);
+        if (!isRequestAccountCurrent()) return staleAccountResult();
+
         rememberMediaTaskOwnership(
           requestAccountScope.ownerAccountKey,
           task.taskId,
           task.upstreamTaskId,
         );
-        const status = task.status as string;
-        const resultUrls = (task.resultUrls as string[]) || [];
+        const status = task.status;
+        const resultUrls = task.resultUrls;
         const outputModel = mediaModelIdForOutput(task.model);
-        const upstreamModel = typeof task.upstreamModel === 'string' && task.upstreamModel.trim()
-          ? task.upstreamModel.trim()
-          : undefined;
-        const modelSelectionReason = typeof task.modelSelectionReason === 'string' && task.modelSelectionReason.trim()
-          ? task.modelSelectionReason.trim()
-          : undefined;
         if (sessionId && TERMINAL_MEDIA_TASK_STATUSES.has(status)) {
           markMediaTaskHandledByStatusPolling(
             sessionId,
@@ -6527,7 +6370,7 @@ if (!gotTheLock) {
 
         let resultLines: string[];
         let detailsAssets: unknown[] = assets;
-        if (status === 'succeeded' && statusMediaType === 'image' && sessionId) {
+        if (status === MediaTaskStatus.Succeeded && statusMediaType === 'image' && sessionId) {
           const persistResult = await persistGeneratedImages(sessionId, assets);
           if (!isRequestAccountCurrent()) return staleAccountResult();
           if (persistResult && persistResult.saved.length > 0) {
@@ -6538,7 +6381,7 @@ if (!gotTheLock) {
           } else {
             resultLines = resultUrls.map((url, index) => `  - ![Generated image ${index + 1}](${url})`);
           }
-        } else if (status === 'succeeded' && statusMediaType === 'video' && sessionId) {
+        } else if (status === MediaTaskStatus.Succeeded && statusMediaType === 'video' && sessionId) {
           const persistResult = await persistGeneratedVideos(sessionId, assets);
           if (!isRequestAccountCurrent()) return staleAccountResult();
           if (persistResult && persistResult.saved.length > 0) {
@@ -6558,10 +6401,9 @@ if (!gotTheLock) {
         const lines = [
           `Task ID: ${task.upstreamTaskId || task.taskId}`,
           `Model: ${outputModel}`,
-          ...(upstreamModel ? [`Selected model: ${upstreamModel}`] : []),
-          ...(modelSelectionReason ? [`Selection reason: ${modelSelectionReason}`] : []),
+          ...(task.upstreamModel ? [`Selected model: ${task.upstreamModel}`] : []),
           `Status: ${status}`,
-          ...(task.progress ? [`Progress: ${task.progress}%`] : []),
+          ...(task.progress != null ? [`Progress: ${task.progress}%`] : []),
           ...(resultUrls.length > 0 ? [`Results:\n${resultLines.join('\n')}`] : []),
           ...(task.errorMessage ? [`Error: ${task.errorMessage}`] : []),
         ];
@@ -6571,11 +6413,9 @@ if (!gotTheLock) {
           status,
           ...(pollCount > 1 ? { pollCount } : {}),
           model: outputModel,
-          ...(upstreamModel ? { upstreamModel } : {}),
-          ...(modelSelectionReason ? { modelSelectionReason } : {}),
+          ...(task.upstreamModel ? { upstreamModel: task.upstreamModel } : {}),
           mediaType: statusMediaType,
           ...(detailsAssets.length > 0 ? { assets: detailsAssets } : {}),
-          ...(task.quotaRemaining != null ? { billing: { quotaRemaining: task.quotaRemaining } } : {}),
         };
         if (sessionId) {
           emitMediaStatusPollUpdate({
@@ -6602,20 +6442,24 @@ if (!gotTheLock) {
         if (!canAccessTrackedMediaTask(taskOwnerAccountKey, requestAccountScope)) {
           return staleAccountResult();
         }
-        console.log(`[MediaGeneration] cancelling video task ${taskId}.`);
-        const resp = await fetchWithAuth(`${serverBaseUrl}/api/media/videos/tasks/${taskId}/cancel`, { method: 'POST' });
-        console.log(`[MediaGeneration] server returned HTTP ${resp.status} for video task cancel.`);
-        const body = await resp.json() as { code: number; message?: string };
-        if (!isRequestAccountCurrent()) return staleAccountResult();
-        if (handleEnterpriseAccountContextMismatch(body.code, requestAccountScope)) {
+        const cancelProvider = getVideoMediaProvider();
+        const cancelTarget = resolveMediaTaskTarget(getStore(), taskId);
+        if (!cancelProvider?.cancel || !cancelTarget) {
           return {
-            content: [{ type: 'text', text: t('enterpriseAccountContextMismatchMessage') }],
+            content: [{ type: 'text', text: `Task "${taskId}" is not tracked by a local media provider.` }],
             isError: true,
+            details: { status: 'failed', warnings: ['MEDIA_TASK_UNKNOWN'] },
           };
         }
-        if (body.code !== 0) {
-          console.warn('[MediaGeneration] server rejected task cancel request:', serializeForLog({ taskId, code: body.code, message: body.message }));
-          return { content: [{ type: 'text', text: body.message || 'Failed to cancel task.' }], isError: true };
+        console.log(`[MediaGeneration] cancelling local video task ${taskId}.`);
+        const cancelResult = await cancelProvider.cancel(taskId, cancelTarget);
+        if (!isRequestAccountCurrent()) return staleAccountResult();
+        if (!cancelResult.cancelled) {
+          return {
+            content: [{ type: 'text', text: cancelResult.errorMessage || 'Failed to cancel task.' }],
+            isError: true,
+            details: { taskId, status: 'failed' },
+          };
         }
         return {
           content: [{ type: 'text', text: `Task ${taskId} cancelled successfully.` }],
@@ -6625,50 +6469,9 @@ if (!gotTheLock) {
 
       // action === 'generate'
       const mediaType = tool === MediaGenerationTool.Image ? 'image' : 'video';
-      const endpoint = mediaType === 'image' ? '/api/media/images/generate' : '/api/media/videos/generate';
 
-      // Video generation confirmation: inform user about cost and duration
-      if (mediaType === 'video') {
-        const durationSec = typeof args.durationSeconds === 'number' ? args.durationSeconds : null;
-        const costPoints = durationSec ? durationSec * 100 : null;
-        const portalTasksUrl = getPortalTasksUrl();
-        const subtitle = costPoints
-          ? `本次生成大约预计消耗 **${costPoints}** 积分`
-          : '费用约为 **100** 积分/秒';
-        const questionText = [
-          '请确认当前描述无误，提交后将无法取消。',
-          '视频生成任务耗时较长，请耐心等待。',
-          '',
-          `生成后请妥善保存视频，若误删可在[「个人主页-用量详情-生成任务」](${portalTasksUrl})中下载`,
-          '~~（链接有时效性，请尽快下载）~~',
-        ].join('\n');
-        const confirmResponse = await getMcpRuntime().askUserInternal(
-          [{
-            question: questionText,
-            title: '确认生成视频？',
-            subtitle,
-            options: [
-              { label: '确认生成', description: '开始视频生成任务' },
-              { label: '取消', description: '暂不生成' },
-            ],
-          }],
-          undefined,
-          { sessionKey: request.context.sessionKey },
-        );
-
-        const userCancelled = confirmResponse?.behavior === 'deny'
-          || confirmResponse?.answers?.[questionText] === '取消';
-
-        if (!isRequestAccountCurrent()) return staleAccountResult();
-        if (userCancelled) {
-          console.log('[MediaGeneration] user cancelled video generation confirmation.');
-          return {
-            content: [{ type: 'text', text: 'Video generation cancelled by user.' }],
-            isError: true,
-            details: { status: 'cancelled', reason: 'USER_CANCELLED' },
-          };
-        }
-      }
+      // The former server-side cost confirmation is gone: local providers are
+      // billed by the user's own account, so the app cannot estimate points.
 
       let params: Record<string, unknown> = {};
       if (args.image) {
@@ -6869,262 +6672,111 @@ if (!gotTheLock) {
         };
       }
 
-      const inferVideoGenerationType = (): string => {
-        const normalizedModel = selectedModel.toLowerCase();
-        if (normalizedModel.includes('happyhorse-1.1-r2v')) return 'r2v';
-        if (normalizedModel.includes('happyhorse-1.1-t2v')) return 't2v';
-        if (normalizedModel.includes('happyhorse-1.1-i2v')) return 'i2v';
-        if (normalizedModel.includes('happyhorse-1.0-r2v')) return 'r2v';
-        if (normalizedModel.includes('happyhorse-1.0-t2v')) return 't2v';
-        if (normalizedModel.includes('happyhorse-1.0-i2v')) return 'i2v';
+      // Video generation also runs locally against the user's own provider.
+      const videoProvider = getVideoMediaProvider();
+      if (!videoProvider) {
+        return {
+          content: [{ type: 'text', text: t('mediaVideoProviderNotConfigured') }],
+          isError: true,
+          details: { status: 'failed', warnings: ['MEDIA_VIDEO_PROVIDER_NOT_CONFIGURED'] },
+        };
+      }
+      const videoTarget = videoProvider.resolver.resolveTarget(selectedModel);
+      if (!videoTarget) {
+        const known = videoProvider.resolver.listModels();
+        const hint = known.length > 0
+          ? `Available video models: ${known.map(m => `"${m.modelId}"`).join(', ')}.`
+          : 'No video model has been configured in Settings.';
+        return {
+          content: [{ type: 'text', text: `Video model "${selectedModel}" is not configured for local generation. ${hint}` }],
+          isError: true,
+          details: { status: 'failed', warnings: ['MEDIA_VIDEO_MODEL_UNKNOWN'] },
+        };
+      }
 
-        const imageRoles = Array.isArray(params.imageRoles)
-          ? (params.imageRoles as unknown[]).map(role => String(role).toLowerCase())
-          : [];
-        const mediaItems = Array.isArray(params.media) ? params.media as unknown[] : [];
-        const mediaTypes = mediaItems
-          .filter(item => item && typeof item === 'object' && !Array.isArray(item))
-          .map(item => String((item as Record<string, unknown>).type || '').toLowerCase());
-        const hasReferenceImage = (Array.isArray(params.referenceImages) && (params.referenceImages as unknown[]).length > 0)
-          || imageRoles.some(role => role === 'reference_image' || role === 'reference')
-          || mediaTypes.some(type => type === 'reference_image');
-        if (hasReferenceImage) return 'r2v';
-
-        const hasFirstFrame = typeof params.firstFrame === 'string'
-          || imageRoles.some(role => role === 'first_frame' || role === 'firstframe')
-          || mediaTypes.some(type => type === 'first_frame')
-          || (Array.isArray(params.images) && (params.images as unknown[]).length > 0);
-        return hasFirstFrame ? 'i2v' : 't2v';
-      };
-
-      const happyHorse11Selection = mediaType === 'video'
-        ? resolveHappyHorse11Selection(selectedModel, params)
-        : null;
-      const generateReq = {
-        model: selectedModel,
-        type: mediaType === 'video'
-          ? (happyHorse11Selection?.type ?? inferVideoGenerationType())
-          : mediaType,
-        prompt,
-        params,
-      };
-
-      console.log('[MediaGeneration] sending generate request to server:', serializeForLog({
-        endpoint,
-        mediaType,
-        selectedModel,
+      console.log('[MediaGeneration] sending video generate request to local provider:', serializeForLog({
+        providerKey: videoTarget.providerKey,
+        model: videoTarget.modelId,
         selectedModelSource,
-        ...(happyHorse11Selection ? {
-          upstreamModel: happyHorse11Selection.upstreamModel,
-          modelSelectionReason: happyHorse11Selection.reason,
-          inputImageCount: happyHorse11Selection.imageCount,
-        } : {}),
         promptLength: prompt.length,
         promptPreview: prompt.slice(0, 120),
         params: summarizeMediaGenerationParamsForLog(params),
       }));
-      if (!isRequestAccountCurrent()) return staleAccountResult();
-      const idempotencyKey = crypto.randomUUID();
-      const resp = await fetchWithAuth(`${serverBaseUrl}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Idempotency-Key': idempotencyKey,
-        },
-        body: JSON.stringify(generateReq),
-      });
-      console.log(`[MediaGeneration] server returned HTTP ${resp.status} for ${mediaType} generate request.`);
-      const body = await resp.json() as { code: number; data?: Record<string, unknown>; message?: string };
-      if (!isRequestAccountCurrent()) return staleAccountResult();
-      if (handleEnterpriseAccountContextMismatch(body.code, requestAccountScope)) {
-        return {
-          content: [{ type: 'text', text: t('enterpriseAccountContextMismatchMessage') }],
-          isError: true,
-          details: {
-            status: 'failed',
-            warnings: ['ENTERPRISE_ACCOUNT_CONTEXT_MISMATCH'],
-          },
-        };
-      }
 
-      const enterpriseQuotaError = resolveEnterpriseQuotaError(body.code, body.message);
-      if (enterpriseQuotaError) {
-        console.warn('[MediaGeneration] server rejected generate request because enterprise quota is unavailable:', serializeForLog({
-          mediaType,
-          selectedModel,
-          code: enterpriseQuotaError.code,
-          reason: enterpriseQuotaError.reason,
-          message: body.message,
-        }));
-        notifyAuthQuotaChanged();
-        const message = body.message?.trim() || t('enterpriseMediaQuotaUnavailable');
-        return {
-          content: [{
-            type: 'text',
-            text: `${message} (error ${enterpriseQuotaError.code})`,
-          }],
-          isError: true,
-          details: {
-            status: 'failed',
-            [EnterpriseQuotaMessageMetadataKey.ErrorCode]: enterpriseQuotaError.code,
-            [EnterpriseQuotaMessageMetadataKey.Reason]: enterpriseQuotaError.reason,
-            warnings: [enterpriseQuotaError.reason],
-          },
-        };
-      }
-      if (body.code === 40203) {
-        console.warn('[MediaGeneration] server rejected generate request because subscription is required.');
-        return {
-          content: [{ type: 'text', text: 'Media generation requires an active subscription. Please subscribe to use this feature.' }],
-          isError: true,
-          details: { status: 'failed', warnings: ['MEDIA_SUBSCRIPTION_REQUIRED'] },
-        };
-      }
-      if (body.code === 40204) {
-        console.warn('[MediaGeneration] server rejected generate request because quota was exhausted.');
-        return {
-          content: [{ type: 'text', text: 'Media generation quota exhausted for this period. Please wait for quota reset or upgrade your plan.' }],
-          isError: true,
-          details: { status: 'failed', warnings: ['MEDIA_QUOTA_EXHAUSTED'] },
-        };
-      }
-      if (body.code !== 0) {
-        console.warn('[MediaGeneration] server rejected generate request:', serializeForLog({ mediaType, selectedModel, code: body.code, message: body.message }));
-        return {
-          content: [{ type: 'text', text: body.message || 'Media generation request failed.' }],
-          isError: true,
-          details: { status: 'failed', warnings: [body.message || 'Unknown error'] },
-        };
-      }
+      // MiniMax rejects duplicate concurrent submissions, so a caller-provided
+      // marker is only used for logging; no server-side dedup exists locally.
+      const output = await videoProvider.generate({ target: videoTarget, prompt, params });
+      if (!isRequestAccountCurrent()) return staleAccountResult();
 
-      const task = body.data!;
-      rememberMediaTaskOwnership(
-        requestAccountScope.ownerAccountKey,
-        task.taskId,
-        task.upstreamTaskId,
-      );
-      const status = task.status as string;
-      const resultUrls = (task.resultUrls as string[]) || [];
-      const outputModel = mediaModelIdForOutput(task.model, selectedModel);
-      const upstreamModel = typeof task.upstreamModel === 'string' && task.upstreamModel.trim()
-        ? task.upstreamModel.trim()
-        : happyHorse11Selection?.upstreamModel;
-      const modelSelectionReason = typeof task.modelSelectionReason === 'string' && task.modelSelectionReason.trim()
-        ? task.modelSelectionReason.trim()
-        : happyHorse11Selection?.reason;
-      console.log('[MediaGeneration] server accepted generate request:', serializeForLog({
-        mediaType,
-        taskId: task.taskId,
-        status,
-        model: outputModel,
-        upstreamModel,
-        modelSelectionReason,
-        resultCount: resultUrls.length,
-        quotaRemaining: task.quotaRemaining,
-      }));
-      const assets = resultUrls.map((url, outputIndex) => ({
+      const outputModel = mediaModelIdForOutput(output.model, videoTarget.modelId);
+      const isTerminal = TERMINAL_MEDIA_TASK_STATUSES.has(output.status);
+      const videoAssets = output.resultUrls.map((url, outputIndex) => ({
         type: mediaType,
         url,
         outputIndex,
         mimeType: resolveGeneratedMediaAssetMimeType(mediaType, url),
         ...(args.filename ? { filename: args.filename as string } : {}),
       }));
-      let detailsAssets: unknown[] = assets;
 
-      const billing: Record<string, unknown> = {};
-      if (task.quotaRemaining != null) billing.quotaRemaining = task.quotaRemaining;
-      if (mediaType === 'image') {
-        if (args.count) billing.frozenImages = args.count;
-        else if (args.n) billing.frozenImages = args.n;
-      } else {
-        if (args.durationSeconds) billing.frozenVideoSeconds = args.durationSeconds;
-      }
-
-      const lines = [
-        `${mediaType === 'image' ? 'Image' : 'Video'} generation task created.`,
-        `Task ID: ${task.upstreamTaskId || task.taskId}`,
+      let videoDetailsAssets: unknown[] = videoAssets;
+      const videoLines = [
+        'Video generation task created.',
+        `Task ID: ${output.taskId}`,
         `Model: ${outputModel}`,
-        ...(upstreamModel ? [`Selected model: ${upstreamModel}`] : []),
-        ...(modelSelectionReason ? [`Selection reason: ${modelSelectionReason}`] : []),
-        `Status: ${status}`,
-        ...(task.quotaRemaining != null ? [`Quota remaining: ${task.quotaRemaining}`] : []),
+        `Status: ${output.status}`,
       ];
 
-      if (status === 'succeeded' && mediaType === 'image' && sessionId) {
-        const persistResult = await persistGeneratedImages(sessionId, assets);
+      if (output.status === MediaTaskStatus.Succeeded && sessionId) {
+        const persistResult = await persistGeneratedVideos(sessionId, videoAssets);
         if (!isRequestAccountCurrent()) return staleAccountResult();
         if (persistResult && persistResult.saved.length > 0) {
-          detailsAssets = persistResult.saved;
+          videoDetailsAssets = persistResult.saved;
           const fileLines = persistResult.saved.map(asset =>
             `  - [${asset.filename}](${pathToFileURL(asset.filePath).toString()})`
           );
-          lines.push(`Results:\n${fileLines.join('\n')}`);
-        } else if (assets.length > 0) {
-          const resultLines = resultUrls.map((url, index) => `  - ![Generated image ${index + 1}](${url})`);
-          lines.push(`Results:\n${resultLines.join('\n')}`);
+          videoLines.push(`Results:\n${fileLines.join('\n')}`);
+        } else if (output.resultUrls.length > 0) {
+          const resultLines = output.resultUrls.map(url => `  - ${url}`);
+          videoLines.push(`Results:\n${resultLines.join('\n')}`);
         }
-      } else if (status === 'succeeded' && mediaType === 'video' && sessionId) {
-        const persistResult = await persistGeneratedVideos(sessionId, assets);
-        if (!isRequestAccountCurrent()) return staleAccountResult();
-        if (persistResult && persistResult.saved.length > 0) {
-          detailsAssets = persistResult.saved;
-          const fileLines = persistResult.saved.map(asset =>
-            `  - [${asset.filename}](${pathToFileURL(asset.filePath).toString()})`
-          );
-          lines.push(`Results:\n${fileLines.join('\n')}`);
-        } else if (assets.length > 0) {
-          const resultLines = resultUrls.map(url => `  - ${url}`);
-          lines.push(`Results:\n${resultLines.join('\n')}`);
-        }
-      } else if (status === 'succeeded' && assets.length > 0) {
-        const resultLines = resultUrls.map(url => `  - ${url}`);
-        lines.push(`Results:\n${resultLines.join('\n')}`);
+      } else if (output.resultUrls.length > 0) {
+        const resultLines = output.resultUrls.map(url => `  - ${url}`);
+        videoLines.push(`Results:\n${resultLines.join('\n')}`);
+      }
+      if (output.errorMessage) {
+        videoLines.push(`Error: ${output.errorMessage}`);
       }
 
-      // Register async media tasks for background polling if not already completed.
-      if (status !== 'succeeded' && status !== 'failed' && status !== 'cancelled') {
-        if (sessionId && requestAccountScope && isRequestAccountCurrent()) {
-          const metadata = task.metadata as Record<string, unknown> | undefined;
-          const expiresAfterSec = metadata?.execution_expires_after ?? task.execution_expires_after;
-          const timeoutMs = typeof expiresAfterSec === 'number' && expiresAfterSec > 0
-            ? expiresAfterSec * 1000
-            : MEDIA_TASK_DEFAULT_TIMEOUT_MS;
-          registerMediaTaskForPolling({
-            taskId: String(task.taskId),
-            sessionId,
-            mediaType,
-            model: upstreamModel || outputModel,
-            ownerAccountKey: requestAccountScope.ownerAccountKey,
-            accountGeneration: requestAccountScope.accountGeneration,
-            startedAt: Date.now(),
-            pollCount: 0,
-            timeoutMs,
-          });
-        }
-      }
-
-      if (!isRequestAccountCurrent()) return staleAccountResult();
-      return {
-        content: [{ type: 'text', text: lines.join('\n') }],
-        details: {
-          taskId: String(task.taskId),
-          ...(task.upstreamTaskId ? { upstreamTaskId: String(task.upstreamTaskId) } : {}),
-          status,
-          model: outputModel,
-          ...(upstreamModel ? { upstreamModel } : {}),
-          ...(modelSelectionReason ? { modelSelectionReason } : {}),
+      // Poll in the background until the task reaches a terminal state.
+      if (!isTerminal && sessionId && requestAccountScope && isRequestAccountCurrent()) {
+        registerMediaTaskForPolling({
+          taskId: output.taskId,
+          sessionId,
           mediaType,
-          ...(detailsAssets.length > 0 ? { assets: detailsAssets } : {}),
-          ...(Object.keys(billing).length > 0 ? { billing } : {}),
+          model: output.upstreamModel || outputModel,
+          ownerAccountKey: requestAccountScope.ownerAccountKey,
+          accountGeneration: requestAccountScope.accountGeneration,
+          startedAt: Date.now(),
+          pollCount: 0,
+          timeoutMs: MEDIA_TASK_DEFAULT_TIMEOUT_MS,
+        });
+      }
+
+      return {
+        content: [{ type: 'text', text: videoLines.join('\n') }],
+        details: {
+          taskId: output.taskId,
+          ...(output.upstreamTaskId ? { upstreamTaskId: output.upstreamTaskId } : {}),
+          status: output.status,
+          model: outputModel,
+          ...(output.upstreamModel ? { upstreamModel: output.upstreamModel } : {}),
+          mediaType,
+          ...(videoDetailsAssets.length > 0 ? { assets: videoDetailsAssets } : {}),
         },
       };
     } catch (error) {
       if (!isRequestAccountCurrent()) return staleAccountResult();
       const msg = error instanceof Error ? error.message : String(error);
-      if (msg === 'No auth tokens') {
-        console.warn('[MediaGeneration] blocked media generation because the user is not logged in.');
-        return { content: [{ type: 'text', text: t('authLoginRequired') }], isError: true };
-      }
       console.error('[MediaGeneration] media generation request failed:', error);
       return { content: [{ type: 'text', text: `Media generation error: ${msg}` }], isError: true };
     }

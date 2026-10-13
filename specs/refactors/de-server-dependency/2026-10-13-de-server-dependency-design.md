@@ -51,10 +51,10 @@ LobsterAI 当前是一个"本地 agent 内核 + 商业服务端外壳"的结构�
 | 功能组 | 接口 | 位置 | 去服务端化处置 |
 | --- | --- | --- | --- |
 | 登录/鉴权 | `/api/auth/exchange`、`/refresh`、`/logout` | `src/main/main.ts:7606,5846,8065` | 移除 |
-| 媒体模型 | `GET /api/media/{images\|videos}/models` | `src/main/main.ts:6396,8908` | **替换为本地 provider** |
-| 媒体生成 | `POST /api/media/{images\|videos}/generate` | `src/main/main.ts:6602` | **替换为本地 provider**（图片走 OpenAI 兼容生图协议；视频走 MiniMax 视频适配器，已定） |
-| 媒体轮询 | `GET /api/media/{images\|videos}/tasks/{id}` | `src/main/main.ts:6455,7114,8952` | **替换** |
-| 媒体取消 | `POST /api/media/videos/tasks/{id}/cancel` | `src/main/main.ts:6580,11117` | **替换** |
+| 媒体模型 | `GET /api/media/{images\|videos}/models` | `src/main/main.ts:6396,8908` | **替换为本地 provider**（工具侧已替换；IPC 侧 `:8657` 待第 4 轮） |
+| 媒体生成 | `POST /api/media/{images\|videos}/generate` | `src/main/main.ts:6602` | **已替换为本地 provider**（图片走 OpenAI 兼容生图协议；视频走 MiniMax 三步异步协议） |
+| 媒体轮询 | `GET /api/media/{images\|videos}/tasks/{id}` | `src/main/main.ts:6455,7114,8952` | **已完成**（工具侧走适配层 + `taskRegistry` 反查；IPC 侧 `:8697` 待第 4 轮） |
+| 媒体取消 | `POST /api/media/videos/tasks/{id}/cancel` | `src/main/main.ts:6580,11117` | **已完成**（工具侧 `cancel` 局部化；IPC 侧 `:10879` 待第 4 轮） |
 | ASR 实时 | `POST /api/asr/realtime/sessions` | `src/main/ipcHandlers/asr/handlers.ts:66` | **替换为 SenseVoice** |
 | 订阅/配额 | `/api/user/quota`、`/profile`、`/models/pricing-catalog` 等 | `src/main/main.ts:7786,7860,7896,8104` | 移除 |
 | 企业账号 | `/api/enterprise/context`、`/identities`、`/quota-requests` | `src/main/enterpriseAccount/context.ts:280,369,442` | 移除 |
@@ -136,10 +136,10 @@ CoworkPromptInput（语音按钮）
 
 ### FR-2：媒体生成接第三方 API provider
 
-- **FR-2.1（修订）** **保留** `lobster-media-generation` 插件（工具名与 schema 不变，皮肤包与会话生图无感）；**后端改由主进程直连本地 provider**。插件仍走 callback 回主进程，`handleMediaGenerationCallback`（`main.ts:6309`）内部从"转发服务端"改为"调本地 provider 适配层"。`action=status` 在本地分支直接返回终态（本地同步调用，无异步任务）。
+- **FR-2.1（修订）** **保留** `lobster-media-generation` 插件（工具名与 schema 不变，皮肤包与会话生图无感）；**后端改由主进程直连本地 provider**。插件仍走 callback 回主进程，`handleMediaGenerationCallback`（`main.ts:6309`）内部从"转发服务端"改为"调本地 provider 适配层"。`action=status` 分两类：**图片**为本地同步调用，直接返回终态；**视频**通过 `taskRegistry` 反查 target 后轮询 MiniMax。
 - **FR-2.2（修订，方案 A1：独立 kv key）** 媒体模型配置**不复用** `app_config.providers`（该结构被 `claudeSettings`、`openclawConfigSync`、`coworkOpenAICompatProxy` 等聊天链路消费，且其 `models[]` 只有 `supportsImage`/`supportsVideo`（语义为"能读图/读视频"的多模态文本模型），**没有** `category` 字段，塞入媒体配置会污染聊天链路）。改为**新增独立 kv key `mediaProviders`**，结构为 `{ image: MediaProviderEntry[], video: MediaProviderEntry[] }`，每条含 `key / displayName / baseUrl / apiKey / modelId / capabilities?`。清单**完全由用户手填配置推导**，无网络依赖、无内置预设；老配置不迁移（旧配置中本无媒体模型）。存储实现见 `src/main/libs/mediaProvider/store.ts`。
-- **FR-2.2a（UI，顺延）** 设置页"媒体模型"分组（图片 / 视频两个 tab，各支持增删改）**第 2 轮不做**，留下一轮。本轮仅落存储与适配层；无 UI 时 `action=list` 返回空列表并提示用户去设置中添加。
-- **FR-2.3（修订）** 视频生成 provider 定为 **MiniMax**（已确认）：用户手填 MiniMax API（`https://api.minimax.cn/v1`，视频接口非 OpenAI 兼容，需在主进程适配层单独实现 MiniMax 视频协议适配器）。图片生成 provider 适配 OpenAI 兼容生图协议（`/images/generations`、`/images/edits`）。**三步异步协议详见 10.5 D5**。视频适配器**第 2 轮不做**（本轮仅图片），下一轮实现。
+- **FR-2.2a（UI，顺延）** 设置页"媒体模型"分组（图片 / 视频两个 tab，各支持增删改）**本轮不做**，留下一轮。本轮落存储、适配层与完整工具链路；无 UI 时 `action=list` 返回空列表并提示用户去设置中添加。
+- **FR-2.3（修订）** 视频生成 provider 定为 **MiniMax**（已确认）：用户手填 MiniMax API（`https://api.minimax.cn/v1`，视频接口非 OpenAI 兼容，主进程适配层单独实现 MiniMax 视频协议）。图片生成 provider 适配 OpenAI 兼容生图协议（`/images/generations`、`/images/edits`）。**三步异步协议详见 10.5 D5**。两者**均已落地**，见 `openaiCompatImage.ts` / `minimaxVideo.ts`。
 - **FR-2.4** **撤销积分估算**：移除 `MediaModelPicker.tsx:310-404` 的积分单价估算与 `CLIENT_ESTIMATE_CONFIGS`（`:256-287`）。
 - **FR-2.5（已决，降级）** **不显示 token 消耗**：媒体生成链路无用量字段（见 10.5 D4），`details.billing` 一并移除。
 - **FR-2.6** 移除媒体生成的 entitlement 门控（`mediaGenerationEntitled` 相关判断）。
@@ -200,15 +200,17 @@ CoworkPromptInput（语音按钮）
 
 ### 4.3 FR-2 实现要点
 
-1. **插件保留（已决）**：`lobster-media-generation` 不禁用、不改代码；`handleMediaGenerationCallback`（`main.ts:6309`）内部把服务端 HTTP 逐段替换为本地 provider 适配层。
-   - **第 2 轮已落地**：`action=list` 的 image 分支、`action=generate` 的 image 分支。
-   - **第 2 轮未动**：`action=list` 的 video 分支、`action=generate` 的 video 分支、`action=status`、`action=cancel`（仍走服务端），下一轮迁移。
-2. **主进程媒体适配层**（`src/main/libs/mediaProvider/`，**第 2 轮已落地**）：
-   - `types.ts`：`MediaProvider` / `MediaProviderResolver` / `MediaProviderEntry` 契约与 `MediaProviderError`。
+1. **插件保留（已决）**：`lobster-media-generation` 不禁用、不改代码；`handleMediaGenerationCallback`（`main.ts:6309`）内部的服务端 HTTP **已全部替换**为本地 provider 适配层。
+   - **已落地**：`action=list`（图片+视频）、`action=generate`（图片+视频）、`action=status`、`action=cancel`（视频）。
+   - **同时删除**：服务端积分确认弹窗、`HappyHorse` 服务端子模型分派（`resolveHappyHorse11Selection` 等 103 行死代码）。
+   - **仍有残留**：`CoworkIpcChannel.GetMediaModels`（`main.ts:8657`）与 `media:getTaskStatus`（`:8697`）、视频取消 IPC（`~10879`）——这些是**渲染进程直连路径**，随第 4 步"前端选择器"一并迁移。
+2. **主进程媒体适配层**（`src/main/libs/mediaProvider/`，**已落地**）：
+   - `types.ts`：`MediaProvider` / `MediaProviderResolver` 契约与 `MediaProviderError`。
    - `store.ts`：独立 kv key `mediaProviders` 的读写与容错（缺失/畸形配置降级为空列表，不抛错）。
-   - `openaiCompatImage.ts`：OpenAI 兼容生图适配器（有参考图走 `/images/edits`，否则 `/images/generations`；同步返回，`status` 抛 `MEDIA_PROVIDER_TASK_NOT_FOUND`）。
-   - `index.ts`：注册表 `initMediaProviders` / `getImageMediaProvider`。
-   - 视频：**MiniMax 视频协议适配器**（任务式：创建任务 → 轮询状态 → 取回视频 URL）**下一轮实现**。
+   - `taskRegistry.ts`：taskId → provider target 的持久映射（24h TTL），供 `action=status`/`cancel` 反查凭据；app 重启后仍可续查。
+   - `openaiCompatImage.ts`：OpenAI 兼容生图适配器（有参考图走 `/images/edits`，否则 `/images/generations`；同步返回）。
+   - `minimaxVideo.ts`：MiniMax 三步异步协议适配器（创建 → 轮询 → 取回下载 URL），`base_resp.status_code !== 0` 视为失败；`cancel` 仅解除本地跟踪（MiniMax 无取消端点）。
+   - `index.ts`：注册表 `initMediaProviders` / `getImageMediaProvider` / `getVideoMediaProvider`。
 3. **配置落点（方案 A1）**：独立 kv key `mediaProviders`，**不碰** `app_config.providers`。原因：`ProviderConfig.models[]` 无 `category` 字段，且其 `supportsImage`/`supportsVideo` 语义是"多模态文本模型能读图/读视频"，与"能生成图片"无关；该结构另被聊天链路广泛消费。设置页 UI（图片/视频两个 tab 的手填表单）**下一轮**。
 4. **前端选择器**：`MediaModelPicker.tsx` 数据源从 `window.electron.media.getModels`（`main.ts:8895-8933`）改为读本地媒体模型；积分估算 `CLIENT_ESTIMATE_CONFIGS`（`:256-287`）与估算逻辑（`:310-404`）删除。**下一轮**。
 5. **移除媒体 entitlement 门控**（FR-2.6）后，`mediaAccess.ts` 的 fail-closed 分支一并废弃。
