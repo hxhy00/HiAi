@@ -1768,18 +1768,6 @@ function classifyOpenClawSafeRuntimeErrorMetadata(
   return null;
 }
 
-function isLobsterAILoginExpiredMetadata(
-  metadata: OpenClawSafeRuntimeErrorMetadata | undefined,
-): boolean {
-  if (metadata?.provider?.trim() !== ProviderName.LobsteraiServer) return false;
-  if (metadata.httpCode?.trim() === '403') return false;
-  if (metadata.providerRuntimeFailureKind?.trim() === 'auth_scope') return false;
-  return metadata.httpCode?.trim() === '401'
-    || metadata.failoverReason?.trim() === 'auth'
-    || metadata.providerRuntimeFailureKind?.trim() === 'auth_refresh'
-    || metadata.providerRuntimeFailureKind?.trim() === 'auth_invalid_token';
-}
-
 const DEFAULT_LOBSTERAI_SERVER_HOST = 'lobsterai-server.youdao.com';
 
 /** Host users must route directly in their proxy app to reach the LobsterAI plan service. */
@@ -1857,15 +1845,6 @@ export function resolveOpenClawRuntimeError(
   }
 
   if (classifiedKey) {
-    if (
-      isLobsterAILoginExpiredMetadata(metadata)
-      && (
-        classifiedKey === CoworkErrorI18nKey.AuthInvalid
-        || classifiedKey === CoworkErrorI18nKey.OAuthInvalid
-      )
-    ) {
-      return buildResolvedRuntimeError(t(CoworkErrorI18nKey.LobsterAILoginExpired));
-    }
     if (classifiedKey === CoworkErrorI18nKey.QuotaExhausted) {
       const recentQuotaError = consumeRecentOpenClawTokenProxyQuotaError();
       const enterpriseQuotaError = resolveEnterpriseQuotaError(
@@ -1892,10 +1871,6 @@ export function resolveOpenClawRuntimeError(
   }
 
   if (isOpenClawGenericLlmRequestFailed(normalized)) {
-    if (isLobsterAILoginExpiredMetadata(metadata)) {
-      consumeRecentOpenClawTokenProxyQuotaError();
-      return buildResolvedRuntimeError(t(CoworkErrorI18nKey.LobsterAILoginExpired));
-    }
     if (metadataClassifiedKey) {
       const recentQuotaError = consumeRecentOpenClawTokenProxyQuotaError();
       if (metadataClassifiedKey === CoworkErrorI18nKey.QuotaExhausted) {

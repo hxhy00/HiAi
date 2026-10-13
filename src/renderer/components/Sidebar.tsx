@@ -37,10 +37,6 @@ import SidebarLibraryIcon from './icons/SidebarLibraryIcon';
 import SidebarToggleIcon from './icons/SidebarToggleIcon';
 import SkillIcon from './icons/SkillIcon';
 import TrashIcon from './icons/TrashIcon';
-import LoginButton from './LoginButton';
-import LowCreditPurchaseOfferCard from './LowCreditPurchaseOfferCard';
-import SidebarExperienceSlot from './SidebarExperienceSlot';
-import { useSidebarPurchaseGuide } from './useSidebarPurchaseGuide';
 
 interface SidebarProps {
   onShowSettings: () => void;
@@ -71,77 +67,6 @@ const DEFAULT_SIDEBAR_WIDTH = 260;
 const MIN_SIDEBAR_WIDTH = 220;
 const MAX_SIDEBAR_WIDTH = 420;
 const SIDEBAR_COLLAPSE_TRANSITION_MS = 200;
-const SIDEBAR_LOGIN_PROMO_TIP_DURATION_MS = 5000;
-const SIDEBAR_LOGIN_PROMO_TIP_FADE_MS = 220;
-
-const SidebarPromoStar: React.FC<{ className?: string; idPrefix: string }> = ({
-  className,
-  idPrefix,
-}) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    aria-hidden="true"
-    focusable="false"
-  >
-    <defs>
-      <filter id={`${idPrefix}-soft-shadow`} x="-45%" y="-45%" width="190%" height="190%">
-        <feDropShadow dx="0" dy="2.5" stdDeviation="2.2" floodColor="#ffb300" floodOpacity="0.42" />
-      </filter>
-      <radialGradient id={`${idPrefix}-glow`} cx="54%" cy="58%" r="52%">
-        <stop offset="0%" stopColor="#fff070" stopOpacity="0.95" />
-        <stop offset="100%" stopColor="#ffc400" stopOpacity="0" />
-      </radialGradient>
-      <radialGradient id={`${idPrefix}-fill`} cx="31%" cy="25%" r="78%">
-        <stop offset="0%" stopColor="#fffbd1" />
-        <stop offset="26%" stopColor="#fff26b" />
-        <stop offset="62%" stopColor="#ffd51c" />
-        <stop offset="100%" stopColor="#ffae00" />
-      </radialGradient>
-      <radialGradient id={`${idPrefix}-shine`} cx="31%" cy="24%" r="42%">
-        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
-        <stop offset="46%" stopColor="#fff8a8" stopOpacity="0.55" />
-        <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-      </radialGradient>
-      <radialGradient id={`${idPrefix}-lower-shade`} cx="72%" cy="78%" r="62%">
-        <stop offset="0%" stopColor="#f19a00" stopOpacity="0.46" />
-        <stop offset="58%" stopColor="#f7ae00" stopOpacity="0.18" />
-        <stop offset="100%" stopColor="#ffd92e" stopOpacity="0" />
-      </radialGradient>
-      <linearGradient id={`${idPrefix}-rim`} x1="5" y1="4" x2="18" y2="20">
-        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.68" />
-        <stop offset="44%" stopColor="#fff5a3" stopOpacity="0.2" />
-        <stop offset="100%" stopColor="#ffb000" stopOpacity="0" />
-      </linearGradient>
-    </defs>
-    <path
-      d="M12 1.1c1.42 5.5 4.9 9.02 10.9 10.9-6 1.88-9.48 5.4-10.9 10.9C10.58 17.4 7.1 13.88 1.1 12 7.1 10.12 10.58 6.6 12 1.1Z"
-      fill={`url(#${idPrefix}-glow)`}
-      opacity="0.7"
-      transform="scale(1.1 1.08) translate(-1.1 -0.95)"
-    />
-    <path
-      d="M12 1.35c1.36 5.3 4.76 8.7 10.65 10.65C16.76 13.95 13.36 17.35 12 22.65 10.64 17.35 7.24 13.95 1.35 12 7.24 10.05 10.64 6.65 12 1.35Z"
-      fill={`url(#${idPrefix}-fill)`}
-      filter={`url(#${idPrefix}-soft-shadow)`}
-    />
-    <path
-      d="M12 1.35c1.36 5.3 4.76 8.7 10.65 10.65C16.76 13.95 13.36 17.35 12 22.65 10.64 17.35 7.24 13.95 1.35 12 7.24 10.05 10.64 6.65 12 1.35Z"
-      fill={`url(#${idPrefix}-lower-shade)`}
-    />
-    <path
-      d="M10.6 4.55c.62 2.55 2.45 4.42 5.12 5.22-2.88.52-4.83 2.42-5.48 5.33-.52-2.72-2.25-4.48-4.92-5.16 2.65-.72 4.42-2.55 5.28-5.39Z"
-      fill={`url(#${idPrefix}-shine)`}
-    />
-    <path
-      d="M12 2.7c1.12 4.45 4.08 7.42 8.9 9.3-4.82 1.88-7.78 4.85-8.9 9.3-1.12-4.45-4.08-7.42-8.9-9.3 4.82-1.88 7.78-4.85 8.9-9.3Z"
-      fill="none"
-      stroke={`url(#${idPrefix}-rim)`}
-      strokeWidth="0.65"
-    />
-  </svg>
-);
 
 const normalizeAgentId = (agentId?: string | null) => agentId?.trim() || AgentId.Main;
 const SidebarNewFeatureBadge = {
@@ -257,14 +182,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onTaskFilterSummaryChange,
   onWidthChange,
   updateNotice,
-  hideAdBanner,
-  hideLogin,
-  isEngineStartupOverlayVisible = false,
 }) => {
   const currentAgentId = useSelector((state: RootState) => state.agent.currentAgentId);
   const agents = useSelector((state: RootState) => state.agent.agents);
-  const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
-  const isAuthLoading = useSelector((state: RootState) => state.auth.isLoading);
   const sessions = useSelector(selectCoworkSessions);
   const currentSessionId = useSelector(selectCurrentSessionId);
   // The home page is the "new task" view, so its nav item reads as selected there.
@@ -279,23 +199,13 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
   const [agentScrollEdges, setAgentScrollEdges] = useState({ top: false, bottom: false });
-  const [isSidebarBannerVisible, setIsSidebarBannerVisible] = useState(false);
   const [showKitsNewBadge, setShowKitsNewBadge] = useState(false);
-  const [showLoginPromoTip, setShowLoginPromoTip] = useState(true);
-  const [isLoginPromoTipFading, setIsLoginPromoTipFading] = useState(false);
   const isResizingRef = useRef(false);
   const resizeStartXRef = useRef(0);
   const resizeStartWidthRef = useRef(DEFAULT_SIDEBAR_WIDTH);
   const agentScrollContainerRef = useRef<HTMLDivElement>(null);
-  const purchaseGuide = useSidebarPurchaseGuide();
-  const canShowPurchaseGuide = !isCollapsed && !isBatchMode && !hideLogin && !isEngineStartupOverlayVisible;
-  const paymentGuideVisible = canShowPurchaseGuide && purchaseGuide.candidate !== null;
-  const paymentGuideOwnsSlot = canShowPurchaseGuide && (paymentGuideVisible || purchaseGuide.loading);
   const isWindows = window.electron.platform === 'win32';
   const showHeaderRow = !isWindows;
-  const showLoginPromo = !hideLogin && !isAuthLoading && !isLoggedIn;
-  const shouldShowLoginPromoTip = showLoginPromo && showLoginPromoTip;
-  const shouldReserveLoginPromoTipSpace = shouldShowLoginPromoTip;
   const batchSelectableKeySet = useMemo(
     () => new Set(batchSelectableItems.map((item) => item.key)),
     [batchSelectableItems],
@@ -348,49 +258,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       isCurrent = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!showLoginPromo) {
-      setShowLoginPromoTip(true);
-      setIsLoginPromoTipFading(false);
-      return undefined;
-    }
-
-    if (isEngineStartupOverlayVisible) {
-      if (showLoginPromoTip) {
-        const message = 'pausing login promo tip auto-hide while engine startup overlay is visible';
-        console.debug(`[Sidebar] ${message}`);
-        writeSidebarRendererLog('debug', message);
-        setIsLoginPromoTipFading(false);
-      }
-      return undefined;
-    }
-
-    if (!showLoginPromoTip) {
-      return undefined;
-    }
-
-    const startMessage = 'starting login promo tip auto-hide timer';
-    console.debug(`[Sidebar] ${startMessage}`);
-    writeSidebarRendererLog('debug', startMessage);
-
-    const hideTimer = window.setTimeout(() => {
-      const message = 'auto hiding login promo tip';
-      console.debug(`[Sidebar] ${message}`);
-      writeSidebarRendererLog('debug', message);
-      setIsLoginPromoTipFading(true);
-    }, SIDEBAR_LOGIN_PROMO_TIP_DURATION_MS);
-
-    const removeTimer = window.setTimeout(() => {
-      setShowLoginPromoTip(false);
-      setIsLoginPromoTipFading(false);
-    }, SIDEBAR_LOGIN_PROMO_TIP_DURATION_MS + SIDEBAR_LOGIN_PROMO_TIP_FADE_MS);
-
-    return () => {
-      window.clearTimeout(hideTimer);
-      window.clearTimeout(removeTimer);
-    };
-  }, [isEngineStartupOverlayVisible, showLoginPromo, showLoginPromoTip]);
 
   const dismissKitsNewBadge = useCallback(() => {
     if (!showKitsNewBadge) return;
@@ -817,9 +684,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="relative min-h-0 flex-1">
         <div
           ref={agentScrollContainerRef}
-          className={`scrollbar-hidden h-full overflow-y-auto px-[18px] ${
-            isSidebarBannerVisible && !isBatchMode ? 'pb-[128px]' : 'pb-10'
-          }`}
+          className="scrollbar-hidden h-full overflow-y-auto px-[18px] pb-10"
           onScroll={handleAgentScroll}
         >
           <MyAgentSidebarTree
@@ -851,12 +716,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             onBatchSelectableItemsChange={handleBatchSelectableItemsChange}
           />
         </div>
-        {!isBatchMode && (
-          <SidebarExperienceSlot
-            hidden={hideAdBanner || paymentGuideOwnsSlot}
-            onVisibleChange={setIsSidebarBannerVisible}
-          />
-        )}
         <div
           className={`pointer-events-none absolute inset-x-0 top-0 z-10 h-24 bg-gradient-to-b from-surface-raised to-transparent transition-opacity duration-150 ${
             agentScrollEdges.top ? 'opacity-100' : 'opacity-0'
@@ -881,16 +740,9 @@ const Sidebar: React.FC<SidebarProps> = ({
         currentSessionId={currentSessionId}
         onSelectSession={handleSelectSession}
       />
-      {!isBatchMode && (updateNotice || paymentGuideVisible) && (
+      {!isBatchMode && updateNotice && (
         <div className="non-draggable px-3 pt-1.5">
-          <div hidden={paymentGuideOwnsSlot}>{updateNotice}</div>
-          {paymentGuideVisible && purchaseGuide.candidate && (
-            <LowCreditPurchaseOfferCard
-              offer={purchaseGuide.candidate.offer}
-              variant={purchaseGuide.candidate.variant}
-              onClose={purchaseGuide.dismiss}
-            />
-          )}
+          <div>{updateNotice}</div>
         </div>
       )}
       {isBatchMode ? (
@@ -937,45 +789,9 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       ) : (
-        <div
-          className={`pb-2.5 transition-[padding-top] duration-200 ease-out ${
-            shouldReserveLoginPromoTipSpace ? 'pt-3.5' : 'pt-2'
-          }`}
-        >
+        <div className="pb-2.5 pt-2">
+
           <div className="flex items-end pl-3 pr-2 pt-1">
-            {!hideLogin && (
-              <div
-                className={`relative shrink-0 transition-[padding-top] duration-200 ease-out ${
-                  shouldReserveLoginPromoTipSpace ? 'pt-9' : ''
-                }`}
-              >
-                {shouldShowLoginPromoTip && (
-                  <div
-                    className={`pointer-events-none absolute left-0 top-0 z-10 inline-flex h-7 w-max max-w-[10.5rem] items-center rounded-lg rounded-bl-[3px] bg-gradient-to-r from-[#ff3f67] to-[#f6538d] pl-3 pr-8 text-[13px] font-semibold leading-none text-white shadow-[0_5px_14px_rgba(255,63,103,0.24)] transition-all duration-[220ms] ease-out ${
-                      isLoginPromoTipFading ? 'translate-y-1 opacity-0' : 'translate-y-0 opacity-100'
-                    }`}
-                    aria-hidden="true"
-                  >
-                    <span className="min-w-0 whitespace-nowrap">
-                      {i18nService.t('sidebarLoginFreeToken')}
-                    </span>
-                    <SidebarPromoStar
-                      idPrefix="sidebar-login-promo-star-small"
-                      className="absolute right-[8px] top-[2px] h-4 w-4 drop-shadow-[0_2px_5px_rgba(255,193,7,0.58)]"
-                    />
-                    <SidebarPromoStar
-                      idPrefix="sidebar-login-promo-star-large"
-                      className="absolute -bottom-[5px] -right-[7px] h-6 w-6 drop-shadow-[0_5px_10px_rgba(255,178,0,0.52)]"
-                    />
-                    <span className="absolute -bottom-1 left-8 h-2.5 w-3 rotate-45 rounded-[2px] bg-[#ff3f67]" />
-                  </div>
-                )}
-                <LoginButton
-                  contentLeftOffset={isCollapsed ? 0 : sidebarWidth}
-                  loggedOutVariant="sidebarPromo"
-                />
-              </div>
-            )}
             <div className="ml-auto flex shrink-0 items-center justify-end">
               <button
                 type="button"
