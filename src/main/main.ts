@@ -447,6 +447,10 @@ import {
 } from './libs/mainWindowLoadRecovery';
 import { inferImageMimeTypeFromDataUrl, type PersistedGeneratedImageAsset, persistGeneratedImageAssets, type PersistGeneratedImageAssetsResult, persistGeneratedVideoAssets, type RemoteGeneratedMediaAsset } from './libs/mediaAssetPersistence';
 import {
+  getImageMediaProvider,
+  initMediaProviders,
+} from './libs/mediaProvider';
+import {
   migrateAgentModelRefs,
   parsePrimaryModelRef,
   resolveQualifiedAgentModelRef,
@@ -6393,6 +6397,28 @@ if (!gotTheLock) {
     try {
       if (action === 'list') {
         const mediaType = tool === MediaGenerationTool.Image ? 'image' : 'video';
+
+        // Local image models come from the user's own media provider config;
+        // video models still come from the LobsterAI server.
+        if (mediaType === 'image') {
+          const localModels = getImageMediaProvider()?.resolver.listModels() ?? [];
+          console.log(`[MediaGeneration] loaded ${localModels.length} local image models from user config.`);
+          const localText = localModels.length > 0
+            ? `Available ${mediaType} models:\n\n${localModels.map(m => {
+                let line = `### ${m.displayName} (model: "${m.modelId}")`;
+                if (m.capabilities) line += `\n${m.capabilities}`;
+                return line;
+              }).join('\n\n')}`
+            : `No ${mediaType} models available.`;
+          let localNote = localText;
+          if (resolvedModelFromSelection) {
+            localNote += `\n\n---\n**Note:** The user has already selected model "${resolvedModelFromSelection}" for this session. You MUST use this model for the generate action. Do NOT choose a different model.`;
+          } else if (localModels.length === 0) {
+            localNote += '\n\nAsk the user to add an image model in Settings before generating images.';
+          }
+          return { content: [{ type: 'text', text: localNote }], details: { status: 'succeeded', models: localModels } };
+        }
+
         const endpoint = mediaType === 'image' ? '/api/media/images/models' : '/api/media/videos/models';
         console.log(`[MediaGeneration] listing ${mediaType} models from server.`);
         const resp = await fetchWithAuth(`${serverBaseUrl}${endpoint}`);
@@ -6760,6 +6786,89 @@ if (!gotTheLock) {
         params.media = await Promise.all((params.media as unknown[]).map(resolveMediaItem));
       }
 
+      // Image generation runs locally against the user's own configured media
+      // provider. Video generation still goes through the LobsterAI server.
+      if (mediaType === 'image') {
+        const imageProvider = getImageMediaProvider();
+        if (!imageProvider) {
+          return {
+            content: [{ type: 'text', text: t('mediaImageProviderNotConfigured') }],
+            isError: true,
+            details: { status: 'failed', warnings: ['MEDIA_IMAGE_PROVIDER_NOT_CONFIGURED'] },
+          };
+        }
+        const target = imageProvider.resolver.resolveTarget(selectedModel);
+        if (!target) {
+          const known = imageProvider.resolver.listModels();
+          const hint = known.length > 0
+            ? `Available image models: ${known.map(m => `"${m.modelId}"`).join(', ')}.`
+            : 'No image model has been configured in Settings.';
+          return {
+            content: [{ type: 'text', text: `Image model "${selectedModel}" is not configured for local generation. ${hint}` }],
+            isError: true,
+            details: { status: 'failed', warnings: ['MEDIA_IMAGE_MODEL_UNKNOWN'] },
+          };
+        }
+
+        console.log('[MediaGeneration] sending image generate request to local provider:', serializeForLog({
+          providerKey: target.providerKey,
+          model: target.modelId,
+          selectedModelSource,
+          promptLength: prompt.length,
+          promptPreview: prompt.slice(0, 120),
+          params: summarizeMediaGenerationParamsForLog(params),
+        }));
+
+        const output = await imageProvider.generate({ target, prompt, params });
+        if (!isRequestAccountCurrent()) return staleAccountResult();
+
+        const outputModel = mediaModelIdForOutput(output.model, target.modelId);
+        const assets = output.resultUrls.map((url, outputIndex) => ({
+          type: mediaType,
+          url,
+          outputIndex,
+          mimeType: resolveGeneratedMediaAssetMimeType(mediaType, url),
+          ...(args.filename ? { filename: args.filename as string } : {}),
+        }));
+        let detailsAssets: unknown[] = assets;
+        const lines = [
+          'Image generation task created.',
+          `Task ID: ${output.taskId}`,
+          `Model: ${outputModel}`,
+          `Status: ${output.status}`,
+        ];
+
+        if (sessionId) {
+          const persistResult = await persistGeneratedImages(sessionId, assets);
+          if (!isRequestAccountCurrent()) return staleAccountResult();
+          if (persistResult && persistResult.saved.length > 0) {
+            detailsAssets = persistResult.saved;
+            const fileLines = persistResult.saved.map(asset =>
+              `  - [${asset.filename}](${pathToFileURL(asset.filePath).toString()})`
+            );
+            lines.push(`Results:\n${fileLines.join('\n')}`);
+          } else {
+            const resultLines = output.resultUrls.map((url, index) => `  - ![Generated image ${index + 1}](${url})`);
+            lines.push(`Results:\n${resultLines.join('\n')}`);
+          }
+        } else {
+          const resultLines = output.resultUrls.map((url, index) => `  - ![Generated image ${index + 1}](${url})`);
+          lines.push(`Results:\n${resultLines.join('\n')}`);
+        }
+
+        return {
+          content: [{ type: 'text', text: lines.join('\n') }],
+          details: {
+            taskId: output.taskId,
+            status: output.status,
+            model: outputModel,
+            ...(output.upstreamModel ? { upstreamModel: output.upstreamModel } : {}),
+            mediaType,
+            ...(detailsAssets.length > 0 ? { assets: detailsAssets } : {}),
+          },
+        };
+      }
+
       const inferVideoGenerationType = (): string => {
         const normalizedModel = selectedModel.toLowerCase();
         if (normalizedModel.includes('happyhorse-1.1-r2v')) return 'r2v';
@@ -7022,6 +7131,7 @@ if (!gotTheLock) {
   };
 
   getMcpRuntime().setMediaGenerationHandler(handleMediaGenerationCallback);
+  initMediaProviders({ store: getStore() });
 
   const registerMediaTaskForPolling = (tracker: MediaTaskTracker) => {
     rememberMediaTaskOwnership(tracker.ownerAccountKey, tracker.taskId);
@@ -15128,29 +15238,40 @@ if (!gotTheLock) {
 
     // Start the lightweight token proxy before OpenClaw config sync so that
     // lobsterai-server provider can use the proxy URL in its config.
+    //
+    // The proxy only serves signed-in LobsterAI accounts: without auth tokens
+    // every forwarded request would fail with "No auth tokens available"
+    // (openclawTokenProxy.ts:406). Skipping it keeps getOpenClawTokenProxyPort()
+    // null, so openclawConfigSync falls back to the real provider config and
+    // agents run against user-configured providers (Ollama / LM Studio / custom
+    // OpenAI-compatible endpoints) with no login.
     profiler.mark('openClawTokenProxy');
-    try {
-      const tokenProxy = await startOpenClawTokenProxy({
-        getAuthTokens,
-        refreshToken: reason => authSessionManager.refresh(reason),
-        getServerBaseUrl: getServerApiBaseUrl,
-        getAccountContextHeaders: getEnterpriseAccountHeaders,
-        getSessionKey: getAuthSessionKey,
-        getClientVersion: () => app.getVersion(),
-        getEnterpriseAuthSessionSnapshot: captureEnterpriseAuthSessionSnapshot,
-        onEnterpriseMembershipRevoked: event => {
-          handleEnterpriseMembershipRevocation({
-            ...event,
-            source: EnterpriseMembershipRevocationSource.LlmSse,
-          });
-        },
-        preferredPort: getOpenClawLoopbackState().getPreferredPort(OpenClawLoopbackService.TokenProxy),
-        getInboundAuthToken: () => getOpenClawLoopbackState().proxyToken,
-      });
-      getOpenClawLoopbackState().rememberPort(OpenClawLoopbackService.TokenProxy, tokenProxy.port);
-      console.log('[Main] OpenClaw token proxy started');
-    } catch (err) {
-      console.warn('[Main] OpenClaw token proxy failed to start (non-fatal):', err);
+    if (getAuthTokens()) {
+      try {
+        const tokenProxy = await startOpenClawTokenProxy({
+          getAuthTokens,
+          refreshToken: reason => authSessionManager.refresh(reason),
+          getServerBaseUrl: getServerApiBaseUrl,
+          getAccountContextHeaders: getEnterpriseAccountHeaders,
+          getSessionKey: getAuthSessionKey,
+          getClientVersion: () => app.getVersion(),
+          getEnterpriseAuthSessionSnapshot: captureEnterpriseAuthSessionSnapshot,
+          onEnterpriseMembershipRevoked: event => {
+            handleEnterpriseMembershipRevocation({
+              ...event,
+              source: EnterpriseMembershipRevocationSource.LlmSse,
+            });
+          },
+          preferredPort: getOpenClawLoopbackState().getPreferredPort(OpenClawLoopbackService.TokenProxy),
+          getInboundAuthToken: () => getOpenClawLoopbackState().proxyToken,
+        });
+        getOpenClawLoopbackState().rememberPort(OpenClawLoopbackService.TokenProxy, tokenProxy.port);
+        console.log('[Main] OpenClaw token proxy started');
+      } catch (err) {
+        console.warn('[Main] OpenClaw token proxy failed to start (non-fatal):', err);
+      }
+    } else {
+      console.log('[Main] Skipping OpenClaw token proxy (no auth tokens; using direct providers)');
     }
     profiler.measure('openClawTokenProxy');
 

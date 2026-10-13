@@ -58,3 +58,6 @@ openspec/
 .superpowers/
 .diagram/
 logs/
+
+# codegraph tool cache
+codegraph-cache/
