@@ -268,7 +268,7 @@
     "@univerjs/sheets-note-ui": "1.0.2",
     "@univerjs/sheets-numfmt": "1.0.2",
     "@univerjs/sheets-numfmt-ui": "1.0.2",
-    "@univerjs/sheets-sort": "1.0.2",
+    "@univerjs/sheets-sort": "1.0.3",
     "@univerjs/sheets-sort-ui": "1.0.2",
     "@univerjs/sheets-ui": "1.0.2",
     "@univerjs/ui": "1.0.2",
