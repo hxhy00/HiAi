@@ -48,7 +48,6 @@ import {
   prepareCoworkPromptPayload,
   type PreparedCoworkPromptPayload,
 } from '../../services/coworkPromptPayload';
-import { getPortalPricingUrl } from '../../services/endpoints';
 import { i18nService } from '../../services/i18n';
 import { getInstalledKitSkillIds } from '../../services/kitCapability';
 import {
@@ -60,11 +59,6 @@ import { reportOnboardingAction } from '../../services/onboardingAnalytics';
 import { resolveLocalizedText, skillService } from '../../services/skill';
 import { RootState } from '../../store';
 import { selectDraftPrompts } from '../../store/selectors/coworkSelectors';
-import {
-  AsrQuotaStatus,
-  ensureAsrQuotaFreshForDay,
-  getLocalAsrQuotaDayKey,
-} from '../../store/slices/asrQuotaSlice';
 import {
   addDraftAttachment,
   addPendingSteer,
@@ -124,7 +118,6 @@ import ModelSelector, {
   ModelAccessPromptKind,
   ModelAccessPromptModal,
   type ModelSelectorChangeMeta,
-  ModelSelectorGroup,
 } from '../ModelSelector';
 import { ActiveSkillBadge, SkillsPopover } from '../skills';
 import {
@@ -259,8 +252,8 @@ const SteerQueueIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({ className, ..
   </svg>
 );
 
-const getModelAnalyticsSource = (model: Model, selectorGroup: ModelSelectorChangeMeta['group']): string => {
-  if (model.isServerModel || model.providerKey === ProviderName.LobsteraiServer || selectorGroup === ModelSelectorGroup.Server) {
+const getModelAnalyticsSource = (model: Model): string => {
+  if (model.providerKey === ProviderName.LobsteraiServer) {
     return 'package';
   }
   return 'custom';
@@ -268,7 +261,6 @@ const getModelAnalyticsSource = (model: Model, selectorGroup: ModelSelectorChang
 
 const reportModelSelected = (
   model: Model,
-  selectorGroup: ModelSelectorChangeMeta['group'],
   target: 'agent' | 'session',
   agentId: string,
   sessionId?: string,
@@ -277,14 +269,12 @@ const reportModelSelected = (
     action: LogReporterAction.ModelSelected,
     modelId: model.id,
     modelName: model.name,
-    modelSource: getModelAnalyticsSource(model, selectorGroup),
+    modelSource: getModelAnalyticsSource(model),
     providerKey: model.providerKey,
     provider: model.provider,
-    selectorGroup,
     target,
     agentId,
     sessionId,
-    isServerModel: model.isServerModel === true,
   });
 };
 
@@ -675,8 +665,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     !!effectiveSelectedModel
     && availableModels.some(model => isSameModelIdentity(model, effectiveSelectedModel))
   ), [availableModels, effectiveSelectedModel]);
-  const modelSelectionRefreshPending = availableModels.length === 0
-    && effectiveSelectedModel?.isServerModel === true;
+  const modelSelectionRefreshPending = false;
   const effectiveThinkingLevel = resolveModelThinkingLevel(
     effectiveSelectedModel,
     sessionId && currentSession?.id === sessionId
@@ -688,12 +677,6 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
   const resolveSubmitModelAccessPrompt = useCallback((): ModelAccessPromptKind | null => {
     if (isModelAgenticBlocked(effectiveSelectedModel)) {
       return ModelAccessPromptKind.AgenticNotReady;
-    }
-    if (
-      effectiveSelectedModel?.providerKey === ProviderName.LobsteraiServer
-      && effectiveSelectedModel.accessible === false
-    ) {
-      return ModelAccessPromptKind.Subscribe;
     }
     return null;
   }, [
@@ -2786,13 +2769,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
         onChange={async (nextModel, meta: ModelSelectorChangeMeta) => {
           if (isPatchingModel || isPersistingAgentModel) return;
           if (!nextModel) return;
-          const selectedModel = meta.group === ModelSelectorGroup.Server
-            ? availableModels.find(model => (
-              model.isServerModel
-              && model.id === nextModel.id
-              && model.accessible !== false
-            )) ?? nextModel
-            : nextModel;
+          const selectedModel = nextModel;
           const modelRef = toOpenClawModelRef(selectedModel);
           const nextThinkingLevel = resolveModelThinkingLevel(
             selectedModel,
@@ -2811,7 +2788,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
             setIsPatchingModel(true);
             logPromptModelSelection(
               'debug',
-              `switching session ${sessionId} to ${modelRef}; thinking level is ${nextThinkingLevel || 'default'}; selector group is ${meta.group}; server model is ${selectedModel.isServerModel === true}`,
+              `switching session ${sessionId} to ${modelRef}; thinking level is ${nextThinkingLevel || 'default'}`,
             );
             dispatch(updateCurrentSessionModelOverride({
               sessionId,
@@ -2840,7 +2817,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
               }
 
               logPromptModelSelection('debug', `switched session ${sessionId} to ${patchedSession.modelOverride || modelRef}`);
-              reportModelSelected(selectedModel, meta.group, 'session', currentAgentId, sessionId);
+              reportModelSelected(selectedModel, 'session', currentAgentId, sessionId);
               if (currentAgent && agentModelIsInvalid) {
                 void agentService.updateAgent(currentAgent.id, {
                   model: modelRef,
@@ -2870,11 +2847,11 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
           }
           logPromptModelSelection(
             'debug',
-            `persisting agent ${currentAgentId} model ${modelRef}; selector group is ${meta.group}; server model is ${selectedModel.isServerModel === true}`,
+            `persisting agent ${currentAgentId} model ${modelRef}`,
           );
           const persisted = await persistAgentModelSelection(selectedModel, nextThinkingLevel);
           if (persisted) {
-            reportModelSelected(selectedModel, meta.group, 'agent', currentAgentId);
+            reportModelSelected(selectedModel, 'agent', currentAgentId);
           }
         }}
       />

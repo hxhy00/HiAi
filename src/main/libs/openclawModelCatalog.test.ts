@@ -28,10 +28,6 @@ vi.mock('./claudeSettings', () => ({
   resolveRawApiConfig: () => null,
 }));
 
-vi.mock('./openclawTokenProxy', () => ({
-  getOpenClawTokenProxyPort: () => null,
-}));
-
 type CatalogRow = [modelId: string, maxTokens: number];
 
 const RUNTIME_SEGMENTS = ['vendor', 'openclaw-runtime', 'current'];

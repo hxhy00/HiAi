@@ -19,7 +19,6 @@ import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { getProviderIcon, ProviderIconId } from '../providers/uiRegistry';
-import { getPortalPricingUrl } from '../services/endpoints';
 import { i18nService } from '../services/i18n';
 import {
   readRememberedModelThinkingLevel,
@@ -87,11 +86,6 @@ export const CascadeSide = {
   Right: 'right',
 } as const;
 export type CascadeSide = typeof CascadeSide[keyof typeof CascadeSide];
-export const ModelSelectorGroup = {
-  Server: 'server',
-  User: 'user',
-} as const;
-type ModelSelectorGroup = typeof ModelSelectorGroup[keyof typeof ModelSelectorGroup];
 
 export interface ModelSelectorSections {
   primaryModels: Model[];
@@ -113,22 +107,13 @@ export const countVisibleModelSelectorRows = (
     + (moreModelsExpanded ? sections.moreModels.length : 0);
 };
 
-export const shouldRenderSelectedModelUnavailableFallback = (
-  availableModelCount: number,
-  selectedModel: Model | null | undefined,
-): selectedModel is Model & { isServerModel: true } => (
-  availableModelCount === 0
-  && selectedModel?.isServerModel === true
-);
-
 export interface ModelSelectorChangeMeta {
-  group: ModelSelectorGroup;
   thinkingLevel?: ModelThinkingLevelType;
 }
 
 export const ModelAccessPromptKind = {
   AgenticNotReady: 'agentic_not_ready',
-  Subscribe: 'subscribe',
+  NoModelConfigured: 'no_model_configured',
 } as const;
 export type ModelAccessPromptKind = typeof ModelAccessPromptKind[keyof typeof ModelAccessPromptKind];
 
@@ -138,7 +123,6 @@ interface ModelAccessPromptModalProps {
   titleKey?: string;
   descriptionKey?: string;
   primaryButtonKey?: string;
-  showLearnMore?: boolean;
 }
 
 export const ModelAccessPromptModal: React.FC<ModelAccessPromptModalProps> = ({
@@ -147,38 +131,27 @@ export const ModelAccessPromptModal: React.FC<ModelAccessPromptModalProps> = ({
   titleKey,
   descriptionKey,
   primaryButtonKey,
-  showLearnMore = true,
 }) => {
   const agenticNotReadyPrompt = promptKind === ModelAccessPromptKind.AgenticNotReady;
   const resolvedTitleKey = titleKey ?? (
     agenticNotReadyPrompt
       ? 'modelSelectorAgenticNotReadyTitle'
-      : 'modelSelectorSubscribeTitle'
+      : 'modelSelectorNoModelConfiguredTitle'
   );
   const resolvedDescriptionKey = descriptionKey ?? (
     agenticNotReadyPrompt
       ? 'serverModelAgenticNotReady'
-      : 'modelSelectorSubscribeDesc'
+      : 'modelSelectorNoModelConfiguredDesc'
   );
   const resolvedPrimaryButtonKey = primaryButtonKey ?? (
     agenticNotReadyPrompt
       ? 'modelSelectorAgenticNotReadyBtn'
-      : 'modelSelectorSubscribeBtn'
+      : 'modelSelectorNoModelConfiguredBtn'
   );
 
-  const openSubscriptionPage = async () => {
-    const pricingUrl = getPortalPricingUrl(undefined, { tab: 'subscription' });
-    if (!pricingUrl) return;
-    onClose();
-    await window.electron.shell.openExternal(pricingUrl);
-  };
-
   const handlePrimary = async () => {
-    if (promptKind === ModelAccessPromptKind.AgenticNotReady) {
-      onClose();
-      return;
-    }
-    await openSubscriptionPage();
+    // 两类提示均为中性说明，不再引导登录/付费，主按钮仅关闭弹窗。
+    onClose();
   };
 
   return (
@@ -212,15 +185,6 @@ export const ModelAccessPromptModal: React.FC<ModelAccessPromptModalProps> = ({
       >
         {i18nService.t(resolvedPrimaryButtonKey)}
       </button>
-      {showLearnMore && (
-        <button
-          type="button"
-          onClick={() => { void openSubscriptionPage(); }}
-          className="mt-3 w-full text-center text-sm text-secondary transition-colors hover:text-foreground"
-        >
-          {i18nService.t('modelSelectorLearnMore')}
-        </button>
-      )}
     </Modal>
   );
 };
@@ -336,10 +300,9 @@ export function resolvePickerThinkingLevel(options: {
 }
 
 export function isModelAgenticBlocked(
-  model: Pick<Model, 'agenticReady' | 'isServerModel' | 'runtimeProfile'> | null | undefined,
+  model: Pick<Model, 'agenticReady' | 'runtimeProfile'> | null | undefined,
 ): boolean {
-  return model?.isServerModel === true
-    && model.runtimeProfile === ModelRuntimeProfile.MoonshotKimiK3
+  return model?.runtimeProfile === ModelRuntimeProfile.MoonshotKimiK3
     && model.agenticReady !== true;
 }
 
@@ -348,7 +311,6 @@ export function canConfigureModelThinking(
     Model,
     | 'accessible'
     | 'agenticReady'
-    | 'isServerModel'
     | 'requestCapabilities'
     | 'runtimeProfile'
     | 'thinkingConfig'
@@ -374,7 +336,6 @@ export function hasModelHoverDetails(
     | 'agenticReady'
     | 'costMultiplier'
     | 'description'
-    | 'isServerModel'
     | 'runtimeProfile'
     | 'supportsImage'
     | 'supportsThinking'
@@ -423,7 +384,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     width: DROPDOWN_WIDTH,
   }));
   const [listMaxHeight, setListMaxHeight] = React.useState<number>(LIST_MAX_HEIGHT);
-  const [activeGroup, setActiveGroup] = React.useState<ModelSelectorGroup>(ModelSelectorGroup.Server);
   const [moreModelsExpanded, setMoreModelsExpanded] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
@@ -450,52 +410,8 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   const selectedModel = controlled ? value ?? null : globalSelectedModel;
   const selectedModelKey = selectedModel ? getModelIdentityKey(selectedModel) : '';
   const availableModels = useSelector((state: RootState) => state.model.availableModels);
-  const serverModels = availableModels.filter(m => m.isServerModel);
-  const userModels = availableModels.filter(m => !m.isServerModel);
-  const modelGroups = [
-    ...(serverModels.length > 0
-      ? [{ key: ModelSelectorGroup.Server, label: i18nService.t('modelGroupServer') }]
-      : []),
-    ...(userModels.length > 0
-      ? [{ key: ModelSelectorGroup.User, label: i18nService.t('modelGroupUser') }]
-      : []),
-  ];
-  const shouldShowGroupTabs = serverModels.length > 0;
-  const isGroupAvailable = (group: ModelSelectorGroup): boolean => (
-    group === ModelSelectorGroup.Server ? serverModels.length > 0 : userModels.length > 0
-  );
-  const getModelGroup = (model: Model | null): ModelSelectorGroup | null => {
-    if (!model) return null;
-    return model.isServerModel ? ModelSelectorGroup.Server : ModelSelectorGroup.User;
-  };
-  const selectedModelGroup = getModelGroup(selectedModel);
-  const showCurrentModelFooter = shouldShowGroupTabs && selectedModel !== null && selectedModelGroup !== null;
-  const getPreferredGroup = (): ModelSelectorGroup => {
-    const selectedGroup = getModelGroup(selectedModel);
-    if (selectedGroup && isGroupAvailable(selectedGroup)) return selectedGroup;
-    return serverModels.length > 0 ? ModelSelectorGroup.Server : ModelSelectorGroup.User;
-  };
-  const visibleGroup = isGroupAvailable(activeGroup) ? activeGroup : getPreferredGroup();
-  const visibleModels = shouldShowGroupTabs
-    ? (visibleGroup === ModelSelectorGroup.Server ? serverModels : userModels)
-    : availableModels;
-  const visibleSections = partitionModelSelectorModels(visibleModels);
-  // Keep the list height identical across tabs so switching never resizes the dropdown.
-  const largestGroupRowCount = Math.max(
-    countVisibleModelSelectorRows(serverModels, moreModelsExpanded),
-    countVisibleModelSelectorRows(userModels, moreModelsExpanded),
-  ) + (defaultLabel ? 1 : 0);
-  const stableListMinHeight = shouldShowGroupTabs
-    ? Math.min(largestGroupRowCount * MODEL_ITEM_HEIGHT + LIST_VERTICAL_PADDING, LIST_MAX_HEIGHT)
-    : undefined;
-  const showSelectedModelUnavailableFallback = shouldRenderSelectedModelUnavailableFallback(
-    availableModels.length,
-    selectedModel,
-  );
-  const selectedModelUnavailableFallbackLogKey = showSelectedModelUnavailableFallback
-    ? `${selectedModel.providerKey ?? ''}:${selectedModel.id}`
-    : '';
-  const selectedModelUnavailableFallbackLogKeyRef = React.useRef('');
+  const visibleSections = partitionModelSelectorModels(availableModels);
+  const showCurrentModelFooter = false;
   const triggerMaxWidthClass = triggerMaxWidthClassName ?? (compact ? 'max-w-[220px]' : 'max-w-[280px]');
   const triggerClassName = compact
     ? `space-x-1.5 px-2 py-1 rounded-lg ${triggerMaxWidthClass}`
@@ -506,7 +422,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   const triggerIconClassName = compact ? 'h-3.5 w-3.5' : 'h-4 w-4';
   const resolveModelIconProviderKey = (model: Model): string => {
     const providerKey = model.providerKey?.trim();
-    if (providerKey && providerKey !== ProviderName.LobsteraiServer) return providerKey;
+    if (providerKey) return providerKey;
 
     const searchableText = `${model.name} ${model.id}`;
     return MODEL_ICON_PROVIDER_HINTS.find(({ pattern }) => pattern.test(searchableText))?.providerName
@@ -573,8 +489,8 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     const availableSpace = (direction === 'up'
       ? rect.top - topBoundary
       : bottomBoundary - rect.bottom) - DROPDOWN_TRIGGER_GAP - DROPDOWN_VIEWPORT_MARGIN;
-    return resolveDropdownListMaxHeight(availableSpace, shouldShowGroupTabs, showCurrentModelFooter);
-  }, [portal, shouldShowGroupTabs, showCurrentModelFooter]);
+    return resolveDropdownListMaxHeight(availableSpace, false, showCurrentModelFooter);
+  }, [portal, showCurrentModelFooter]);
 
   const updatePortalPosition = React.useCallback((direction: 'up' | 'down') => {
     if (!containerRef.current) return;
@@ -658,7 +574,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     const targetScrollTop = selectedOffsetTop - ((scrollContainer.clientHeight - selectedItem.offsetHeight) / 2);
     const maxScrollTop = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight);
     scrollContainer.scrollTop = Math.min(Math.max(0, targetScrollTop), maxScrollTop);
-  }, [isOpen, selectedModelKey, visibleGroup, visibleModels.length, listMaxHeight]);
+  }, [isOpen, selectedModelKey, availableModels.length, listMaxHeight]);
 
   React.useLayoutEffect(() => {
     if (!isOpen || !moreModelsExpanded || !revealMoreModelsOnExpandRef.current) return;
@@ -694,11 +610,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
       } else {
         updateInPlacePlacement();
       }
-      const preferredGroup = getPreferredGroup();
-      setActiveGroup(preferredGroup);
-      setMoreModelsExpanded(
-        selectedModel?.moreModel === true && getModelGroup(selectedModel) === preferredGroup,
-      );
+      setMoreModelsExpanded(selectedModel?.moreModel === true);
       setIsOpen(true);
     } else {
       setIsOpen(false);
@@ -729,7 +641,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
       return;
     }
     if (model && model.accessible === false) {
-      setRestrictedPrompt(ModelAccessPromptKind.Subscribe);
+      setRestrictedPrompt(ModelAccessPromptKind.NoModelConfigured);
       setHoveredModel(null);
       setIsOpen(false);
       return;
@@ -737,7 +649,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     const resolvedThinkingLevel = model ? resolveThinkingLevel(model) : undefined;
     if (controlled) {
       onChange(model, {
-        group: getModelGroup(model) ?? visibleGroup,
         ...(resolvedThinkingLevel ? { thinkingLevel: resolvedThinkingLevel } : {}),
       });
     } else if (model) {
@@ -761,7 +672,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     // the user switches to another model and back.
     rememberModelThinkingLevel(getModelIdentityKey(model), resolvedThinkingLevel);
     onChange(model, {
-      group: getModelGroup(model) ?? visibleGroup,
       thinkingLevel: resolvedThinkingLevel,
     });
     setRestrictedPrompt(null);
@@ -775,14 +685,10 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   }, [isOpen]);
 
   React.useEffect(() => {
-    if (
-      isOpen
-      && selectedModel?.moreModel === true
-      && selectedModelGroup === visibleGroup
-    ) {
+    if (isOpen && selectedModel?.moreModel === true) {
       setMoreModelsExpanded(true);
     }
-  }, [isOpen, selectedModel?.moreModel, selectedModelGroup, visibleGroup]);
+  }, [isOpen, selectedModel?.moreModel]);
 
   React.useLayoutEffect(() => {
     if (!hoveredModel || !hoverCardRef.current) return;
@@ -828,48 +734,8 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current);
   }, []);
 
-  React.useEffect(() => {
-    if (!showSelectedModelUnavailableFallback) {
-      selectedModelUnavailableFallbackLogKeyRef.current = '';
-      return;
-    }
-    if (selectedModelUnavailableFallbackLogKeyRef.current === selectedModelUnavailableFallbackLogKey) {
-      return;
-    }
-    selectedModelUnavailableFallbackLogKeyRef.current = selectedModelUnavailableFallbackLogKey;
-    const message = `preserving stale server model display while authenticated model list is empty: ${selectedModelUnavailableFallbackLogKey}`;
-    console.debug(`[ModelSelector] ${message}`);
-    try {
-      window.electron?.log?.fromRenderer?.('debug', 'ModelSelector', message);
-    } catch {
-      // Diagnostics only.
-    }
-  }, [
-    selectedModelUnavailableFallbackLogKey,
-    showSelectedModelUnavailableFallback,
-  ]);
-
   // 如果没有可用模型，显示提示
   if (availableModels.length === 0) {
-    if (showSelectedModelUnavailableFallback) {
-      return (
-        <div ref={containerRef} className="relative cursor-wait">
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            className={`flex min-w-0 items-center overflow-hidden text-foreground transition-colors disabled:cursor-wait disabled:opacity-70 ${triggerClassName}`}
-          >
-            <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center text-secondary">
-              {renderProviderIcon(selectedModel)}
-            </span>
-            <span className={`${triggerTextClassName} min-w-0 truncate`}>{selectedModel.name}</span>
-            <ChevronDownIcon className={`${triggerIconClassName} shrink-0 dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
-          </button>
-        </div>
-      );
-    }
-
     return (
       <div className="px-3 py-1.5 rounded-xl bg-surface text-secondary text-sm">
         {i18nService.t('modelSelectorNoModels')}
@@ -1193,57 +1059,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     );
   };
 
-  const renderGroupTabs = () => (
-    <div className="border-b border-border/60 p-2">
-      <div className="flex rounded-lg bg-surface-raised p-0.5" role="tablist" aria-label={i18nService.t('model')}>
-        {modelGroups.map(group => {
-          const active = visibleGroup === group.key;
-          return (
-            <button
-              type="button"
-              key={group.key}
-              role="tab"
-              aria-selected={active}
-              onClick={() => {
-                setActiveGroup(group.key);
-                setMoreModelsExpanded(
-                  selectedModel?.moreModel === true && getModelGroup(selectedModel) === group.key,
-                );
-              }}
-              className={`flex min-w-0 flex-1 items-center justify-center rounded-md px-2 py-1.5 text-[12px] leading-4 transition-colors ${
-                active
-                  ? 'bg-surface font-semibold text-foreground shadow-sm'
-                  : 'font-medium text-secondary hover:text-foreground'
-              }`}
-            >
-              <span className="truncate">{group.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-
-  const renderCurrentModelFooter = () => {
-    if (!showCurrentModelFooter || !selectedModel || !selectedModelGroup) return null;
-    const inOtherGroup = selectedModelGroup !== visibleGroup;
-    return (
-      <button
-        type="button"
-        onClick={() => setActiveGroup(selectedModelGroup)}
-        className="flex w-full items-center gap-1.5 border-t border-border/60 px-3 py-2 text-left transition-colors hover:bg-surface-raised"
-      >
-        <span className="shrink-0 text-[11px] leading-4 text-secondary">
-          {i18nService.t('modelSelectorCurrentModel')}
-        </span>
-        <span className="min-w-0 truncate text-[12px] font-medium leading-4 text-foreground">
-          {selectedModel.name}
-        </span>
-        {inOtherGroup && <ChevronRightIcon className="ml-auto h-3 w-3 shrink-0 text-secondary" />}
-      </button>
-    );
-  };
-
   const renderRestrictedPrompt = () => {
     if (!restrictedPrompt) return null;
     return (
@@ -1260,13 +1075,9 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
       style={portal ? portalStyle : { width: inPlacePlacement.width }}
       className={`${portal ? '' : `absolute ${dropdownPositionClass} ${dropdownAlignmentClass}`} bg-surface rounded-xl popover-enter shadow-popover z-50 border-border border overflow-hidden`}
     >
-      {shouldShowGroupTabs && renderGroupTabs()}
       <div
         ref={scrollContainerRef}
-        style={{
-          maxHeight: listMaxHeight,
-          minHeight: stableListMinHeight !== undefined ? Math.min(stableListMinHeight, listMaxHeight) : undefined,
-        }}
+        style={{ maxHeight: listMaxHeight }}
         className="model-selector-scroll overflow-y-auto px-1.5 py-1"
       >
         {defaultLabel && (
@@ -1284,7 +1095,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
         {renderModelRows(visibleSections.primaryModels)}
         {renderMoreModelsSection()}
       </div>
-      {renderCurrentModelFooter()}
     </div>
   ) : null;
 
@@ -1296,7 +1106,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
         onClick={toggleOpen}
         className={`flex min-w-0 items-center overflow-hidden hover:bg-surface-raised text-foreground transition-colors disabled:opacity-70 disabled:cursor-wait ${triggerClassName} ${isOpen ? 'bg-surface-raised' : ''}`}
       >
-        {selectedModel?.isServerModel && (
+        {selectedModel && (
           <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center text-secondary">
             {renderProviderIcon(selectedModel)}
           </span>

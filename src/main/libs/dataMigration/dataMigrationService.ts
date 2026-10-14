@@ -53,8 +53,6 @@ const SQLITE_MIGRATION_TABLES = [
 ] as const;
 
 const SQLITE_MIGRATION_KV_KEYS = [
-  'auth_tokens',
-  'auth_user',
   'app_config',
   'skills_state',
   'openclaw_session_policy',

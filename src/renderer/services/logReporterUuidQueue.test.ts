@@ -58,6 +58,5 @@ test('queues an event until uuid is ready', async () => {
   expect(requestUrl.searchParams.get('log_Usid')).toBe('');
   expect(requestUrl.searchParams.get('is_logged_in')).toBe('false');
   expect(requestUrl.searchParams.get('identityType')).toBe('free');
-  expect(requestUrl.searchParams.get('is_subscriber')).toBe('false');
   expect(requestUrl.searchParams.get('eventId')).not.toBe('');
 });

@@ -1,7 +1,7 @@
 import { ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, FolderIcon } from '@heroicons/react/24/outline';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import { classifyErrorKey, CoworkErrorI18nKey } from '../../../common/coworkErrorClassify';
+import { classifyErrorKey } from '../../../common/coworkErrorClassify';
 import { ContextCompactionStatus } from '../../../common/coworkSystemMessages';
 import { getScheduledReminderDisplayText } from '../../../scheduledTask/reminderText';
 import {
@@ -13,13 +13,11 @@ import {
 import type { CoworkGoal } from '../../../shared/cowork/goal';
 import { getCoworkTurnUsage } from '../../../shared/cowork/llmTurnUsage';
 import { dedupeArtifactsForDisplay, orderArtifactsByReplyReferences } from '../../services/artifactParser';
-import { getPortalPricingUrl } from '../../services/endpoints';
 import { i18nService } from '../../services/i18n';
 import type { Artifact } from '../../types/artifact';
 import type { CoworkMessage, CoworkMessageMetadata } from '../../types/cowork';
 import { revealLocalPathWithToast } from '../../utils/localFileActions';
 import { ArtifactPreviewCard } from '../artifacts';
-import AbnormalIcon from '../icons/AbnormalIcon';
 import ExclamationTriangleIcon from '../icons/ExclamationTriangleIcon';
 import InformationCircleIcon from '../icons/InformationCircleIcon';
 import MarkdownContent from '../MarkdownContent';
@@ -279,87 +277,6 @@ const getSystemMessageDisplayContent = (message: CoworkMessage, content: string)
 
   const key = classifyErrorKey(errorText) ?? classifyErrorKey(content);
   return key ? i18nService.t(key) : content;
-};
-
-const getSystemMessageErrorKey = (message: CoworkMessage, content: string): string | null => {
-  const errorText = typeof message.metadata?.error === 'string' ? message.metadata.error : null;
-  if (!errorText) return classifyErrorKey(content);
-  return classifyErrorKey(errorText) ?? classifyErrorKey(content);
-};
-
-const isCreditQuotaExhaustedKey = (key: string | null): boolean => (
-  key === CoworkErrorI18nKey.QuotaExhausted
-  || key === CoworkErrorI18nKey.FreeQuotaExhausted
-);
-
-const logCreditQuotaBannerEvent = (
-  level: 'debug' | 'warn',
-  message: string,
-  error?: unknown,
-): void => {
-  if (level === 'warn') {
-    if (error === undefined) {
-      console.warn(`[CreditQuotaBanner] ${message}`);
-    } else {
-      console.warn(`[CreditQuotaBanner] ${message}`, error);
-    }
-  } else {
-    console.debug(`[CreditQuotaBanner] ${message}`);
-  }
-
-  try {
-    const errorSuffix = error instanceof Error ? `: ${error.message}` : '';
-    window.electron?.log?.fromRenderer?.(
-      level,
-      'CreditQuotaBanner',
-      `${message}${errorSuffix}`.slice(0, 500),
-    );
-  } catch {
-    // Renderer diagnostics must never interrupt the conversation UI.
-  }
-};
-
-const CreditQuotaExhaustedBanner: React.FC = () => {
-  const handlePurchase = async () => {
-    const pricingUrl = getPortalPricingUrl(undefined, { tab: 'subscription' });
-    logCreditQuotaBannerEvent('debug', 'purchase action clicked');
-    try {
-      const result = await window.electron?.shell?.openExternal(pricingUrl);
-      if (!result?.success) {
-        logCreditQuotaBannerEvent(
-          'warn',
-          `pricing page open failed: ${result?.error ?? 'unknown error'}`,
-        );
-      }
-    } catch (error) {
-      logCreditQuotaBannerEvent('warn', 'pricing page open threw an error', error);
-    }
-  };
-
-  return (
-    <div className="rounded-xl bg-surface px-4 py-3 shadow-sm">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-surface-raised text-secondary">
-          <AbnormalIcon className="h-6 w-6" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold leading-5 text-foreground">
-            {i18nService.t('coworkCreditQuotaBannerTitle')}
-          </div>
-          <div className="mt-1 text-xs leading-5 text-secondary">
-            {i18nService.t('coworkCreditQuotaBannerDescription')}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={handlePurchase}
-          className="ml-2 inline-flex h-8 shrink-0 items-center justify-center rounded-full bg-foreground px-5 text-xs font-medium text-background transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-        >
-          {i18nService.t('coworkCreditQuotaBannerAction')}
-        </button>
-      </div>
-    </div>
-  );
 };
 
 // ── SystemErrorTechnicalDetail ───────────────────────────────────────────────
@@ -631,10 +548,6 @@ const AssistantTurnBlock: React.FC<{
       return null;
     }
     const normalizedContent = getScheduledReminderDisplayText(rawContent) ?? rawContent;
-    const errorKey = getSystemMessageErrorKey(message, normalizedContent);
-    if (isCreditQuotaExhaustedKey(errorKey)) {
-      return <CreditQuotaExhaustedBanner />;
-    }
     const displayContent = getSystemMessageDisplayContent(message, normalizedContent);
     const content = mapDisplayText ? mapDisplayText(displayContent) : displayContent;
     if (!content.trim() && !isContextCompactionMessage(message)) return null;

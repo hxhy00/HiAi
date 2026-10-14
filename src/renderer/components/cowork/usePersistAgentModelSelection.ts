@@ -42,7 +42,7 @@ export function usePersistAgentModelSelection({
     setIsPersistingAgentModel(true);
     logAgentModelPersistence(
       'debug',
-      `saving agent ${agentId} model ${modelRef}; thinking level is ${thinkingLevel || 'default'}; server model is ${model.isServerModel === true}`,
+      `saving agent ${agentId} model ${modelRef}; thinking level is ${thinkingLevel || 'default'}`,
     );
 
     try {

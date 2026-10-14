@@ -1,13 +1,4 @@
 import type { OpenClawSessionPatch } from '../../common/openclawSession';
-import type {
-  ActivityActionResponse,
-  ActivityContextResponse,
-  ActivityHostExecuteActionInput,
-  ActivityHostGetContextInput,
-  ActivityHostGetSlotInput,
-  ActivityResult,
-  ActivitySlotResponse,
-} from '../../shared/activity/constants';
 import type { AppUpdateActiveWorkloads, AppUpdateCheckResult, AppUpdateRuntimeState } from '../../shared/appUpdate/constants';
 import type { MarkdownFileBridge } from '../../shared/artifactPreview/markdownEditing';
 import type { ReviewScopeRequest } from '../../shared/artifactPreview/reviewScopes';
@@ -18,13 +9,6 @@ import type {
   AsrTranscribeRequest,
   AsrTranscribeResult,
 } from '../../shared/asr/constants';
-import type {
-  AuthLifecycleEvent,
-  AuthLoginResult,
-  AuthRefreshOutcome,
-  AuthSessionChangedEvent,
-  AuthSessionStatus,
-} from '../../shared/auth/constants';
 import type {
   BrowserCredentialAvailabilityResponse,
   BrowserCredentialDeleteRequest,
@@ -82,13 +66,6 @@ import type {
   DecisionModelConfigView,
   DecisionModelTestResult,
 } from '../../shared/decisionModel/constants';
-import type { EnterpriseQuotaRequestType } from '../../shared/enterpriseAccount/constants';
-import type {
-  EnterpriseAccountContext,
-  EnterpriseAccountContextResult,
-  EnterpriseAccountIdentitiesResult,
-  EnterpriseQuotaRequestResult,
-} from '../../shared/enterpriseAccount/types';
 import type {
   HtmlShareAccessMode,
   HtmlShareAnalyticsInput,
@@ -188,7 +165,6 @@ import type {
   SkinGetActiveResponse,
   SkinListResponse,
 } from '../../shared/skin/types';
-import type { SubscriptionTrialBridge } from '../../shared/subscriptionTrial/constants';
 import type { CoworkTempDirPreview } from './cowork';
 interface ApiResponse {
   ok: boolean;
@@ -561,99 +537,6 @@ import type { AgentLegacyIdentityCleanupResult } from '@shared/agent';
 import type { Platform } from '@shared/platform';
 
 import type { Agent, PresetAgent } from './agent';
-
-interface CreditItem {
-  type: 'subscription' | 'boost' | 'free' | 'bonus' | 'invitation' | 'campaign';
-  label: string;
-  labelEn: string;
-  creditsRemaining: number;
-  expiresAt: string | null;
-}
-
-interface CreditsResetCampaignStatusData {
-  enabled: boolean;
-  active: boolean;
-  registeredEligible: boolean;
-  participated: boolean;
-  participationType: string | null;
-  identity: 'subscription' | 'free';
-  availableResetCount: number;
-  availablePromoSubscriptionCount: number;
-  promoPlanId: number;
-  promoAmount: number;
-  campaignCode: string;
-  startAt: string;
-  endAt: string;
-  registeredBefore: string;
-  reason: string;
-  resetEntitlements: CreditsResetEntitlementData[];
-  availableFreeCreditsRewardCount: number;
-  freeCreditsReward: FreeCreditsRewardData | null;
-  freeCreditsRewards?: FreeCreditsRewardData[];
-}
-
-interface CreditsResetEntitlementData {
-  campaignCode: string;
-  expiresAt: string;
-}
-
-interface FreeCreditsRewardData {
-  campaignCode: string;
-  credits: number;
-  claimDeadline: string;
-  validityDays: number;
-  presentation?: CampaignPresentationData | null;
-}
-
-interface CampaignPresentationData {
-  titleZh?: string | null;
-  titleEn?: string | null;
-  actionTextZh?: string | null;
-  actionTextEn?: string | null;
-  posterUrl?: string | null;
-  iconUrl?: string | null;
-}
-
-interface CreditsFinalRewardClaimData {
-  campaignCode: string;
-  creditsGranted: number;
-  claimedAt: string;
-  expiresAt: string;
-}
-
-interface ProfileSummaryData {
-  id: number;
-  nickname: string;
-  avatarUrl: string | null;
-  totalCreditsRemaining: number;
-  creditItems: CreditItem[];
-  availableResetCount?: number;
-  availablePromoSubscriptionCount?: number;
-  creditsResetCampaign?: CreditsResetCampaignStatusData;
-}
-
-interface ClientBannerData {
-  id: number;
-  placement: string;
-  activityDescription: string;
-  weight?: number;
-  status?: number;
-  minClientVersion?: string | null;
-  onlineAt?: string;
-  offlineAt?: string;
-  linkUrl: string;
-  imageUrl: string;
-  imageWidth?: number;
-  imageHeight?: number;
-  updatedAt?: string;
-}
-
-interface ClientBannerSnapshotData {
-  serverTime: string;
-  nextRefreshAt: string | null;
-  clientVersion: string;
-  banners: ClientBannerData[];
-}
 
 interface HtmlShareResult {
   success: boolean;
@@ -1603,7 +1486,8 @@ interface IElectronAPI {
     onChanged: (callback: (payload: LibraryChangedPayload) => void) => () => void;
   };
   asr: {
-    createRealtimeSession: (options: AsrRealtimeSessionRequest) => Promise<AsrRealtimeSessionResult>;
+    getAvailability: () => Promise<AsrAvailabilityResult>;
+    transcribe: (request: AsrTranscribeRequest) => Promise<AsrTranscribeResult>;
   };
   artifact: {
     office: OfficeBridges;
@@ -2040,137 +1924,6 @@ interface IElectronAPI {
       error?: string;
     }>;
   };
-  subscriptionTrial: SubscriptionTrialBridge;
-  activity: {
-    getSlot: (
-      input: ActivityHostGetSlotInput,
-    ) => Promise<ActivityResult<ActivitySlotResponse>>;
-    getContext: (
-      input: ActivityHostGetContextInput,
-    ) => Promise<ActivityResult<ActivityContextResponse>>;
-    executeAction: (
-      input: ActivityHostExecuteActionInput,
-    ) => Promise<ActivityResult<ActivityActionResponse>>;
-  };
-  auth: {
-    login: (loginUrl?: string) => Promise<AuthLoginResult>;
-    exchange: (
-      code: string,
-    ) => Promise<{
-      success: boolean;
-      user?: import('../store/slices/authSlice').UserProfile;
-      quota?: import('../store/slices/authSlice').UserQuota;
-      purchaseOffer?: import('../store/slices/authSlice').LowCreditPurchaseOffer | null;
-      enterpriseContext?: EnterpriseAccountContext | null;
-      error?: string;
-    }>;
-    getUser: () => Promise<{
-      success: boolean;
-      status?: AuthSessionStatus;
-      hasCredentials?: boolean;
-      cachedUser?: import('../store/slices/authSlice').UserProfile | null;
-      user?: import('../store/slices/authSlice').UserProfile;
-      quota?: import('../store/slices/authSlice').UserQuota | null;
-      purchaseOffer?: import('../store/slices/authSlice').LowCreditPurchaseOffer | null;
-      enterpriseContext?: EnterpriseAccountContext | null;
-    }>;
-    getQuota: () => Promise<{
-      success: boolean;
-      quota?: import('../store/slices/authSlice').UserQuota;
-      purchaseOffer?: import('../store/slices/authSlice').LowCreditPurchaseOffer | null;
-      enterpriseContext?: EnterpriseAccountContext | null;
-    }>;
-    logout: () => Promise<{ success: boolean }>;
-    refreshToken: () => Promise<{
-      success: boolean;
-      accessToken?: string;
-      outcome?: AuthRefreshOutcome;
-    }>;
-    getAccessToken: () => Promise<string | null>;
-    getModels: () => Promise<{
-      success: boolean;
-      models?: Array<{
-        modelId: string;
-        modelName: string;
-        provider: string;
-        apiFormat: string;
-        runtimeProfile?: import('../../shared/providers/modelRuntimeProfiles').ModelRuntimeProfile;
-        supportsImage?: boolean;
-        supportsVideo?: boolean;
-        supportsThinking?: boolean;
-        thinkingConfig?: import('../../shared/providers/modelThinking').ModelThinkingConfig;
-        requestCapabilities?: import('../../shared/providers/lobsterAIRequestOptions').LobsterAIRequestCapability[];
-        supportsToolCalling?: boolean;
-        agenticReady?: boolean;
-        contextWindow?: number;
-        maxTokens?: number;
-        explicitContextCache?: boolean;
-        costMultiplier?: number;
-        description?: string;
-        moreModel?: boolean;
-        accessible?: boolean;
-        restrictionHint?: string;
-      }>;
-    }>;
-    getPricingCatalog: () => Promise<{
-      success: boolean;
-      textModels?: Array<{
-        modelId: string;
-        modelName: string;
-        provider?: string;
-        providerLabel?: string;
-        description?: string;
-        supportsImage?: boolean;
-        supportsThinking?: boolean;
-        thinkingConfig?: import('../../shared/providers/modelThinking').ModelThinkingConfig;
-        contextWindow?: number | null;
-        costMultiplier?: number;
-        moreModel?: boolean;
-      }>;
-      imageModels?: Array<{
-        modelId: string;
-        modelName: string;
-        provider?: string;
-        providerLabel?: string;
-        mediaType?: string;
-        description?: string;
-        capabilities?: string | null;
-        billingUnit?: string;
-        unitLabel?: string;
-        unitCredits?: number;
-        unitPriceYuan?: number;
-        pricingDescription?: string | null;
-      }>;
-      videoModels?: Array<{
-        modelId: string;
-        modelName: string;
-        provider?: string;
-        providerLabel?: string;
-        mediaType?: string;
-        description?: string;
-        capabilities?: string | null;
-        billingUnit?: string;
-        unitLabel?: string;
-        unitCredits?: number;
-        unitPriceYuan?: number;
-        pricingDescription?: string | null;
-      }>;
-      error?: string;
-    }>;
-    getProfileSummary: () => Promise<{ success: boolean; data?: ProfileSummaryData }>;
-    claimCreditsFinalReward: (campaignCode: string) => Promise<{ success: boolean; data?: CreditsFinalRewardClaimData; error?: string }>;
-    getActiveClientBanner: () => Promise<{ success: boolean; data?: ClientBannerData | null }>;
-    getActiveClientBanners: () => Promise<{ success: boolean; data?: ClientBannerData[] }>;
-    getClientBannerSnapshot: () => Promise<{
-      success: boolean;
-      data?: ClientBannerSnapshotData;
-    }>;
-    getPendingCallback: () => Promise<string | null>;
-    onCallback: (callback: (data: { code: string }) => void) => () => void;
-    onQuotaChanged: (callback: () => void) => () => void;
-    onSessionChanged: (callback: (event: AuthSessionChangedEvent) => void) => () => void;
-    onLifecycleEvent: (callback: (event: AuthLifecycleEvent) => void) => () => void;
-  };
   media: {
     getModels: (type: 'image' | 'video') => Promise<{ success: boolean; models?: Array<{ modelId: string; displayName: string; provider: string; mediaType: string; generationTimeout: number; pricing: Record<string, unknown> }>; error?: string }>;
     getProviders: () => Promise<{ success: boolean; config?: MediaProvidersConfig; error?: string }>;
@@ -2188,15 +1941,6 @@ interface IElectronAPI {
       } | null;
       error?: string;
     }>;
-  };
-  enterpriseAccount: {
-    getContext: () => Promise<EnterpriseAccountContextResult>;
-    getIdentities: () => Promise<EnterpriseAccountIdentitiesResult>;
-    requestQuotaIncrease: (
-      enterpriseId: number,
-      requestType: EnterpriseQuotaRequestType,
-    ) => Promise<EnterpriseQuotaRequestResult>;
-    onContextInvalidated: (callback: () => void) => () => void;
   };
   networkStatus: {
     send: (status: 'online' | 'offline') => void;

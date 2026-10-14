@@ -2148,7 +2148,17 @@ const initStore = async (): Promise<SqliteStore> => {
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Store initialization timed out after 15s')), 15_000),
       ),
-    ]);
+    ]).then((created) => {
+      // RM-6：登录能力移除后，一次性清理旧登录态 kv，避免残留 token。
+      for (const legacyKey of ['auth_tokens', 'auth_user']) {
+        try {
+          created.delete(legacyKey);
+        } catch (error) {
+          console.warn(`[Store] failed to clean legacy kv "${legacyKey}":`, error);
+        }
+      }
+      return created;
+    });
   }
   return storeInitPromise;
 };
@@ -5311,7 +5321,6 @@ if (!gotTheLock) {
     description?: string;
     moreModel?: boolean;
     accessible?: boolean;
-    restrictionHint?: string;
   };
 
   const loadAvailableServerModels = async (options: {

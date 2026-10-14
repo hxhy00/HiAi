@@ -3,10 +3,10 @@ import { OpenClawProviderId, ProviderName, ProviderRegistry } from '@shared/prov
 import type { Model } from '../store/slices/modelSlice';
 import { logModelSelectionOnce } from './modelSelectionLog';
 
-type ModelRefInput = Pick<Model, 'id' | 'providerKey' | 'openClawProviderId' | 'isServerModel'>;
+type ModelRefInput = Pick<Model, 'id' | 'providerKey' | 'openClawProviderId'>;
 
 function resolveModelOpenClawProviderId(model: ModelRefInput): string {
-  if (model.isServerModel) {
+  if (model.providerKey === ProviderName.LobsteraiServer) {
     return OpenClawProviderId.LobsteraiServer;
   }
   return model.openClawProviderId || ProviderRegistry.getOpenClawProviderId(model.providerKey ?? '');

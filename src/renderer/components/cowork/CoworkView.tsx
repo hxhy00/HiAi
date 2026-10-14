@@ -329,9 +329,9 @@ const CoworkView: React.FC<CoworkViewProps> = ({
       try {
         const apiConfig = await coworkService.checkApiConfig();
         if (apiConfig && !apiConfig.hasConfig) {
-          // No usable model config: steer toward plan models rather than
-          // opening the custom-model settings page uninvited.
-          setModelAccessPrompt(ModelAccessPromptKind.Subscribe);
+          // No usable model config: show a neutral prompt pointing at the
+          // settings page instead of any login/subscription upsell.
+          setModelAccessPrompt(ModelAccessPromptKind.NoModelConfigured);
           isStartingRef.current = false;
           return false;
         }

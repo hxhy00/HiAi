@@ -16,7 +16,6 @@ const FLASH_KEY = 'lobsterai-server::deepseek-v4-flash';
 const PRO_MODEL = {
   id: 'deepseek-v4-pro',
   providerKey: 'lobsterai-server',
-  isServerModel: true,
   requestCapabilities: [LobsterAIRequestCapability.OptionsV1],
   thinkingConfig: {
     options: [

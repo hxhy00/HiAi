@@ -69,7 +69,6 @@ import { defaultConfig, getProviderDisplayName, ShortcutAction } from './config'
 import { SkinProvider } from './providers/SkinProvider';
 import type { ApiConfig } from './services/api';
 import { apiService } from './services/api';
-import { authService } from './services/auth';
 import { configService } from './services/config';
 import { coworkService } from './services/cowork';
 import { i18nService } from './services/i18n';
@@ -254,7 +253,7 @@ const App: React.FC = () => {
   });
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showUpdateInstallConfirm, setShowUpdateInstallConfirm] = useState(false);
-  const [isUpdateCardExpanded, setIsUpdateCardExpanded] = useState(false);
+
   const [isUserInitiatedUpdateFlowActive, setIsUserInitiatedUpdateFlowActive] = useState(false);
   const [privacyAgreed, setPrivacyAgreed] = useState<boolean | null>(null);
   const [newUserOnboardingStep, setNewUserOnboardingStep] =
@@ -585,17 +584,6 @@ const App: React.FC = () => {
         });
         mark(i18nReady ? 'i18nService.initialize done' : 'i18nService.initialize degraded — using persisted language hint');
 
-        // Single attempt: authService.init() re-entry tears down listeners, so a
-        // concurrent retry could stack them; its in-flight run self-completes
-        // once IPC recovers.
-        mark('authService.init begin');
-        await runStep('authService.init', async () => {
-          await authService.init();
-        }, {
-          attempts: 1,
-          firstTimeoutMs: INIT_STEP_RETRY_TIMEOUT_MS,
-        });
-        mark('authService.init done');
         coreStartupServicesInitializedRef.current = true;
       }
 
@@ -696,8 +684,6 @@ const App: React.FC = () => {
     const handleOnline = () => {
       console.log('[Renderer] Network online');
       window.electron.networkStatus.send('online');
-      // A startup load that failed while offline has no other retry trigger.
-      void authService.refreshServerModels();
     };
 
     const handleOffline = () => {
@@ -1211,21 +1197,6 @@ const App: React.FC = () => {
         showToast(i18nService.t('newUserWelcomeTaskCreateFailed'));
       });
   }, [showToast]);
-
-  useEffect(() => {
-    const unsubscribe = window.electron.auth.onCallback(() => {
-      if (hasNewUserWelcomeAfterLoginPending()) {
-        console.log('[Onboarding] auth callback observed during new user welcome handoff');
-        reportOnboardingAction('auth_callback_observed', {
-          source: 'new_user_onboarding',
-        });
-      }
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, []);
 
   useEffect(() => {
     if (!hasNewUserWelcomeAfterLoginPending()) {
@@ -1881,7 +1852,6 @@ const App: React.FC = () => {
       updateState={appUpdateState}
       onUpdate={handleConfirmUpdate}
       onShowDetails={handleOpenUpdateModal}
-      onExpandedChange={setIsUpdateCardExpanded}
     />
   ) : null;
   const canUseWindowsTopBarActions = isInitialized && !initError && !isUpdateInteractionBlocked;
@@ -2011,7 +1981,7 @@ const App: React.FC = () => {
           onTaskFilterSummaryChange={setHasUnreadCompletedTasks}
           onWidthChange={setSidebarWidth}
           updateNotice={!isSidebarCollapsed && !isUpdateInteractionBlocked ? updateCard : null}
-          hideAdBanner={isUpdateCardExpanded}
+
           hideLogin={enterpriseConfig?.ui?.login === 'hide'}
           isEngineStartupOverlayVisible={isEngineStartupOverlayVisible}
         />

@@ -47,11 +47,9 @@ export interface BuildLogUrlOptions {
   identityType?: PublishingIdentityType;
   installationId?: string | null;
   isLoggedIn?: boolean;
-  isSubscriber?: boolean;
   language?: string;
   latestKeyfrom?: string;
   platform?: string;
-  subscriptionStatus?: string;
   userId?: string;
   timestamp?: number;
 }
@@ -224,8 +222,6 @@ export const buildLogUrl = (
     log_Usid: userId,
     user_id: userId || undefined,
     identityType: options.identityType ?? identity.identityType,
-    is_subscriber: options.isSubscriber ?? identity.isSubscriber,
-    subscriptionStatus: options.subscriptionStatus ?? identity.subscriptionStatus,
     uts: options.timestamp ?? Date.now(),
   };
 
@@ -271,8 +267,6 @@ const sendPendingEvent = async (
         identityType: event.identity.identityType,
         installationId: cachedInstallationId,
         isLoggedIn: event.identity.isLoggedIn,
-        isSubscriber: event.identity.isSubscriber,
-        subscriptionStatus: event.identity.subscriptionStatus,
         timestamp: event.timestamp,
         userId: event.identity.userId,
       }),

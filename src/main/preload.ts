@@ -1,12 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 import { IpcChannel as ScheduledTaskIpc } from '../scheduledTask/constants';
-import {
-  type ActivityHostExecuteActionInput,
-  type ActivityHostGetContextInput,
-  type ActivityHostGetSlotInput,
-  ActivityIpc,
-} from '../shared/activity/constants';
 import { AgentIpcChannel, AgentLegacyIdentityCleanupStatus } from '../shared/agent/constants';
 import { AppIpcChannel } from '../shared/app/constants';
 import { AppSettingsIpc } from '../shared/appSettings/constants';
@@ -17,13 +11,8 @@ import { ReviewIpc, type ReviewScopeRequest } from '../shared/artifactPreview/re
 import type { ReviewSourceRequest } from '../shared/artifactPreview/reviewSource';
 import {
   AsrIpcChannel,
-  type AsrRealtimeSessionRequest,
+  type AsrTranscribeRequest,
 } from '../shared/asr/constants';
-import {
-  AuthIpcChannel,
-  type AuthLifecycleEvent,
-  type AuthSessionChangedEvent,
-} from '../shared/auth/constants';
 import {
   type BrowserCredentialAvailabilityResponse,
   type BrowserCredentialDeleteRequest,
@@ -130,7 +119,6 @@ import type {
   SkinGetActiveResponse,
   SkinListResponse,
 } from '../shared/skin/types';
-import { SubscriptionTrialIpc } from '../shared/subscriptionTrial/constants';
 import { NimQrLoginIpc } from './ipcHandlers/nimQrLogin';
 import { createOfficeBridges } from './office/officePreloadBridges';
 import { OpenClawSessionIpc } from './openclawSession/constants';
@@ -1104,17 +1092,6 @@ contextBridge.exposeInMainWorld('electron', {
     openSystemNotificationSettings: () =>
       ipcRenderer.invoke(AppIpcChannel.OpenSystemNotificationSettings),
   },
-  subscriptionTrial: {
-    status: () => ipcRenderer.invoke(SubscriptionTrialIpc.Status),
-  },
-  activity: {
-    getSlot: (input: ActivityHostGetSlotInput) =>
-      ipcRenderer.invoke(ActivityIpc.HostGetSlot, input),
-    getContext: (input: ActivityHostGetContextInput) =>
-      ipcRenderer.invoke(ActivityIpc.HostGetContext, input),
-    executeAction: (input: ActivityHostExecuteActionInput) =>
-      ipcRenderer.invoke(ActivityIpc.HostExecuteAction, input),
-  },
   appUpdate: {
     getState: () => ipcRenderer.invoke(AppUpdateIpc.GetState),
     checkNow: (options?: { manual?: boolean; userId?: string | null }) =>
@@ -1358,44 +1335,6 @@ contextBridge.exposeInMainWorld('electron', {
   },
   networkStatus: {
     send: (status: 'online' | 'offline') => ipcRenderer.send('network:status-change', status),
-  },
-  auth: {
-    login: (loginUrl?: string) => ipcRenderer.invoke(AuthIpcChannel.Login, { loginUrl }),
-    exchange: (code: string) => ipcRenderer.invoke(AuthIpcChannel.Exchange, { code }),
-    getUser: () => ipcRenderer.invoke(AuthIpcChannel.GetUser),
-    getQuota: () => ipcRenderer.invoke(AuthIpcChannel.GetQuota),
-    logout: () => ipcRenderer.invoke(AuthIpcChannel.Logout),
-    refreshToken: () => ipcRenderer.invoke(AuthIpcChannel.RefreshToken),
-    getAccessToken: () => ipcRenderer.invoke(AuthIpcChannel.GetAccessToken),
-    getModels: () => ipcRenderer.invoke(AuthIpcChannel.GetModels),
-    getPricingCatalog: () => ipcRenderer.invoke(AuthIpcChannel.GetPricingCatalog),
-    getProfileSummary: () => ipcRenderer.invoke(AuthIpcChannel.GetProfileSummary),
-    claimCreditsFinalReward: (campaignCode: string) =>
-      ipcRenderer.invoke(AuthIpcChannel.ClaimCreditsFinalReward, { campaignCode }),
-    getActiveClientBanner: () => ipcRenderer.invoke(AuthIpcChannel.GetActiveClientBanner),
-    getActiveClientBanners: () => ipcRenderer.invoke(AuthIpcChannel.GetActiveClientBanners),
-    getClientBannerSnapshot: () => ipcRenderer.invoke(AuthIpcChannel.GetClientBannerSnapshot),
-    getPendingCallback: () => ipcRenderer.invoke(AuthIpcChannel.GetPendingCallback),
-    onCallback: (callback: (data: { code: string }) => void) => {
-      const handler = (_event: any, data: { code: string }) => callback(data);
-      ipcRenderer.on(AuthIpcChannel.Callback, handler);
-      return () => ipcRenderer.removeListener(AuthIpcChannel.Callback, handler);
-    },
-    onQuotaChanged: (callback: () => void) => {
-      const handler = () => callback();
-      ipcRenderer.on(AuthIpcChannel.QuotaChanged, handler);
-      return () => ipcRenderer.removeListener(AuthIpcChannel.QuotaChanged, handler);
-    },
-    onSessionChanged: (callback: (event: AuthSessionChangedEvent) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: AuthSessionChangedEvent) => callback(data);
-      ipcRenderer.on(AuthIpcChannel.SessionChanged, handler);
-      return () => ipcRenderer.removeListener(AuthIpcChannel.SessionChanged, handler);
-    },
-    onLifecycleEvent: (callback: (event: AuthLifecycleEvent) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: AuthLifecycleEvent) => callback(data);
-      ipcRenderer.on(AuthIpcChannel.LifecycleEvent, handler);
-      return () => ipcRenderer.removeListener(AuthIpcChannel.LifecycleEvent, handler);
-    },
   },
   media: {
     getModels: (type: 'image' | 'video') =>

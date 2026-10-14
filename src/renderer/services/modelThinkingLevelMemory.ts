@@ -75,7 +75,7 @@ export function rememberModelThinkingLevel(
 export function resolveThinkingLevelForModel(
   model: Pick<
     Model,
-    'id' | 'providerKey' | 'isServerModel' | 'requestCapabilities' | 'thinkingConfig'
+    'id' | 'providerKey' | 'requestCapabilities' | 'thinkingConfig'
   > | null | undefined,
 ): ModelThinkingLevel | '' {
   const config = model?.thinkingConfig;

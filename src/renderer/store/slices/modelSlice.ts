@@ -1,5 +1,4 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { ProviderName } from '@shared/providers/constants';
 import type { LobsterAIRequestCapability } from '@shared/providers/lobsterAIRequestOptions';
 import type { ModelRuntimeProfile } from '@shared/providers/modelRuntimeProfiles';
 import type { ModelThinkingConfig } from '@shared/providers/modelThinking';
@@ -23,32 +22,22 @@ export interface Model {
   agenticReady?: boolean;
   contextWindow?: number;
   maxTokens?: number;
-  isServerModel?: boolean; // 是否为服务端套餐模型
-  serverApiFormat?: string; // 服务端模型的 API 格式 ("openai" | "anthropic")
   explicitContextCache?: boolean; // 是否支持服务端显式上下文缓存
   description?: string; // 模型能力简介
   costMultiplier?: number; // 积分消耗倍率 (1.0=标准)
   moreModel?: boolean; // 是否收起到“更多模型”分组
   accessible?: boolean; // false = 模型可见但用户无权使用（置灰）
-  restrictionHint?: string; // 限制提示（如 "订阅套餐/购买加油包可用"）
 }
 
-function isServerModelIdentity(model: Pick<Model, 'providerKey' | 'isServerModel'>): boolean {
-  return model.isServerModel === true || model.providerKey === ProviderName.LobsteraiServer;
-}
-
-export function getModelIdentityKey(model: Pick<Model, 'id' | 'providerKey' | 'isServerModel'>): string {
+export function getModelIdentityKey(model: Pick<Model, 'id' | 'providerKey'>): string {
   return `${model.providerKey ?? ''}::${model.id}`;
 }
 
 export function isSameModelIdentity(
-  modelA: Pick<Model, 'id' | 'providerKey' | 'isServerModel'>,
-  modelB: Pick<Model, 'id' | 'providerKey' | 'isServerModel'>
+  modelA: Pick<Model, 'id' | 'providerKey'>,
+  modelB: Pick<Model, 'id' | 'providerKey'>
 ): boolean {
   if (modelA.id !== modelB.id) {
-    return false;
-  }
-  if (isServerModelIdentity(modelA) !== isServerModelIdentity(modelB)) {
     return false;
   }
   if (modelA.providerKey && modelB.providerKey) {
@@ -178,9 +167,7 @@ const modelSlice = createSlice({
       delete state.selectedModelByAgent[action.payload];
     },
     setAvailableModels: (state, action: PayloadAction<Model[]>) => {
-      // 保留已有的服务端模型，只更新用户自配模型（与 setServerModels 对称）
-      const serverModels = state.availableModels.filter(m => m.isServerModel);
-      state.availableModels = [...serverModels, ...action.payload];
+      state.availableModels = action.payload;
       // 更新导出的 availableModels
       availableModels = state.availableModels;
       // 同步 defaultSelectedModel
@@ -193,32 +180,6 @@ const modelSlice = createSlice({
       // 同步 per-agent 选中模型
       syncSelectedModelByAgent(state.selectedModelByAgent, state.availableModels);
     },
-    setServerModels: (state, action: PayloadAction<Model[]>) => {
-      // 服务端模型放前面，自配模型保留在后面
-      const userModels = state.availableModels.filter(m => !m.isServerModel);
-      state.availableModels = [...action.payload, ...userModels];
-      availableModels = state.availableModels;
-      // 同步 defaultSelectedModel（优先选择 accessible 的模型）
-      if (state.availableModels.length > 0) {
-        state.defaultSelectedModel = selectPreferredAccessibleModel(
-          state.availableModels,
-          state.defaultSelectedModel,
-        );
-      }
-      // 同步 per-agent 选中模型
-      syncSelectedModelByAgent(state.selectedModelByAgent, state.availableModels);
-    },
-    clearServerModels: (state) => {
-      state.availableModels = state.availableModels.filter(m => !m.isServerModel);
-      availableModels = state.availableModels;
-      // 如果 defaultSelectedModel 是服务端模型，切换到第一个可用模型
-      if (state.defaultSelectedModel.isServerModel && state.availableModels.length > 0) {
-        state.defaultSelectedModel = state.availableModels.find(isModelAccessible)
-          ?? state.defaultSelectedModel;
-      }
-      // 同步 per-agent 选中模型
-      syncSelectedModelByAgent(state.selectedModelByAgent, state.availableModels);
-    },
   },
 });
 
@@ -227,7 +188,5 @@ export const {
   setDefaultSelectedModel,
   clearAgentSelectedModel,
   setAvailableModels,
-  setServerModels,
-  clearServerModels,
 } = modelSlice.actions;
 export default modelSlice.reducer;

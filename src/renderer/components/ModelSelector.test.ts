@@ -14,25 +14,8 @@ import {
   resolveHoverCardTop,
   resolveNestedCascadePlacement,
   resolvePickerThinkingLevel,
-  shouldRenderSelectedModelUnavailableFallback,
   supportsConfigurableModelThinkingProtocol,
 } from './ModelSelector';
-
-test('keeps a stale server model visible only while the model list is empty', () => {
-  const selectedModel = {
-    id: 'deepseek-v4-flash',
-    name: 'DeepSeek V4 Flash',
-    isServerModel: true,
-  };
-
-  expect(shouldRenderSelectedModelUnavailableFallback(0, selectedModel)).toBe(true);
-  expect(shouldRenderSelectedModelUnavailableFallback(1, selectedModel)).toBe(false);
-  expect(shouldRenderSelectedModelUnavailableFallback(0, {
-    id: 'deepseek-v4-flash',
-    name: 'DeepSeek V4 Flash',
-  })).toBe(false);
-  expect(shouldRenderSelectedModelUnavailableFallback(0, null)).toBe(false);
-});
 
 test('keeps primary and more-model order stable while moving the folded group last', () => {
   const primaryFirst = { id: 'primary-1', name: 'Primary 1' };
@@ -70,7 +53,6 @@ test('opens the hover card only for models that have details to show', () => {
   expect(hasModelHoverDetails({ supportsImage: true })).toBe(true);
   expect(hasModelHoverDetails({ description: 'Fast model' })).toBe(true);
   expect(hasModelHoverDetails({
-    isServerModel: true,
     runtimeProfile: 'moonshot-kimi-k3',
     agenticReady: false,
   })).toBe(true);
@@ -237,30 +219,22 @@ test('ignores levels the model does not offer', () => {
   })).toBe(ModelThinkingLevel.High);
 });
 
-test('blocks only explicitly unready server models from agent selection', () => {
+test('blocks only explicitly unready plan models from agent selection', () => {
   expect(isModelAgenticBlocked({
-    isServerModel: true,
     runtimeProfile: 'moonshot-kimi-k3',
     agenticReady: false,
   })).toBe(true);
   expect(isModelAgenticBlocked({
-    isServerModel: true,
     runtimeProfile: 'moonshot-kimi-k3',
   })).toBe(true);
   expect(isModelAgenticBlocked({
-    isServerModel: true,
     runtimeProfile: 'moonshot-kimi-k3',
     agenticReady: true,
   })).toBe(false);
   expect(isModelAgenticBlocked({
-    isServerModel: true,
-    agenticReady: false,
-  })).toBe(false);
-  expect(isModelAgenticBlocked({
-    isServerModel: false,
     runtimeProfile: 'moonshot-kimi-k3',
     agenticReady: false,
-  })).toBe(false);
+  })).toBe(true);
 });
 
 test('allows thinking changes only for capable, accessible, and ready models', () => {
@@ -274,24 +248,20 @@ test('allows thinking changes only for capable, accessible, and ready models', (
   };
   expect(canConfigureModelThinking({
     accessible: true,
-    isServerModel: true,
     requestCapabilities: [LobsterAIRequestCapability.OptionsV1],
     thinkingConfig: { options: thinkingConfig.options.map(option => ({ ...option })), defaultLevel: thinkingConfig.defaultLevel },
   })).toBe(true);
   expect(canConfigureModelThinking({
     accessible: true,
-    isServerModel: true,
     thinkingConfig: { options: thinkingConfig.options.map(option => ({ ...option })), defaultLevel: thinkingConfig.defaultLevel },
   })).toBe(false);
   expect(canConfigureModelThinking({
     accessible: false,
-    isServerModel: true,
     requestCapabilities: [LobsterAIRequestCapability.OptionsV1],
     thinkingConfig: { options: thinkingConfig.options.map(option => ({ ...option })), defaultLevel: thinkingConfig.defaultLevel },
   })).toBe(false);
   expect(canConfigureModelThinking({
     accessible: true,
-    isServerModel: true,
     runtimeProfile: 'moonshot-kimi-k3',
     agenticReady: false,
     requestCapabilities: [LobsterAIRequestCapability.OptionsV1],
@@ -299,7 +269,6 @@ test('allows thinking changes only for capable, accessible, and ready models', (
   })).toBe(false);
   expect(canConfigureModelThinking({
     accessible: true,
-    isServerModel: true,
     requestCapabilities: [LobsterAIRequestCapability.OptionsV1],
   })).toBe(false);
 });

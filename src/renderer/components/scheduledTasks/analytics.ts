@@ -68,7 +68,7 @@ export function getModelAnalyticsParams(
   }
 
   const modelSource =
-    resolvedModel.isServerModel || resolvedModel.providerKey === ProviderName.LobsteraiServer
+    resolvedModel.providerKey === ProviderName.LobsteraiServer
       ? 'package'
       : 'custom';
 
@@ -80,7 +80,6 @@ export function getModelAnalyticsParams(
     modelSource,
     providerKey: resolvedModel.providerKey,
     provider: resolvedModel.provider,
-    selectorGroup: modelSource === 'package' ? 'server' : 'user',
   };
 }
 

@@ -14,9 +14,9 @@ const models: Model[] = [
   { id: 'gpt-4o', name: 'GPT-4o', providerKey: 'openai' },
   { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', providerKey: 'anthropic' },
   { id: 'deepseek-v3.2', name: 'DeepSeek', providerKey: 'anthropic' },
-  { id: 'deepseek-v3.2', name: 'DeepSeek Server', providerKey: 'openai', isServerModel: true },
+  { id: 'deepseek-v3.2', name: 'DeepSeek Server', providerKey: 'openai' },
   { id: 'kimi-k2.6', name: 'Kimi K2.6', providerKey: 'moonshot' },
-  { id: 'kimi-k2.6', name: 'Kimi K2.6 Server', providerKey: 'lobsterai-server', isServerModel: true },
+  { id: 'kimi-k2.6', name: 'Kimi K2.6 Server', providerKey: 'lobsterai-server' },
 ];
 
 const visionModel: Model = { id: 'qwen3.5-plus', name: 'Qwen3.5 Plus', providerKey: 'qwen', supportsImage: true };
@@ -102,7 +102,6 @@ describe('resolveAgentModelSelection', () => {
     });
 
     expect(result.selectedModel?.providerKey).toBe('lobsterai-server');
-    expect(result.selectedModel?.isServerModel).toBe(true);
     expect(result.usesFallback).toBe(false);
     expect(result.hasInvalidExplicitModel).toBe(false);
   });
@@ -116,7 +115,6 @@ describe('resolveAgentModelSelection', () => {
     });
 
     expect(result.selectedModel?.providerKey).toBe('lobsterai-server');
-    expect(result.selectedModel?.isServerModel).toBe(true);
     expect(result.usesFallback).toBe(false);
     expect(result.hasInvalidExplicitModel).toBe(false);
   });
@@ -227,9 +225,9 @@ describe('resolveEffectiveModel', () => {
 describe('resolveAgentStartModel', () => {
   const customQwen: Model = { id: 'qwen3.8-max', name: 'Qwen Max', providerKey: 'qwen' };
   const customGlm: Model = { id: 'glm-5.1', name: 'GLM 5.1', providerKey: 'zhipu' };
-  const planFlash: Model = { id: 'qwen3.8-flash', name: 'Flash', providerKey: 'lobsterai-server', isServerModel: true };
+  const planFlash: Model = { id: 'qwen3.8-flash', name: 'Flash', providerKey: 'lobsterai-server' };
   const planMaxLocked: Model = {
-    id: 'qwen3.8-max', name: 'Qwen Max Plan', providerKey: 'lobsterai-server', isServerModel: true, accessible: false,
+    id: 'qwen3.8-max', name: 'Qwen Max Plan', providerKey: 'lobsterai-server', accessible: false,
   };
 
   test('starts with the configured model when it is usable', () => {

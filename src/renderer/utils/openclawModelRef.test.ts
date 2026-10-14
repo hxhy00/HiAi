@@ -39,7 +39,7 @@ describe('resolveOpenClawModelRef', () => {
   test('never resolves a custom model ref to a plan model with the same id, or back', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(console, 'debug').mockImplementation(() => {});
-    const planModel = { id: 'qwen3.8-max', name: 'Qwen Plan', providerKey: ProviderName.LobsteraiServer, isServerModel: true };
+    const planModel = { id: 'qwen3.8-max', name: 'Qwen Plan', providerKey: ProviderName.LobsteraiServer };
     const customModel = { id: 'glm-5', name: 'GLM', providerKey: 'zhipu', openClawProviderId: 'zai' };
 
     expect(resolveOpenClawModelRef('qwen/qwen3.8-max', [planModel])).toBeNull();

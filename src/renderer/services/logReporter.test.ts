@@ -73,7 +73,6 @@ test('builds a Youdao Analyzer URL with common action parameters', () => {
   expect(result.searchParams.get('log_Usid')).toBe('test-user');
   expect(result.searchParams.get('user_id')).toBe('test-user');
   expect(result.searchParams.get('identityType')).toBe('free');
-  expect(result.searchParams.get('is_subscriber')).toBe('false');
   expect(result.searchParams.get('uts')).toBe('123456789');
 });
 
@@ -95,8 +94,6 @@ test('does not allow event parameters to override common parameters', () => {
       keyfrom: 'unexpected-keyfrom',
       is_logged_in: false,
       identityType: 'free',
-      is_subscriber: false,
-      subscriptionStatus: 'free',
       log_Usid: 'unexpected-user',
       user_id: 'unexpected-user',
       uts: 1,
@@ -109,11 +106,9 @@ test('does not allow event parameters to override common parameters', () => {
       firstKeyfrom: 'trusted-first-keyfrom',
       installationId: 'trusted-uuid',
       identityType: 'subscription',
-      isSubscriber: true,
       language: 'trusted-language',
       latestKeyfrom: 'trusted-latest-keyfrom',
       platform: 'trusted-platform',
-      subscriptionStatus: 'active',
       userId: 'trusted-user',
       timestamp: 2,
     },
@@ -133,8 +128,6 @@ test('does not allow event parameters to override common parameters', () => {
   expect(result.searchParams.get('keyfrom')).toBe('trusted-latest-keyfrom');
   expect(result.searchParams.get('is_logged_in')).toBe('true');
   expect(result.searchParams.get('identityType')).toBe('subscription');
-  expect(result.searchParams.get('is_subscriber')).toBe('true');
-  expect(result.searchParams.get('subscriptionStatus')).toBe('active');
   expect(result.searchParams.get('log_Usid')).toBe('trusted-user');
   expect(result.searchParams.get('user_id')).toBe('trusted-user');
   expect(result.searchParams.get('uts')).toBe('2');
@@ -243,7 +236,6 @@ test('allows only an explicit touchpoint identity override during event capture'
   expect(requestUrl.searchParams.get('identityType')).toBe(PublishingIdentityType.Subscription);
   expect(requestUrl.searchParams.get('log_Usid')).toBe('');
   expect(requestUrl.searchParams.get('is_logged_in')).toBe('false');
-  expect(requestUrl.searchParams.get('is_subscriber')).toBe('false');
 });
 
 test('returns false when the event request is rejected', async () => {

@@ -66,15 +66,10 @@ const serializeAnalyticsList = (values: string[]): string | undefined => {
 
 const getModelAnalyticsSource = (model: Model | null): 'package' | 'custom' | undefined => {
   if (!model) return undefined;
-  if (model.isServerModel || model.providerKey === ProviderName.LobsteraiServer) {
+  if (model.providerKey === ProviderName.LobsteraiServer) {
     return 'package';
   }
   return 'custom';
-};
-
-const getModelSelectorGroup = (model: Model | null): 'server' | 'user' | undefined => {
-  if (!model) return undefined;
-  return model.isServerModel || model.providerKey === ProviderName.LobsteraiServer ? 'server' : 'user';
 };
 
 interface AgentCreateModalProps {
@@ -208,7 +203,6 @@ const AgentCreateModal: React.FC<AgentCreateModalProps> = ({
       modelSource: options.includeConfigDetails ? getModelAnalyticsSource(model) : undefined,
       providerKey: options.includeConfigDetails ? model?.providerKey : undefined,
       provider: options.includeConfigDetails ? model?.provider : undefined,
-      selectorGroup: options.includeConfigDetails ? getModelSelectorGroup(model) : undefined,
       skillIds: options.includeConfigDetails ? serializeAnalyticsList(selectedSkills.map(skill => skill.id)) : undefined,
       skillNames: options.includeConfigDetails ? serializeAnalyticsList(selectedSkills.map(skill => skill.name)) : undefined,
       builtInSkillCount: options.includeConfigDetails

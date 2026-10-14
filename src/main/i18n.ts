@@ -205,19 +205,9 @@ const translations: Record<LanguageType, Record<string, string>> = {
     skillErrClawhubNotFound: '在 ClawHub 上未找到该技能，请检查链接是否正确。',
     skillErrClawhubDownloadFailed: '从 ClawHub 下载技能失败，请稍后重试。',
 
-    // Auth quota
-    authPlanFree: '免费',
-    authPlanStandard: '标准',
-    enterpriseAccountContextMismatchTitle: '团队身份已失效',
-    enterpriseAccountContextMismatchMessage:
-      '当前团队身份与登录凭证不一致。相关图片和视频任务已停止轮询，请重新登录或重新选择团队身份后再试。',
-    enterpriseAccountContextMismatchConfirm: '知道了',
+    // Media/account guards (userId retained in task metadata)
     authAccountChanged: '登录账号已发生变化，请重试。',
-    authLoginRequired: '请先登录后再试。',
     mediaTaskAccountMismatch: '该媒体任务属于其他账号，无法操作。',
-    enterpriseMediaQuotaUnavailable: '当前团队的媒体生成额度暂不可用。',
-    mediaImageProviderNotConfigured: '尚未配置图片模型，请在设置中添加图片模型后再试。',
-    mediaVideoProviderNotConfigured: '尚未配置视频模型，请在设置中添加视频模型后再试。',
 
     // Data migration dialogs
     dataMigrationBackupDialogTitle: '备份 LobsterAI 数据',
@@ -628,17 +618,10 @@ const translations: Record<LanguageType, Record<string, string>> = {
     skillErrClawhubNotFound: 'Skill not found on ClawHub. Please check the URL.',
     skillErrClawhubDownloadFailed: 'Failed to download skill from ClawHub. Please try again later.',
 
-    // Auth quota
-    authPlanFree: 'Free',
-    authPlanStandard: 'Standard',
-    enterpriseAccountContextMismatchTitle: 'Team identity expired',
-    enterpriseAccountContextMismatchMessage:
-      'Your team identity no longer matches the login credentials. Related image and video polling has stopped. Sign in again or choose a team identity before retrying.',
-    enterpriseAccountContextMismatchConfirm: 'OK',
+    // Media/account guards (userId retained in task metadata)
     authAccountChanged: 'The signed-in account changed. Try again.',
-    authLoginRequired: 'Sign in and try again.',
     mediaTaskAccountMismatch: 'This media task belongs to another account.',
-    enterpriseMediaQuotaUnavailable: 'Media generation quota is unavailable for this team.',
+
     mediaImageProviderNotConfigured: 'No image model is configured. Add an image model in Settings and try again.',
     mediaVideoProviderNotConfigured: 'No video model is configured. Add a video model in Settings and try again.',
 

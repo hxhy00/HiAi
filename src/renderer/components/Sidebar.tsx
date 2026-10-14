@@ -56,9 +56,6 @@ interface SidebarProps {
   onTaskFilterSummaryChange: (hasUnreadCompletedTasks: boolean) => void;
   onWidthChange?: (width: number) => void;
   updateNotice?: React.ReactNode;
-  /** The expanded update card owns the sidebar bottom; temporarily hide the
-   * promo banner while preserving it for a smooth return after collapse. */
-  hideAdBanner?: boolean;
   hideLogin?: boolean;
   isEngineStartupOverlayVisible?: boolean;
 }

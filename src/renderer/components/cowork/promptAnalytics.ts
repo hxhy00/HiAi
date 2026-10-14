@@ -1,3 +1,5 @@
+import { ProviderName } from '@shared/providers/constants';
+
 import {
   type PromptAnalyticsConversationState as PromptAnalyticsConversationStateValue,
   PromptAnalyticsConversationState as SharedPromptAnalyticsConversationState,
@@ -178,10 +180,9 @@ export const getModelAnalyticsParams = (
 ): Record<string, PromptAnalyticsValue> => ({
   modelId: model?.id,
   modelName: model?.name,
-  modelSource: model ? (model.isServerModel ? 'package' : 'custom') : undefined,
+  modelSource: model ? (model.providerKey === ProviderName.LobsteraiServer ? 'package' : 'custom') : undefined,
   providerKey: model?.providerKey,
   provider: model?.provider,
-  isServerModel: model?.isServerModel === true,
 });
 
 export interface PromptSubmitAnalyticsOptions {

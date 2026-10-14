@@ -175,6 +175,8 @@
     "generate:tray-icons": "node scripts/generate-tray-icons.js",
     "setup:mingit": "node scripts/setup-mingit.js",
     "setup:python-runtime": "node scripts/setup-python-runtime.js",
+    "setup:sherpa-onnx": "node scripts/setup-sherpa-onnx.js",
+    "setup:sherpa-onnx:required": "node scripts/setup-sherpa-onnx.js --required",
     "openclaw:ensure": "node scripts/ensure-openclaw-version.cjs",
     "openclaw:patch": "node scripts/apply-openclaw-patches.cjs",
     "verify:installer-patches": "node scripts/verify-installer-patches.cjs",

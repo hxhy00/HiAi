@@ -81,8 +81,6 @@ const writeSqliteFixture = (dbPath: string, label: string): void => {
 
     const now = Date.now();
     const insertKv = db.prepare('INSERT INTO kv (key, value, updated_at) VALUES (?, ?, ?)');
-    insertKv.run('auth_tokens', JSON.stringify({ accessToken: `${label}-access`, refreshToken: `${label}-refresh` }), now);
-    insertKv.run('auth_user', JSON.stringify({ id: `${label}-user` }), now);
     insertKv.run('app_config', JSON.stringify({ providers: { custom: { models: [`${label}-model`] } } }), now);
     insertKv.run('skills_state', JSON.stringify({ [`${label}-skill`]: { enabled: true } }), now);
     insertKv.run('openclaw_session_policy', JSON.stringify({ mode: label }), now);
@@ -355,8 +353,11 @@ test('createMigrationArchive replaces the live sqlite database with the snapshot
   });
 
   const extractRoot = extractArchive(archivePath);
+  expect(readSqliteString(path.join(extractRoot, 'LobsterAI', DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['app_config']))
+    .toContain('snapshot-model');
+  // RM-6：登录态 kv 不随备份迁移。
   expect(readSqliteString(path.join(extractRoot, 'LobsterAI', DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['auth_tokens']))
-    .toContain('snapshot-refresh');
+    .toBe('');
   expect(fs.existsSync(path.join(extractRoot, 'LobsterAI', `${DB_FILENAME}-wal`))).toBe(false);
 });
 
@@ -508,8 +509,8 @@ test('performPendingDataMigrationRestoreSync creates rollback and restores backu
   expect(result?.status).toBe(DataMigrationRestoreStatus.Success);
   expect(result?.rollbackPath).toBeTruthy();
   expect(fs.existsSync(result?.rollbackPath || '')).toBe(true);
-  expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['auth_tokens']))
-    .toContain('source-refresh');
+  expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['app_config']))
+    .toContain('source-model');
   expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT id FROM cowork_sessions')).toBe('source-session');
   expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT id FROM agents')).toBe('source-agent');
   expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT id FROM mcp_servers')).toBe('source-mcp');
@@ -641,8 +642,8 @@ test('performDataMigrationRestoreSync restores valid backup when current sqlite 
   expect(result?.status).toBe(DataMigrationRestoreStatus.Success);
   expect(result?.rollbackPath).toBeTruthy();
   expect(fs.existsSync(result?.rollbackPath || '')).toBe(true);
-  expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['auth_tokens']))
-    .toContain('source-refresh');
+  expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['app_config']))
+    .toContain('source-model');
   expect(fs.existsSync(path.join(targetUserData, 'old-only.txt'))).toBe(false);
 });
 
@@ -742,8 +743,8 @@ test('performPendingDataMigrationRestoreSync replaces data in place and preserve
   expect(rollbackEntries.some(entry => entry.includes('/sqlite-backups/'))).toBe(false);
   expect(rollbackEntries.some(entry => entry.endsWith('/install-timing.log'))).toBe(false);
   expect(rollbackEntries.some(entry => entry.endsWith('/skill-migrate.log'))).toBe(false);
-  expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['auth_tokens']))
-    .toContain('source-refresh');
+  expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['app_config']))
+    .toContain('source-model');
   expect(fs.readFileSync(path.join(targetUserData, 'openclaw', 'state', 'openclaw.json'), 'utf8')).toBe('{"source":true}');
   expect(fs.existsSync(path.join(targetUserData, `${DB_FILENAME}-wal`))).toBe(false);
   expect(fs.existsSync(path.join(targetUserData, `${DB_FILENAME}-shm`))).toBe(false);
@@ -794,8 +795,8 @@ test('performPendingDataMigrationRestoreSync keeps existing data when restore fa
   });
 
   expect(result?.status).toBe(DataMigrationRestoreStatus.Failed);
-  expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['auth_tokens']))
-    .toContain('target-refresh');
+  expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['app_config']))
+    .toContain('target-model');
 });
 
 test('performDataMigrationRestoreSync rolls back when the backup is missing sqlite data', () => {
@@ -826,8 +827,8 @@ test('performDataMigrationRestoreSync rolls back when the backup is missing sqli
 
   expect(result?.status).toBe(DataMigrationRestoreStatus.Failed);
   expect(result?.error).toContain(`missing ${DB_FILENAME}`);
-  expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['auth_tokens']))
-    .toContain('target-refresh');
+  expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['app_config']))
+    .toContain('target-model');
   expect(fs.existsSync(path.join(targetUserData, 'SKILLs', 'demo', 'SKILL.md'))).toBe(false);
 });
 
@@ -861,8 +862,8 @@ test('performDataMigrationRestoreSync rejects unreadable backup sqlite before to
 
   expect(result?.status).toBe(DataMigrationRestoreStatus.Failed);
   expect(result?.error).toContain(`unreadable ${DB_FILENAME}`);
-  expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['auth_tokens']))
-    .toContain('target-refresh');
+  expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['app_config']))
+    .toContain('target-model');
   expect(fs.readFileSync(path.join(targetUserData, 'backups', 'sqlite', 'snapshots', 'lobsterai-latest.sqlite'), 'utf8'))
     .toBe('target-backup');
   expect(fs.existsSync(path.join(targetUserData, 'SKILLs', 'demo', 'SKILL.md'))).toBe(false);

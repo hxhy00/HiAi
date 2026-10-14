@@ -7,8 +7,6 @@ export interface AnalyticsIdentitySnapshot {
   userId: string;
   isLoggedIn: boolean;
   identityType: PublishingIdentityTypeValue;
-  isSubscriber: boolean;
-  subscriptionStatus?: string;
 }
 
 // Login capability was removed (remove-membership §11 D1): every analytics
@@ -17,5 +15,4 @@ export const getAnalyticsIdentitySnapshot = (): AnalyticsIdentitySnapshot => ({
   userId: '',
   isLoggedIn: false,
   identityType: PublishingIdentityType.Free,
-  isSubscriber: false,
 });
