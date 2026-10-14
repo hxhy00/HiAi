@@ -12082,15 +12082,9 @@ if (!gotTheLock) {
     }
   });
 
-  // MOCK: asr-stub-getAuthTokens — login is removed and the server-backed ASR
-  // feature is scheduled for deletion in FR-3. Returning null makes all ASR
-  // handlers fail fast with Unauthorized. Replace this whole registration when
-  // FR-3 lands.
-  registerAsrIpcHandlers({
-    getAuthTokens: () => null,
-    fetchWithAuth,
-    getServerApiBaseUrl,
-  });
+  // Local SenseVoice ASR (FR-3). The server-backed realtime session stub has
+  // been replaced by the bundled sherpa-onnx sidecar; no auth or server needed.
+  registerAsrIpcHandlers();
 
   registerSiteIpcHandlers({
     fetchWithAuth: (url, options) => {

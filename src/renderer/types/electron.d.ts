@@ -14,8 +14,9 @@ import type { ReviewScopeRequest } from '../../shared/artifactPreview/reviewScop
 import type { ReviewSourceRequest, ReviewSourceResponse } from '../../shared/artifactPreview/reviewSource';
 import type { ResolvedArtifactOutput } from '../../shared/artifactPreview/workspace';
 import type {
-  AsrRealtimeSessionRequest,
-  AsrRealtimeSessionResult,
+  AsrAvailabilityResult,
+  AsrTranscribeRequest,
+  AsrTranscribeResult,
 } from '../../shared/asr/constants';
 import type {
   AuthLifecycleEvent,

@@ -4,19 +4,17 @@ import {
   VOICE_INPUT_TARGET_SAMPLE_RATE,
 } from './constants';
 import { AsrClientError } from './errors';
-import { encodePcm16Bytes, mergeAudioChunks, resampleLinear } from './wavEncoder';
+import { buildPcm16Wav, encodePcm16Bytes, mergeAudioChunks, resampleLinear } from './wavEncoder';
 
 type AudioContextConstructor = typeof AudioContext;
 
-export interface RealtimeVoiceRecordingSession {
-  stop: () => Promise<void>;
+export interface BatchVoiceRecordingSession {
+  /** Stops capture and resolves the full PCM16 WAV payload (16 kHz, mono). */
+  stop: () => Promise<Uint8Array>;
+  /** Stops capture and discards the recording. */
   cancel: () => void;
+  /** Captured output sample count at the target sample rate. */
   getOutputSampleCount: () => number;
-}
-
-interface RealtimeVoiceRecordingOptions {
-  chunkIntervalMillis: number;
-  onPcmChunk: (chunk: Uint8Array) => void;
 }
 
 const resolveAudioContext = (): AudioContextConstructor | null => {
@@ -26,10 +24,13 @@ const resolveAudioContext = (): AudioContextConstructor | null => {
   return window.AudioContext ?? windowWithWebkit.webkitAudioContext ?? null;
 };
 
-export const startRealtimeVoiceRecording = async ({
-  chunkIntervalMillis,
-  onPcmChunk,
-}: RealtimeVoiceRecordingOptions): Promise<RealtimeVoiceRecordingSession> => {
+/**
+ * Records a complete utterance for one-shot local SenseVoice recognition (FR-3).
+ *
+ * Unlike the previous streaming recorder this collects every PCM chunk and
+ * produces a single WAV file when the user stops; nothing is sent until then.
+ */
+export const startBatchVoiceRecording = async (): Promise<BatchVoiceRecordingSession> => {
   const AudioContextImpl = resolveAudioContext();
   if (!AudioContextImpl || !navigator.mediaDevices?.getUserMedia) {
     throw new AsrClientError(i18nService.t('voiceInputMicrophoneUnavailable'));
@@ -54,37 +55,13 @@ export const startRealtimeVoiceRecording = async ({
   const mutedOutput = audioContext.createGain();
   mutedOutput.gain.value = 0;
 
-  const pendingChunks: Float32Array[] = [];
-  let pendingSourceSamples = 0;
+  const recordedChunks: Float32Array[] = [];
   let outputSampleCount = 0;
   let stopped = false;
-  const minSourceSamplesPerChunk = Math.max(
-    1,
-    Math.round(audioContext.sampleRate * (chunkIntervalMillis / 1000)),
-  );
-
-  const flush = () => {
-    if (pendingSourceSamples <= 0) return;
-    const merged = mergeAudioChunks(pendingChunks);
-    pendingChunks.length = 0;
-    pendingSourceSamples = 0;
-    const resampled = resampleLinear(merged, audioContext.sampleRate, VOICE_INPUT_TARGET_SAMPLE_RATE);
-    if (resampled.length === 0) return;
-    outputSampleCount += resampled.length;
-    const pcmBytes = encodePcm16Bytes(resampled);
-    if (pcmBytes.byteLength > 0) {
-      onPcmChunk(pcmBytes);
-    }
-  };
 
   processor.onaudioprocess = (event) => {
     if (stopped) return;
-    const chunk = new Float32Array(event.inputBuffer.getChannelData(0));
-    pendingChunks.push(chunk);
-    pendingSourceSamples += chunk.length;
-    if (pendingSourceSamples >= minSourceSamplesPerChunk) {
-      flush();
-    }
+    recordedChunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
   };
 
   source.connect(processor);
@@ -100,14 +77,25 @@ export const startRealtimeVoiceRecording = async ({
     stream.getTracks().forEach((track) => track.stop());
   };
 
+  const buildWav = (): Uint8Array => {
+    if (recordedChunks.length === 0) {
+      return buildPcm16Wav(VOICE_INPUT_TARGET_SAMPLE_RATE, new Uint8Array(0));
+    }
+    const merged = mergeAudioChunks(recordedChunks);
+    const resampled = resampleLinear(merged, audioContext.sampleRate, VOICE_INPUT_TARGET_SAMPLE_RATE);
+    outputSampleCount = resampled.length;
+    return buildPcm16Wav(VOICE_INPUT_TARGET_SAMPLE_RATE, encodePcm16Bytes(resampled));
+  };
+
   return {
     stop: async () => {
       cleanup();
-      flush();
+      const wav = buildWav();
       await audioContext.close();
       if (outputSampleCount < VOICE_INPUT_TARGET_SAMPLE_RATE * (VOICE_INPUT_MIN_RECORDING_MS / 1000)) {
         throw new AsrClientError(i18nService.t('voiceInputNoAudioCaptured'));
       }
+      return wav;
     },
     cancel: () => {
       cleanup();

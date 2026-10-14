@@ -1,99 +1,119 @@
-import { ipcMain } from 'electron';
+import { app, ipcMain } from 'electron';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
 import {
-  AsrApiCode,
+  type AsrAvailabilityResult,
   AsrIpcChannel,
-  type AsrRealtimeSessionData,
-  type AsrRealtimeSessionRequest,
-  type AsrRealtimeSessionResult,
+  type AsrTranscribeRequest,
+  type AsrTranscribeResult,
 } from '../../../shared/asr/constants';
+import {
+  checkSenseVoiceAvailability,
+  runSenseVoiceRecognition,
+  SenseVoiceRecognitionError,
+  SenseVoiceUnavailableError,
+} from '../../libs/senseVoice/sidecar';
 
-type AuthTokens = {
-  accessToken: string;
-  refreshToken: string;
+/**
+ * Local-only ASR IPC handlers (FR-3).
+ *
+ * The previous implementation proxied a server-issued realtime session. It is
+ * fully replaced: the renderer records a complete WAV and asks the main process
+ * to run the bundled SenseVoice sidecar once. No auth, no server, no quota.
+ */
+
+const MIN_WAV_BYTES = 128;
+
+const writeTempWav = (bytes: Uint8Array): string => {
+  const dir = fs.mkdtempSync(path.join(app.getPath('temp') || os.tmpdir(), 'lobster-asr-'));
+  const filePath = path.join(dir, 'recording.wav');
+  fs.writeFileSync(filePath, Buffer.from(bytes));
+  return filePath;
 };
 
-type AsrResponseBody = {
-  code?: number;
-  message?: string;
-  data?: unknown;
-};
-
-const readAsrResponseBody = async (resp: Response): Promise<AsrResponseBody | null> => (
-  await resp.json().catch((): null => null) as AsrResponseBody | null
-);
-
-const getAsrResponseMessage = (body: AsrResponseBody | null, resp: Response): string => (
-  body?.message || resp.statusText || 'No response message'
-);
-
-const getSafeWebSocketEndpoint = (wsUrl: string): string => {
+const cleanupTempWav = (filePath: string): void => {
   try {
-    const url = new URL(wsUrl);
-    return `${url.origin}${url.pathname}`;
+    fs.rmSync(path.dirname(filePath), { recursive: true, force: true });
   } catch {
-    return 'unknown';
+    // Best-effort cleanup; a leftover temp file is harmless.
   }
 };
 
-export interface AsrHandlerDeps {
-  getAuthTokens: () => AuthTokens | null;
-  fetchWithAuth: (url: string, options?: RequestInit) => Promise<Response>;
-  getServerApiBaseUrl: () => string;
-}
-
-export function registerAsrIpcHandlers({
-  getAuthTokens,
-  fetchWithAuth,
-  getServerApiBaseUrl,
-}: AsrHandlerDeps): void {
+export function registerAsrIpcHandlers(): void {
   ipcMain.handle(
-    AsrIpcChannel.CreateRealtimeSession,
-    async (_event, options?: AsrRealtimeSessionRequest): Promise<AsrRealtimeSessionResult> => {
-      try {
-        const tokens = getAuthTokens();
-        if (!tokens) {
-          console.warn('[ASR] realtime session request was rejected because no auth tokens are available');
-          return { success: false, code: AsrApiCode.Unauthorized, error: 'Unauthorized' };
-        }
+    AsrIpcChannel.GetAvailability,
+    (): AsrAvailabilityResult => checkSenseVoiceAvailability(),
+  );
 
-        const params = new URLSearchParams();
-        if (options?.langType) {
-          params.set('langType', options.langType);
-        }
+  ipcMain.handle(
+    AsrIpcChannel.Transcribe,
+    async (_event, request?: AsrTranscribeRequest): Promise<AsrTranscribeResult> => {
+      const availability = checkSenseVoiceAvailability();
+      if (!availability.available) {
+        return {
+          success: false,
+          code: 'unavailable',
+          error: availability.reason || 'Local speech recognition is unavailable',
+        };
+      }
 
-        const serverBaseUrl = getServerApiBaseUrl();
-        const requestUrl = `${serverBaseUrl}/api/asr/realtime/sessions`;
-        console.log(`[ASR] realtime session request started for ${requestUrl} with langType=${options?.langType || 'default'}`);
-        const resp = await fetchWithAuth(requestUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
-          },
-          body: params.toString(),
+      const wavBytes = request?.wavBytes;
+      if (!wavBytes || wavBytes.byteLength < MIN_WAV_BYTES) {
+        console.warn('[ASR] rejected recording as empty', {
+          byteLength: wavBytes?.byteLength ?? 0,
+          minRequired: MIN_WAV_BYTES,
+          durationMs: request?.durationMs,
         });
-        const body = await readAsrResponseBody(resp);
+        return { success: false, code: 'invalidAudio', error: 'Captured audio is empty' };
+      }
 
-        if (resp.ok && body?.code === 0 && body.data) {
-          const data = body.data as AsrRealtimeSessionData;
-          console.log(`[ASR] realtime session request succeeded; requestId=${data.requestId}, wsEndpoint=${getSafeWebSocketEndpoint(data.wsUrl)}, maxSessionSeconds=${data.maxSessionSeconds}, remainingSecondsToday=${data.remainingSecondsToday}`);
-          return { success: true, data };
+      let wavPath: string | null = null;
+      try {
+        wavPath = writeTempWav(wavBytes instanceof Uint8Array ? wavBytes : new Uint8Array(wavBytes));
+        const text = await runSenseVoiceRecognition({
+          wavPath,
+          onDiagnostics: (d) => {
+            // Field failures ("no valid speech recognized") are otherwise
+            // invisible; record exactly what the binary saw and printed so the
+            // main log is enough to diagnose without a local repro.
+            console.warn('[ASR] sidecar run', {
+              wavBytes: d.wavBytes,
+              exitCode: d.exitCode,
+              durationMs: d.durationMs,
+              parsedChars: d.parsedText.length,
+              executable: d.executable,
+              stderr: d.stderr.slice(-2000),
+              stdout: d.stdout.slice(-2000),
+            });
+          },
+        });
+        if (!text.trim()) {
+          console.warn('[ASR] sidecar produced an empty transcript; returning recognitionFailed');
         }
-
-        console.warn(`[ASR] realtime session request to ${requestUrl} was rejected with code ${body?.code ?? resp.status}, HTTP status ${resp.status}, and message: ${getAsrResponseMessage(body, resp)}`);
-
-        return {
-          success: false,
-          code: body?.code ?? resp.status,
-          error: body?.message || resp.statusText || 'ASR realtime session request failed',
-          message: body?.message,
-        };
+        return { success: true, text };
       } catch (error) {
-        console.warn('[ASR] realtime session request failed:', error);
+        if (error instanceof SenseVoiceUnavailableError) {
+          return { success: false, code: 'unavailable', error: error.message };
+        }
+        if (error instanceof SenseVoiceRecognitionError) {
+          const code = /timed out/i.test(error.message)
+            ? 'timeout'
+            : /cancelled/i.test(error.message)
+              ? 'cancelled'
+              : 'recognitionFailed';
+          console.warn('[ASR] local recognition failed:', error.message);
+          return { success: false, code, error: error.message };
+        }
+        console.warn('[ASR] local recognition failed with unexpected error:', error);
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'ASR realtime session request failed',
+          code: 'recognitionFailed',
+          error: error instanceof Error ? error.message : 'Speech recognition failed',
         };
+      } finally {
+        if (wavPath) cleanupTempWav(wavPath);
       }
     },
   );

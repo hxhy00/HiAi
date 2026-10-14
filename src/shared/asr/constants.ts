@@ -1,79 +1,40 @@
+/**
+ * Local SenseVoice ASR contract (FR-3).
+ *
+ * Voice input records a PCM16 WAV (16 kHz mono) in the renderer, then asks the
+ * main process to run a single offline recognition pass through the bundled
+ * sherpa-onnx SenseVoice sidecar. There is no server session, no streaming and
+ * no quota: the previous realtime/server contract is gone.
+ */
+
 export const AsrIpcChannel = {
-  CreateRealtimeSession: 'asr:realtime:createSession',
+  /** Returns whether the local SenseVoice sidecar is usable. */
+  GetAvailability: 'asr:local:getAvailability',
+  /** Runs one offline recognition pass for a recorded WAV file. */
+  Transcribe: 'asr:local:transcribe',
 } as const;
 
 export type AsrIpcChannel = typeof AsrIpcChannel[keyof typeof AsrIpcChannel];
 
-export const AsrLangType = {
-  ZhChs: 'zh-CHS',
-} as const;
-
-export type AsrLangType = typeof AsrLangType[keyof typeof AsrLangType];
-
-export const AsrApiCode = {
-  Unauthorized: 401,
-  AuthTokenInvalid: 40100,
-  ConfigInvalid: 41400,
-  AudioInvalid: 41401,
-  AudioTooLarge: 41402,
-  AudioTooLong: 41403,
-  DailyLimitExceeded: 41404,
-  UpstreamAuthFailed: 41405,
-  UpstreamRateLimited: 41406,
-  RecognitionFailed: 41407,
-  UpstreamError: 50201,
-  UpstreamBalanceInsufficient: 50203,
-  UpstreamInvalidParams: 50204,
-} as const;
-
-export type AsrApiCode = typeof AsrApiCode[keyof typeof AsrApiCode];
-
-export interface AsrRealtimeSessionRequest {
-  langType?: AsrLangType;
+export interface AsrAvailabilityResult {
+  available: boolean;
+  reason?: string;
 }
 
-export interface AsrRealtimeSessionData {
-  requestId: string;
-  wsUrl: string;
-  expiresInSeconds: number;
-  chunkIntervalMillis: number;
-  maxSessionSeconds: number;
-  maxConcurrentSessions: number;
-  usedSecondsToday: number;
-  remainingSecondsToday: number;
-  limitSecondsToday: number;
+export interface AsrTranscribeRequest {
+  /** Complete PCM16 WAV payload (16 kHz, mono) captured by the renderer. */
+  wavBytes: Uint8Array;
+  /** Duration of the recording in milliseconds, used for validation. */
+  durationMs?: number;
 }
 
-export type AsrRealtimeSessionResult =
-  | { success: true; data: AsrRealtimeSessionData }
-  | { success: false; code?: number; error?: string; message?: string };
+export type AsrTranscribeErrorCode =
+  | 'unavailable'
+  | 'invalidAudio'
+  | 'recognitionFailed'
+  | 'cancelled'
+  | 'timeout';
 
-export const AsrRealtimeEventType = {
-  Started: 'started',
-  Recognition: 'recognition',
-  Closed: 'closed',
-  Error: 'error',
-} as const;
-
-export type AsrRealtimeEventType = typeof AsrRealtimeEventType[keyof typeof AsrRealtimeEventType];
-
-export interface AsrRealtimeRecognitionRawItem {
-  seg_id?: number;
-  st?: {
-    sentence?: string;
-    partial?: boolean;
-  };
-}
-
-export interface AsrRealtimeEvent {
-  type?: AsrRealtimeEventType | string;
-  code?: number;
-  message?: string;
-  requestId?: string;
-  text?: string;
-  raw?: {
-    action?: string;
-    errorCode?: string;
-    result?: AsrRealtimeRecognitionRawItem[];
-  };
-}
+export type AsrTranscribeResult =
+  | { success: true; text: string }
+  | { success: false; code: AsrTranscribeErrorCode; error?: string };

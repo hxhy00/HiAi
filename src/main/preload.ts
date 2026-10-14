@@ -1036,8 +1036,9 @@ contextBridge.exposeInMainWorld('electron', {
     },
   },
   asr: {
-    createRealtimeSession: (options: AsrRealtimeSessionRequest) =>
-      ipcRenderer.invoke(AsrIpcChannel.CreateRealtimeSession, options),
+    getAvailability: () => ipcRenderer.invoke(AsrIpcChannel.GetAvailability),
+    transcribe: (request: AsrTranscribeRequest) =>
+      ipcRenderer.invoke(AsrIpcChannel.Transcribe, request),
   },
   artifact: {
     office: createOfficeBridges(ipcRenderer),

@@ -9,7 +9,6 @@ const renderButton = (overrides: Partial<React.ComponentProps<typeof VoiceInputB
     buttonClassName: 'button',
     iconClassName: 'icon',
     disabled: false,
-    isQuotaExhausted: false,
     isRecording: false,
     isRecognizing: false,
     onClick: () => undefined,
@@ -43,12 +42,10 @@ describe('VoiceInputButton', () => {
     expect(html).not.toContain('<svg');
   });
 
-  test('keeps the microphone visually available when quota is exhausted', () => {
-    const html = renderButton({ isQuotaExhausted: true });
+  test('greys out the microphone when local recognition is unavailable', () => {
+    const html = renderButton({ disabled: true });
 
-    expect(html).toContain('aria-label="暂无语音输入时长"');
-    expect(html).toContain('text-secondary hover:bg-surface-raised hover:text-foreground');
-    expect(html).not.toContain('opacity-40');
-    expect(html).not.toContain('disabled=""');
+    expect(html).toContain('disabled=""');
+    expect(html).toContain('opacity-60');
   });
 });

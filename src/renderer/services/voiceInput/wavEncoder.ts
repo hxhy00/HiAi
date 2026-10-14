@@ -76,3 +76,11 @@ export const buildPcm16WavHeader = (
   return new Uint8Array(buffer);
 };
 
+export const buildPcm16Wav = (sampleRate: number, pcmBytes: Uint8Array): Uint8Array => {
+  const header = buildPcm16WavHeader(sampleRate, pcmBytes.byteLength);
+  const output = new Uint8Array(header.byteLength + pcmBytes.byteLength);
+  output.set(header, 0);
+  output.set(pcmBytes, header.byteLength);
+  return output;
+};
+

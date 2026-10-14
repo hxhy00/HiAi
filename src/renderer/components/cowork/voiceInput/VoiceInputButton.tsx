@@ -7,7 +7,6 @@ interface VoiceInputButtonProps {
   buttonClassName: string;
   iconClassName: string;
   disabled: boolean;
-  isQuotaExhausted: boolean;
   isRecording: boolean;
   isRecognizing: boolean;
   onClick: () => void;
@@ -17,7 +16,6 @@ const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   buttonClassName,
   iconClassName,
   disabled,
-  isQuotaExhausted,
   isRecording,
   isRecognizing,
   onClick,
@@ -28,9 +26,7 @@ const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
     ? i18nService.t('voiceInputStopRecording')
     : isRecognizing
       ? i18nService.t('voiceInputRecognizing')
-      : isQuotaExhausted
-        ? i18nService.t('voiceInputQuotaExhausted')
-        : i18nService.t('voiceInput');
+      : i18nService.t('voiceInput');
   const showsStopIcon = isRecording || isRecognizing;
   const stateClass = showsStopIcon
     ? 'bg-neutral-100 text-neutral-950 hover:bg-neutral-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/15'

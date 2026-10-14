@@ -167,6 +167,7 @@ import SelectedTextSnippetBadge from './SelectedTextSnippetBadge';
 import { buildPlanModeSystemPrompt } from './skillSystemPrompt';
 import { usePersistAgentModelSelection } from './usePersistAgentModelSelection';
 import { useCoworkVoiceInput } from './voiceInput/useCoworkVoiceInput';
+import { useVoiceInputAvailability } from './voiceInput/useVoiceInputAvailability';
 import VoiceInputButton from './voiceInput/VoiceInputButton';
 import VoiceInputRecordingStatus from './voiceInput/VoiceInputRecordingStatus';
 import { getCoworkVoiceRecordingUiState } from './voiceInput/voiceInputUiState';
@@ -306,18 +307,6 @@ const isImageMimeType = (mimeType: string): boolean => {
 
 const showToast = (message: string): void => {
   window.dispatchEvent(new CustomEvent('app:showToast', { detail: message }));
-};
-
-const DEFAULT_FREE_ASR_LIMIT_SECONDS = 20 * 60;
-const DEFAULT_SUBSCRIBED_ASR_LIMIT_SECONDS = 200 * 60;
-
-const formatVoiceInputQuotaLimit = (seconds: number): string => {
-  const safeSeconds = Math.max(0, Math.floor(seconds));
-  if (safeSeconds >= 3600 && safeSeconds % 3600 === 0) {
-    return i18nService.t('voiceInputQuotaHours').replace('{count}', `${safeSeconds / 3600}`);
-  }
-  const minutes = Math.max(1, Math.ceil(safeSeconds / 60));
-  return i18nService.t('voiceInputQuotaMinutes').replace('{count}', `${minutes}`);
 };
 
 const getFileNameFromPath = (path: string): string => {
@@ -518,7 +507,6 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     const currentSession = useSelector((state: RootState) => state.cowork.currentSession);
     const authOwnerAccountKey = COWORK_LOCAL_ACCOUNT_SCOPE.ownerAccountKey;
     const authAccountGeneration = COWORK_LOCAL_ACCOUNT_SCOPE.accountGeneration;
-    const asrQuota = useSelector((state: RootState) => state.asrQuota);
     const [value, setValue] = useState(draftPrompt);
     const [steerValue, setSteerValue] = useState(steerDraft);
     const [steerInputActive, setSteerInputActive] = useState(false);
@@ -545,7 +533,6 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     const [modelAccessPrompt, setModelAccessPrompt] = useState<ModelAccessPromptKind | null>(null);
     const [showChatLoginExperiencePrompt, setShowChatLoginExperiencePrompt] = useState(false);
     const [chatLoginExperiencePending, setChatLoginExperiencePending] = useState(false);
-    const [showVoiceQuotaPrompt, setShowVoiceQuotaPrompt] = useState(false);
     const [isLargeToolbarCompact, setIsLargeToolbarCompact] = useState(false);
     // While the input holds quick-action template text, pin the textarea to
     // maxHeight so switching templates doesn't bounce the layout around it.
@@ -746,12 +733,9 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     setValue,
     textareaRef,
     disabled,
-    onQuotaExhausted: () => setShowVoiceQuotaPrompt(true),
   });
 
-  const isAsrSubscribed = false;
-  const isAsrQuotaExhaustedToday = asrQuota.status === AsrQuotaStatus.Exhausted
-    && asrQuota.dayKey === getLocalAsrQuotaDayKey();
+  const isVoiceInputAvailable = useVoiceInputAvailability();
   const voiceInputLocksEditing = isVoiceRecording || isVoiceRecognizing;
   const promptAnalyticsSurface = getPromptAnalyticsSurface(sessionId);
   const promptAnalyticsConversationState = getPromptAnalyticsConversationState(sessionId);
@@ -835,14 +819,6 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     return sessionId ? 'history_continue' : 'typed';
   }, [selectedTextSnippets.length, sessionId]);
 
-  const ensureFreshAsrQuota = useCallback(() => {
-    dispatch(ensureAsrQuotaFreshForDay(getLocalAsrQuotaDayKey()));
-  }, [dispatch]);
-
-  useEffect(() => {
-    ensureFreshAsrQuota();
-  }, [ensureFreshAsrQuota]);
-
   const handleVoiceInputClick = useCallback(() => {
     if (isVoiceRecording) {
       reportPromptControl('voice_record_stop', {
@@ -857,29 +833,11 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
       });
       return;
     }
-    const todayKey = getLocalAsrQuotaDayKey();
-    if (asrQuota.dayKey && asrQuota.dayKey !== todayKey) {
-      dispatch(ensureAsrQuotaFreshForDay(todayKey));
-    } else if (asrQuota.status === AsrQuotaStatus.Exhausted && asrQuota.dayKey === todayKey) {
-      reportPromptControl('voice_record_blocked', {
-        blockedReason: 'quota_exhausted',
-        asrQuotaStatus: asrQuota.status,
-      });
-      setShowVoiceQuotaPrompt(true);
-      return;
-    }
-    reportPromptControl('voice_record_start', {
-      asrQuotaStatus: asrQuota.status,
-      isAsrSubscribed,
-    });
+    reportPromptControl('voice_record_start', {});
     void handleVoiceInput();
   }, [
-    asrQuota.dayKey,
-    asrQuota.status,
     disabled,
-    dispatch,
     handleVoiceInput,
-    isAsrSubscribed,
     isVoiceRecording,
     recordingElapsedSeconds,
     reportPromptControl,
@@ -3054,8 +3012,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     <VoiceInputButton
       buttonClassName={buttonClassName}
       iconClassName={iconClassName}
-      disabled={disabled}
-      isQuotaExhausted={isAsrQuotaExhaustedToday}
+      disabled={disabled || !isVoiceInputAvailable}
       isRecording={isVoiceRecording}
       isRecognizing={isVoiceRecognizing}
       onClick={handleVoiceInputClick}
@@ -3573,22 +3530,6 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     </div>
   ) : null;
 
-  const voiceQuotaLimitSeconds = asrQuota.limitSecondsToday
-    ?? (isAsrSubscribed ? DEFAULT_SUBSCRIBED_ASR_LIMIT_SECONDS : DEFAULT_FREE_ASR_LIMIT_SECONDS);
-  const voiceQuotaLimitText = formatVoiceInputQuotaLimit(voiceQuotaLimitSeconds);
-  const voiceSubscribedQuotaLimitText = formatVoiceInputQuotaLimit(DEFAULT_SUBSCRIBED_ASR_LIMIT_SECONDS);
-  const voiceQuotaDescription = i18nService
-    .t(isAsrSubscribed ? 'voiceInputQuotaExhaustedSubscribedDesc' : 'voiceInputQuotaExhaustedFreeDesc')
-    .replace('{limit}', voiceQuotaLimitText)
-    .replace('{subscriptionLimit}', voiceSubscribedQuotaLimitText);
-  const handleVoiceQuotaPrimary = async () => {
-    if (isAsrSubscribed) {
-      setShowVoiceQuotaPrompt(false);
-      return;
-    }
-    setShowVoiceQuotaPrompt(false);
-    await window.electron.shell.openExternal(getPortalPricingUrl());
-  };
   const normalizedGoalEditDraft = goalEditDraft.trim();
   const canSaveGoalEdit = Boolean(
     goal
@@ -4024,39 +3965,6 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
           promptKind={modelAccessPrompt}
           onClose={() => setModelAccessPrompt(null)}
         />
-      )}
-      {showVoiceQuotaPrompt && (
-        <Modal
-          onClose={() => setShowVoiceQuotaPrompt(false)}
-          overlayClassName="fixed inset-0 z-[10050] flex items-center justify-center modal-backdrop px-4"
-          className="modal-content w-full max-w-sm rounded-2xl border border-border bg-surface p-5 shadow-modal"
-        >
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-base font-semibold leading-6 text-foreground">
-                {i18nService.t('voiceInputQuotaExhaustedTitle')}
-              </div>
-              <div className="mt-1.5 text-sm leading-5 text-secondary">
-                {voiceQuotaDescription}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowVoiceQuotaPrompt(false)}
-              className="-mr-1 -mt-1 rounded-lg p-1 text-secondary transition-colors hover:bg-surface-raised hover:text-foreground"
-              aria-label={i18nService.t('close')}
-            >
-              <XMarkIcon className="h-5 w-5" />
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={() => { void handleVoiceQuotaPrimary(); }}
-            className="mt-5 w-full rounded-lg bg-primary px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary/90"
-          >
-            {i18nService.t(isAsrSubscribed ? 'voiceInputQuotaAcknowledge' : 'voiceInputUpgradeSubscription')}
-          </button>
-        </Modal>
       )}
     </div>
   );
