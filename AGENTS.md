@@ -194,7 +194,8 @@ tied to the pinned version.
 
 `src/main/main.ts` wires Electron lifecycle, IPC, auth, logging, OpenClaw
 startup, Cowork routing, IM gateways, scheduled tasks, skills, MCP, updates,
-artifact preview/share handlers, and shell/dialog bridges.
+artifact preview/share handlers, SenseVoice voice input (local sherpa-onnx
+sidecar, see `src/main/libs/senseVoice/`), and shell/dialog bridges.
 
 Key modules:
 - `src/main/libs/openclawEngineManager.ts`: manages the bundled OpenClaw

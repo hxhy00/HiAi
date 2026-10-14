@@ -28,6 +28,11 @@ resources/PortableGit-*.7z.exe
 resources/python-win/
 resources/python-*.zip
 resources/computer-use/*.zip
+# Bundled local SenseVoice sidecar (downloaded via scripts/setup-sherpa-onnx.js)
+resources/sherpa-onnx/
+resources/.sherpa-onnx-cache/
+tmp-sherpa-onnx-*/
+tmp-sensevoice-*/
 
 # SKILLs runtime files
 SKILLs/**/.connection

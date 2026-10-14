@@ -1,7 +1,7 @@
 'use strict';
 
 const path = require('path');
-const { existsSync, readdirSync, statSync, mkdirSync, readFileSync, rmSync, cpSync, lstatSync, writeFileSync } = require('fs');
+const { existsSync, readdirSync, statSync, mkdirSync, readFileSync, rmSync, cpSync, lstatSync, writeFileSync, realpathSync } = require('fs');
 const { spawnSync } = require('child_process');
 const asar = require('@electron/asar');
 const { Arch } = require('builder-util');
@@ -702,8 +702,78 @@ function writeWindowsPayloadSizeFragment(context) {
   );
 }
 
+/**
+ * Ensure the bundled local SenseVoice sidecar (FR-3) is present before packing.
+ *
+ * Runs scripts/setup-sherpa-onnx.js with `--required`, so a missing sherpa-onnx
+ * binary or model fails the build instead of shipping a build where voice input
+ * is silently disabled.
+ */
+function ensureBundledSenseVoiceSidecar() {
+  const scriptPath = path.join(__dirname, 'setup-sherpa-onnx.js');
+  if (!existsSync(scriptPath)) {
+    throw new Error('[electron-builder-hooks] scripts/setup-sherpa-onnx.js is missing.');
+  }
+
+  const result = spawnSync(process.execPath, [scriptPath, '--required'], {
+    cwd: path.join(__dirname, '..'),
+    stdio: 'inherit',
+  });
+
+  if (result.status !== 0) {
+    throw new Error(
+      '[electron-builder-hooks] Failed to prepare the bundled SenseVoice sidecar. '
+      + 'Run `npm run setup:sherpa-onnx` to see the details, or set the '
+      + 'LOBSTERAI_SHERPA_ONNX_ARCHIVE / LOBSTERAI_SENSEVOICE_ARCHIVE env vars.',
+    );
+  }
+
+  assertSidecarHasNoSymlinks();
+}
+
+/**
+ * Fail the build if the prepared sidecar still contains symlinks.
+ *
+ * Upstream release bundles ship dylibs as symlinks into their unpacked tree;
+ * if a copy preserves them, the shipped product carries dangling links and
+ * voice input crashes at runtime with `dyld: Library not loaded`
+ * `libonnxruntime.1.17.1.dylib`. setup-sherpa-onnx.js materializes them, and
+ * this check makes a regression fail at pack time instead of on user machines.
+ */
+function assertSidecarHasNoSymlinks() {
+  const root = path.join(__dirname, '..', 'resources', 'sherpa-onnx');
+  if (!existsSync(root)) return;
+
+  const dangling = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isSymbolicLink()) {
+        let resolvable = false;
+        try {
+          resolvable = existsSync(realpathSync(full));
+        } catch {
+          resolvable = false;
+        }
+        if (!resolvable) dangling.push(full);
+      } else if (entry.isDirectory()) {
+        walk(full);
+      }
+    }
+  };
+  walk(root);
+
+  if (dangling.length > 0) {
+    throw new Error(
+      '[electron-builder-hooks] Bundled SenseVoice sidecar contains dangling symlinks: '
+      + `${dangling.join(', ')}. Run \`npm run setup:sherpa-onnx\` to rebuild it before packing.`,
+    );
+  }
+}
+
 async function beforePack(context) {
   configureBetterSqlite3MacPayload(context);
+  ensureBundledSenseVoiceSidecar();
   ensureBundledOpenClawRuntime(context);
   // Install skill dependencies first (for all platforms)
   installSkillDependencies();

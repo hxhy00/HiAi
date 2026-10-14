@@ -165,6 +165,13 @@
         "filter": [
           "*.zip"
         ]
+      },
+      {
+        "from": "resources/sherpa-onnx",
+        "to": "sherpa-onnx",
+        "filter": [
+          "**/*"
+        ]
       }
     ]
   },
@@ -186,6 +193,13 @@
       {
         "from": "scripts/unpack-cfmind.cjs",
         "to": "unpack-cfmind.cjs"
+      },
+      {
+        "from": "resources/sherpa-onnx",
+        "to": "sherpa-onnx",
+        "filter": [
+          "**/*"
+        ]
       }
     ]
   },
