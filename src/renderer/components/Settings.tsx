@@ -1474,6 +1474,10 @@ const Settings: React.FC<SettingsProps> = ({
   // Add state for active provider
   const [activeProvider, setActiveProvider] = useState<ProviderType>(getDefaultActiveProvider());
   const [showApiKey, setShowApiKey] = useState(false);
+  // Once the user picks a provider tab (including adding a custom provider), the
+  // config-load effect must stop auto-selecting the first enabled provider and
+  // overriding that choice.
+  const hasUserPickedProviderRef = useRef(false);
 
   // MiniMax OAuth state
   const [minimaxOAuthPhase, setMinimaxOAuthPhase] = useState<MiniMaxOAuthPhase>({ kind: 'idle' });
@@ -1509,6 +1513,13 @@ const Settings: React.FC<SettingsProps> = ({
 
   // Add state for providers configuration
   const [providers, setProviders] = useState<ProvidersConfig>(() => getDefaultProviders());
+
+  // Mirrors `providers` so async handlers (e.g. connection test) read the latest
+  // committed value instead of the render-time closure.
+  const providersRef = useRef(providers);
+  useEffect(() => {
+    providersRef.current = providers;
+  }, [providers]);
 
 
   // authType defaults to undefined on first open, which should behave as OAuth mode
@@ -2193,13 +2204,6 @@ const Settings: React.FC<SettingsProps> = ({
             ...config.providers,  // 覆盖已保存的配置
           };
 
-          // After merging, find the first enabled provider to set as activeProvider
-          // This ensures we don't use stale activeProvider from old config.api.baseUrl
-          const firstEnabledProvider = providerKeys.find(providerKey => merged[providerKey]?.enabled);
-          if (firstEnabledProvider) {
-            setActiveProvider(firstEnabledProvider);
-          }
-
           return Object.fromEntries(
             Object.entries(merged).map(([providerKey, providerConfig]) => {
               const models = providerConfig.models?.map((model, idx) => {
@@ -2233,6 +2237,20 @@ const Settings: React.FC<SettingsProps> = ({
             })
           ) as ProvidersConfig;
         });
+
+        // 首次挂载时把 activeProvider 定位到已启用的 provider，避免沿用旧
+        // config.api.baseUrl 推导出的过期值。这里刻意放在 setProviders 之外：
+        // 在更新函数里调用 setActiveProvider 属于副作用，会被 React 重复执行，
+        // 并可能在用户编辑自定义 provider 时把 activeProvider 抢回内置 provider，
+        // 导致随后保存的模型落到错误的面板下。
+        if (!hasUserPickedProviderRef.current) {
+          const firstEnabledProvider = providerKeys.find(
+            providerKey => (config.providers as ProvidersConfig)[providerKey]?.enabled,
+          );
+          if (firstEnabledProvider) {
+            setActiveProvider(firstEnabledProvider);
+          }
+        }
       }
 
       // 加载快捷键设置
@@ -2365,6 +2383,7 @@ const Settings: React.FC<SettingsProps> = ({
         displayName: undefined,
       },
     }));
+    hasUserPickedProviderRef.current = true;
     setActiveProvider(newKey);
     setShowApiKey(false);
     setIsAddingModel(false);
@@ -2426,6 +2445,7 @@ const Settings: React.FC<SettingsProps> = ({
 
   // Handle provider change
   const handleProviderChange = (provider: ProviderType) => {
+    hasUserPickedProviderRef.current = true;
     setIsAddingModel(false);
     setIsEditingModel(false);
     setEditingModelId(null);
@@ -3922,7 +3942,7 @@ const Settings: React.FC<SettingsProps> = ({
       ? (newModelName.trim() && newModelName.trim() !== modelId ? newModelName.trim() : modelId)
       : newModelName.trim();
 
-    const currentModels = providers[activeProvider].models ?? [];
+    const currentModels = providersRef.current[activeProvider].models ?? [];
     const hasDuplicateModel = hasEquivalentProviderModelId(
       currentModels,
       modelId,
@@ -3949,7 +3969,7 @@ const Settings: React.FC<SettingsProps> = ({
       }
     }
 
-    const providerConfig = providers[activeProvider];
+    const providerConfig = providersRef.current[activeProvider];
     const effectiveApiFormat = getEffectiveApiFormat(
       activeProvider,
       providerConfig.apiFormat,
@@ -4132,13 +4152,22 @@ const Settings: React.FC<SettingsProps> = ({
   // 测试 API 连接
   const handleTestConnection = async () => {
     const testingProvider = activeProvider;
-    const providerConfig = providers[testingProvider];
+    // Read through the latest snapshot instead of the render-time closure:
+    // adding a model and testing back-to-back can otherwise observe a stale
+    // `providers[activeProvider]` (empty models) and report "请先添加模型"
+    // even though the model was just saved.
+    const providerConfig = providersRef.current[testingProvider];
+    if (!providerConfig) {
+      setIsTestResultModalOpen(false);
+      setTestResult(null);
+      return;
+    }
     const testingApiFormat = getEffectiveApiFormat(testingProvider, providerConfig.apiFormat);
     setIsTesting(true);
     setIsTestResultModalOpen(false);
     setTestResult(null);
 
-    const hasValidAuth = providerConfig.apiKey;
+    const hasValidAuth = providerConfig.apiKey.trim().length > 0;
 
 
     if (providerRequiresApiKey(testingProvider) && !hasValidAuth) {
