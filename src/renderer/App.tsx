@@ -13,6 +13,7 @@ import {
 import { BrowserPasskeyUiEvent } from '../shared/browserWebAccess/passkeys';
 import { MediaProviderUiEvent } from '../shared/cowork/mediaProviders';
 import { OpenClawQuestion } from '../shared/cowork/openclawQuestion';
+import { ENABLE_SITE_DEPLOYMENT } from '../shared/featureFlags';
 import {
   LibraryNavigationEvent,
   LibrarySourceFilter,
@@ -2061,7 +2062,7 @@ const App: React.FC = () => {
                 isSidebarCollapsed={isSidebarCollapsed}
                 onToggleSidebar={handleToggleSidebar}
                 onOpenSession={handleOpenLibrarySession}
-                sitesHidden={enterpriseConfig?.ui?.sites === 'hide'}
+                sitesHidden={!ENABLE_SITE_DEPLOYMENT || enterpriseConfig?.ui?.sites === 'hide'}
                 sitesReadOnly={enterpriseConfig?.ui?.sites === 'readonly'}
                 updateBadge={collapsedHeaderUpdateBadge}
                 requestedSource={libraryNavigationRequest.source}

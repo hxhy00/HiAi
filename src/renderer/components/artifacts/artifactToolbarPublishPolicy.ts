@@ -1,3 +1,4 @@
+import { ENABLE_HTML_SHARE, ENABLE_SITE_DEPLOYMENT } from '@shared/featureFlags';
 import type { LocalWebService } from '@shared/localWebServices/constants';
 
 import { type Artifact, ArtifactTypeValue } from '@/types/artifact';
@@ -30,6 +31,7 @@ export function resolveArtifactPreviewToolbarPublishTarget(
   artifact: Artifact | null | undefined,
   shareAvailable: boolean,
 ): ArtifactToolbarShareTarget | null {
+  if (!ENABLE_HTML_SHARE) return null;
   if (!shareAvailable || !artifact || !isArtifactFileShareable(artifact)) return null;
   return {
     kind: ArtifactToolbarPublishActionKind.Share,
@@ -52,6 +54,7 @@ export function resolveBrowserToolbarPublishTarget(input: {
     );
   }
   if (!input.localService) return null;
+  if (!ENABLE_SITE_DEPLOYMENT) return null;
   return {
     kind: ArtifactToolbarPublishActionKind.Deploy,
     localService: input.localService,

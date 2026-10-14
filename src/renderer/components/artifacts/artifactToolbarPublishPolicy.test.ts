@@ -1,5 +1,5 @@
 import type { LocalWebService } from '@shared/localWebServices/constants';
-import { describe, expect, test } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { type Artifact, ArtifactTypeValue } from '@/types/artifact';
 
@@ -8,6 +8,11 @@ import {
   resolveArtifactPreviewToolbarPublishTarget,
   resolveBrowserToolbarPublishTarget,
 } from './artifactToolbarPublishPolicy';
+
+vi.mock('@shared/featureFlags', () => ({
+  ENABLE_HTML_SHARE: true,
+  ENABLE_SITE_DEPLOYMENT: true,
+}));
 
 const makeArtifact = (
   type: Artifact['type'],
@@ -32,7 +37,11 @@ const localService: LocalWebService = {
   online: true,
 };
 
-describe('artifactToolbarPublishPolicy', () => {
+describe('artifactToolbarPublishPolicy (features enabled)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
   test('shares a shareable Artifact in the regular preview toolbar', () => {
     const artifact = makeArtifact(ArtifactTypeValue.Image, {
       filePath: '/tmp/image.png',
@@ -99,5 +108,31 @@ describe('artifactToolbarPublishPolicy', () => {
     expect(resolveBrowserToolbarPublishTarget({
       shareAvailable: true,
     })).toBeNull();
+  });
+});
+
+describe('artifactToolbarPublishPolicy (features disabled)', () => {
+  test('hides every share and deploy entry when the flags are off', async () => {
+    vi.resetModules();
+    vi.doMock('@shared/featureFlags', () => ({
+      ENABLE_HTML_SHARE: false,
+      ENABLE_SITE_DEPLOYMENT: false,
+    }));
+    const policy = await import('./artifactToolbarPublishPolicy');
+
+    expect(policy.resolveArtifactPreviewToolbarPublishTarget(
+      makeArtifact(ArtifactTypeValue.Image, { filePath: '/tmp/image.png' }),
+      true,
+    )).toBeNull();
+    expect(policy.resolveBrowserToolbarPublishTarget({
+      localService,
+      shareAvailable: true,
+    })).toBeNull();
+    expect(policy.resolveBrowserToolbarPublishTarget({
+      htmlArtifact: makeArtifact(ArtifactTypeValue.Html, { filePath: '/tmp/index.html' }),
+      localService,
+      shareAvailable: true,
+    })).toBeNull();
+    vi.doUnmock('@shared/featureFlags');
   });
 });

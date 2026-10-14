@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import { LibraryItemKind } from '../../../shared/library/constants';
 import type { LibraryItem } from '../../../shared/library/types';
@@ -7,6 +7,11 @@ import {
   getLibraryPreviewActionIds,
   LibraryItemAction,
 } from './libraryItemActionPolicy';
+
+vi.mock('../../../shared/featureFlags', () => ({
+  ENABLE_HTML_SHARE: true,
+  ENABLE_SITE_DEPLOYMENT: true,
+}));
 
 const makeItem = (itemKind: LibraryItemKind): LibraryItem => ({
   itemKind,
@@ -49,7 +54,7 @@ const makeItem = (itemKind: LibraryItemKind): LibraryItem => ({
         }),
 }) as LibraryItem;
 
-describe('library item action policy', () => {
+describe('library item action policy (features enabled)', () => {
   test('uses the overflow menu for local file management instead of preview', () => {
     const actions = getLibraryCardActionIds(makeItem(LibraryItemKind.LocalArtifact));
     expect(actions).toEqual([
@@ -108,5 +113,26 @@ describe('library item action policy', () => {
       latestSession: undefined,
     } as LibraryItem;
     expect(getLibraryCardActionIds(item)).not.toContain(LibraryItemAction.RelatedSessions);
+  });
+});
+
+describe('library item action policy (features disabled)', () => {
+  test('removes share and site management when the flags are off', async () => {
+    vi.resetModules();
+    vi.doMock('../../../shared/featureFlags', () => ({
+      ENABLE_HTML_SHARE: false,
+      ENABLE_SITE_DEPLOYMENT: false,
+    }));
+    const policy = await import('./libraryItemActionPolicy');
+
+    expect(policy.getLibraryCardActionIds(makeItem(LibraryItemKind.LocalArtifact))).toEqual([
+      LibraryItemAction.ToggleFavorite,
+      LibraryItemAction.OpenWithApp,
+      LibraryItemAction.RevealLocal,
+    ]);
+    expect(
+      policy.getLibraryCardActionIds(makeItem(LibraryItemKind.DeployedSite)),
+    ).not.toContain(LibraryItemAction.ManageSite);
+    vi.doUnmock('../../../shared/featureFlags');
   });
 });

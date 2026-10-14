@@ -1,5 +1,6 @@
 import { ArrowTopRightOnSquareIcon } from '@heroicons/react/20/solid';
 import { ArrowUpTrayIcon, ChevronDownIcon, FolderIcon } from '@heroicons/react/24/outline';
+import { ENABLE_HTML_SHARE, ENABLE_SITE_DEPLOYMENT } from '@shared/featureFlags';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useDispatch } from 'react-redux';
@@ -402,11 +403,13 @@ const ArtifactPreviewCard: React.FC<ArtifactPreviewCardProps> = ({
 
   const descriptor = getPreviewCardDescriptor(artifact);
   const supportsOpenMenu = descriptor.supportsOpenMenu;
-  const canShare = artifact.type !== ArtifactTypeValue.LocalService &&
-    Boolean(artifactFileShare) &&
-    isArtifactFileShareable(artifact);
-  const canDeploy = artifact.type === ArtifactTypeValue.LocalService &&
-    Boolean(onDeployLocalService);
+  const canShare = ENABLE_HTML_SHARE
+    && artifact.type !== ArtifactTypeValue.LocalService
+    && Boolean(artifactFileShare)
+    && isArtifactFileShareable(artifact);
+  const canDeploy = ENABLE_SITE_DEPLOYMENT
+    && artifact.type === ArtifactTypeValue.LocalService
+    && Boolean(onDeployLocalService);
   const cardClassName = 'artifact-preview-card-row group flex min-h-[58px] items-center gap-3 px-4 py-3 transition-colors w-full text-left';
   const iconClassName = 'w-5 h-5';
   const localServiceUrl = artifact.type === ArtifactTypeValue.LocalService

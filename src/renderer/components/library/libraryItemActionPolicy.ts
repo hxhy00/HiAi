@@ -1,3 +1,4 @@
+import { ENABLE_HTML_SHARE, ENABLE_SITE_DEPLOYMENT } from '../../../shared/featureFlags';
 import { LibraryItemKind } from '../../../shared/library/constants';
 import type { LibraryItem } from '../../../shared/library/types';
 
@@ -53,9 +54,14 @@ const getLibraryItemActionIds = (item: LibraryItem): readonly LibraryItemAction[
     : item.itemKind === LibraryItemKind.SharedFile
       ? SHARED_ACTIONS
       : SITE_ACTIONS;
+  const visibleActions = actions.filter(action => {
+    if (action === LibraryItemAction.ShareLocal && !ENABLE_HTML_SHARE) return false;
+    if (action === LibraryItemAction.ManageSite && !ENABLE_SITE_DEPLOYMENT) return false;
+    return true;
+  });
   return hasRelatedSessions(item)
-    ? actions
-    : actions.filter(action => action !== LibraryItemAction.RelatedSessions);
+    ? visibleActions
+    : visibleActions.filter(action => action !== LibraryItemAction.RelatedSessions);
 };
 
 export const getLibraryCardActionIds = (item: LibraryItem): readonly LibraryItemAction[] => {
