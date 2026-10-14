@@ -6196,7 +6196,10 @@ if (!gotTheLock) {
   // Windows and Linux encryption is also unavailable until then). Every actual
   // call happens later, inside IPC handlers and tool callbacks.
   setMediaProviderCrypto(safeStorage);
-  initMediaProviders({ store: getStore() });
+  // initMediaProviders needs the SQLite store, which only exists after
+  // initStore() inside initApp(). It is therefore invoked from initApp's
+  // post-store section (search INIT_MEDIA_PROVIDERS below), not here.
+
 
   const registerMediaTaskForPolling = (tracker: MediaTaskTracker) => {
     rememberMediaTaskOwnership(tracker.ownerAccountKey, tracker.taskId);
@@ -13376,6 +13379,9 @@ if (!gotTheLock) {
     store = await initStore();
     profiler.measure('initStore');
     console.log('[Main] initApp: store initialized');
+    // INIT_MEDIA_PROVIDERS: must run after initStore(); the provider adapters
+    // read provider entries from SQLite during registration.
+    initMediaProviders({ store: getStore() });
     const libraryLocalStore = new LibraryLocalStore(store.getDatabase());
     const emitLibraryChanged = (payload: LibraryChangedPayload): void => {
       for (const window of BrowserWindow.getAllWindows()) {

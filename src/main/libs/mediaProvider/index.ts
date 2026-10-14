@@ -31,6 +31,9 @@ export interface MediaProviderInitOptions {
 /**
  * Registers the adapters that are available locally. Idempotent: calling it
  * again replaces the registrations, so startup re-init is safe.
+ *
+ * Must be called after the SQLite store exists (`initStore()` inside
+ * `initApp()`), because adapters read provider entries at init time.
  */
 export const initMediaProviders = (options: MediaProviderInitOptions): void => {
   const shared = {
