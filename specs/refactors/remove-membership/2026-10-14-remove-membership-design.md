@@ -171,7 +171,7 @@
 | --- | --- |
 | LLM 直连 provider、token proxy 条件化 | FR-1（已落地），本文档不重复 |
 | 媒体 provider 本地化 | FR-2（已落地），本文档只收尾门控 |
-| 语音 SenseVoice 化 | FR-3（未开工），其 `asrQuotaSlice` 删除与本文档 RM-2 重叠，需协调 |
+| 语音 SenseVoice 化 | FR-3（**已完成**，2026-10-14：`asrQuotaSlice`、`voiceInput/quota.ts` 与语音额度 i18n 键已随 FR-3 删除，本地推理无配额） |
 | 分享/部署入口关闭 | FR-4（未开工），其订阅门控弹窗删除与本文档 RM-1 重叠，需协调 |
 
 > **重叠项必须明确归属**：`asrQuotaSlice` 建议归 FR-3 一并删（避免两次动同一处）；订阅门控弹窗建议归本文档 RM-1（因 FR-4 只断入口，不删门控组件）。
@@ -211,8 +211,12 @@
 
 ### 8.2 渲染进程
 
+> **已完成（2026-10-14）**：模型选择器「套餐模型」分组 + 侧栏 banner / 体验槽位链已整链删除，含 `services/auth.ts`、`SidebarExperienceSlot.tsx`、`SidebarAdBanner.tsx`、`useSidebarAdBanners.ts`、`sidebarAdBannerState.ts`、`sidebarBannerAutoRefresh.ts`、`sidebarBannerSchedule.ts` 及对应测试。`modelSlice` 的 `isServerModel` / `setServerModels` / `clearServerModels` 一并移除。详细清单与验收结果见 `2026-10-14-server-models-removal-changelist.md` §7。
+>
+> **已完成（2026-10-14 第二批，RM-1/2/4/5/6 主体）**：本节所列剩余项全部执行完毕——`authSlice`（订阅/积分态）整删、`analyticsIdentity`/`logReporter` 的 `isSubscriber`/`subscriptionStatus` 埋点字段删除、`endpoints.ts` 会员类 URL 删除（保留 `getPortalPricingUrl` 供分享归因；其语音额度用途后随 FR-3 删除）、`AssistantTurnBlock` 积分耗尽 banner 整删、模型选择器订阅弹窗改中性「未配置模型」提示（§11 D5）、`electron.d.ts` 的 banner/subscriptionTrial/activity 桥接类型删除、i18n 会员文案键全量清理、活动签到/回馈死链整删、`initStore` 遗留登录态 kv 清理。验证与残留归属见 §10 验收单与 §11 D4。
+
 - `src/renderer/store/slices/authSlice.ts`（订阅/积分态）
-- ~~`src/renderer/store/slices/asrQuotaSlice.ts`~~ —— 归 FR-3 一并删除，不在本文档范围（见 §11 D2）
+- ~~`src/renderer/store/slices/asrQuotaSlice.ts`~~ —— 归 FR-3 一并删除，不在本文档范围（见 §11 D2）。**FR-3 已于 2026-10-14 完成**：`asrQuotaSlice`、`voiceInput/quota.ts`、配额字段与 `voiceInputQuota*`/`voiceInputUpgrade*`/`voiceInputLoginRequired*` i18n 键均已删除，语音输入改 SenseVoice 本地推理，无任何配额概念；`getPortalPricingUrl` 的语音额度用途随之消失（分享归因用途见 §11 D4）
 - `src/renderer/store/index.ts`（`enterpriseAccount` reducer 挂载）
 - `src/renderer/services/auth.ts`（订阅/企业/quota 判定）
 - `src/renderer/services/analyticsIdentity.ts`（+ 测试）
@@ -247,9 +251,7 @@
 
 本次改造**不引入 mock**。删除类改造无新增外部依赖；若实现期需要临时保留桩以便分步验证，须在本节登记（位置、形态、前置条件、清理条件）。
 
-| 编号 | 位置 | 内容与形态 | 为什么先 mock | 替换为真实实现的前置条件 | 关联 |
-| --- | --- | --- | --- | --- | --- |
-| MOCK-1 | `src/main/main.ts`（代码内标记 `MOCK: asr-stub-getAuthTokens`） | `registerAsrIpcHandlers({ getAuthTokens: () => null, ... })`，登录移除后无 token 可供，所有 ASR 处理器快速失败（Unauthorized） | ASR 服务端会话依赖已移除的登录后端；ASR 能力整体归 FR-3 删除，本文档不重复处理 | FR-3 落地，删除整个 ASR 服务端注册块（含该注册与 `MOCK:` 标记） | FR-3 |
+> MOCK-1（`MOCK: asr-stub-getAuthTokens`）已于 2026-10-14 随 FR-3 落地清偿：ASR 服务端注册块整体删除，`registerAsrIpcHandlers()` 改为无参本地通道注册，代码内标记与台账条目一并移除。
 
 ---
 
@@ -259,16 +261,16 @@
 
 | 编号 | 结论 | 证据 |
 | --- | --- | --- |
-| AC-RM-1 | ☐ | |
-| AC-RM-2 | ☐ | |
-| AC-RM-3 | ☐ | |
-| AC-RM-4 | ☐ | |
-| AC-RM-5 | ☐ | |
-| AC-RM-6 | ☐ | |
-| AC-RM-7 | ☐ | |
-| AC-RM-8 | ☐ | |
-| AC-RM-9 | ☐ | |
-| AC-RM-10 | ☐ | |
+| AC-RM-1 | ✅ | `rg -c "AuthSubscriptionStatus" src --glob '!*.test.ts'` 为空（2026-10-14） |
+| AC-RM-2 | ✅ | `rg -c "creditsLimit\|hasPaidCredits\|purchaseOffer" src --glob '!*.test.ts'` 为空（2026-10-14） |
+| AC-RM-3 | ✅ | `src/main/enterpriseAccount`、`src/renderer/features/enterpriseAccount` 目录均不存在（`3eb9bca` 及后续） |
+| AC-RM-4 | ✅ | `rg "X-LobsterAI-Account-Mode\|X-LobsterAI-Enterprise-Id" src` 为空 |
+| AC-RM-5 | ✅ | i18n 键全表扫描：`authSubscribe`/`authTopUp`/`modelSelectorSubscribe*`/`lowCreditOffer*`/`subscriptionTrial*`/`enterpriseQuota*`/`dailyCheckIn*`/`startupCredit*`/`coworkCreditQuotaBanner*` 等键已全部删除（中英文） |
+| AC-RM-6 | ⏳ | 待手动验证（启动 + 抓包）：启动已无 banner 请求、试用活动弹窗、低积分引导（相关链路代码已删） |
+| AC-RM-7 | ✅（2026-10-14 复核） | 售卖类 UI 文案已清零；原「残留文案」中的 D2 归 FR-3 语音额度（`voiceInputUpgrade*`/`voiceInputQuota*`/`voiceInputLoginRequired*`）已随 FR-3 完成删除，全局无引用。其余仍属其他域：FR-1 护栏（`coworkErrorQuotaExhausted`/`serverModelMetadataUnavailable`/`LobsterAILoginExpired`）、FR-4 分享服务层（`htmlShare*`/`siteQuota*`/`publishingSubscription*`）、第三方订阅（openai/xai/GitHub Copilot/飞书/NIM/Qwen Coding Plan）、引擎升级类文案。详见 §11 D4 |
+| AC-RM-8 | ⏳ | 待手动验证（断网 + 无登录跑核心功能） |
+| AC-RM-9 | ✅ | `initStore` 增加一次性遗留清理：启动删除 `auth_tokens`/`auth_user` kv；dataMigration 迁移清单同步移除这两个键（测试已翻转断言） |
+| AC-RM-10 | ✅ | `services/auth.ts` 已删（工作区）；主进程 authSessionManager/openclawTokenProxy 已删；渲染层无登录入口 |
 
 ---
 
@@ -284,3 +286,14 @@
 **D2：重叠归属** —— `asrQuotaSlice` 及语音额度逻辑（`voiceInput/quota.ts`、`AsrRealtimeSessionData` 配额字段）归 **FR-3 一并删除**（本地推理无配额概念），本文档不再涉及；订阅门控弹窗（`ArtifactSubscriptionPromptDialog`、`artifactSubscriptionGate.ts`）归**本文档 RM-1** 删除（FR-4 仅断入口、保留服务层，不删门控组件）。
 
 **D3：剩余未决项闭合（2026-10-14）** —— M-3：企业历史数据**不做迁移**，直接清理（与 §4.3 Non-Goals「不做数据迁移」一致）；M-4：分享/部署**服务层保留**，与 FR-4.4 一致（仅断入口、feature flag 关闭，服务层删除与否由未来需求决定）。至此 §7 未决项全部闭合，可开工。
+
+**D4：主体实现收尾归属（2026-10-14）** —— RM-1/2/4/5/6 主体代码执行完毕，以下残留项**保留**并明确归属：
+- `PublishingSubscriptionRecoveryMode` 及 `subscriptionRecoveryMode` 字段体系（约 15 个文件）：属分享/部署服务层字段，按 M-4「服务层保留」**保留**，归 FR-4 服务层收尾时一并处理。
+- 语音输入订阅链路（`voiceInputUpgrade*` 等 i18n 键、voice quota UI）：按 D2 归 **FR-3**。
+- `coworkErrorQuotaExhausted`/`coworkErrorFreeQuotaExhausted`/`coworkErrorLobsterAILoginExpired`/`serverModelMetadataUnavailable`/`coworkErrorModelSourceLobsterAIPlan` 等错误文案：仍被错误分类展示（`classifyErrorKey`）使用，属 FR-1 套餐模型护栏域，**保留**。
+- `llmTurnUsage` 用量展示体系（本轮消耗详情）：用量观测非会员售卖，不在本文档删除清单（§8.1 仅列 `coworkTurnUsage.ts` 日志，已删），**保留**。
+- `enterprise:getConfig` 桥接（preload/main/electron.d.ts）：属企业 UI 策略功能（`specs/features/enterprise-config`，OEM 部署用），非企业账号 RBAC（RM-3 维度 C），**保留**。
+- 第三方账号订阅类文案与开关（openai/xai OAuth、GitHub Copilot、Qwen Coding Plan、飞书/NIM 事件订阅）：非 LobsterAI 会员语义，**保留**。
+- 活动签到/回馈链路（`shared/activity/`、dailyCheckIn*/startupCredit* 全链）：勘察确认为死代码（无 main handler、无渲染层消费），已整链删除。
+
+**D5：执行记录（2026-10-14）** —— 本轮删除：`shared/subscriptionTrial/`、`shared/activity/`、dailyCheckIn*/startupCredit*/sidebarExperience*/useLowCreditOfferExposure/CreditsFinalRewardModal 等死文件及测试；preload/electron.d.ts 的 subscriptionTrial/activity 桥接；endpoints（主+渲染）会员类死导出（渲染层保留 `getPortalPricingUrl` 供分享归因使用；语音额度用途后随 FR-3 删除）；`analyticsIdentity`/`logReporter` 的 `isSubscriber`/`subscriptionStatus` 埋点字段；`shared/analytics` LowCredit*/SubscriptionTrial*/DailyCheckIn 埋点常量；模型选择器「订阅解锁」弹窗改为中性「未配置模型」提示（`ModelAccessPromptKind.Subscribe` → `NoModelConfigured`，按 §3.2 不引导付费）；对话积分耗尽 banner 整删（错误回落普通错误展示）；`initStore` 一次性清理 `auth_tokens`/`auth_user` kv（RM-6）。验证：`tsc` 两套 tsconfig 通过、`npm test` 568 文件/6272 用例全过、`compile:electron`/`npm run build` 通过、CI 同款 eslint 通过。

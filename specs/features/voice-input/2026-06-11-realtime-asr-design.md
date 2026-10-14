@@ -1,5 +1,7 @@
 # Realtime ASR Voice Input Design
 
+> ⚠️ Deprecated (2026-10-14): the server-backed realtime ASR flow described here has been replaced by the local SenseVoice sidecar; see FR-3 in `specs/refactors/de-server-dependency/2026-10-13-de-server-dependency-design.md`. Kept for historical reference only; do not use as the current implementation or acceptance basis.
+
 ## 1. Overview
 
 ### 1.1 Background

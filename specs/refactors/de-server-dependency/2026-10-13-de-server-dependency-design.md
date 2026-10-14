@@ -99,6 +99,10 @@ MediaModelPicker 选择模型
 
 ### 2.4 ASR 链路
 
+> **已实现（2026-10-14 回填）**：下方为**旧方案（已删除）**，仅供对照；新链路见 2.4.1。
+
+旧方案（远端实时流式，已删除）：
+
 ```
 CoworkPromptInput（语音按钮）
   → useCoworkVoiceInput.ts（handleVoiceInput:210）
@@ -112,6 +116,24 @@ CoworkPromptInput（语音按钮）
 - **无本地配置项**，全部服务端下发（`wsUrl`、`maxSessionSeconds`、配额秒数）
 - **无 token 直接返回 `Unauthorized`**（`handlers.ts:54-58`）
 - 音频链路可复用：`realtimeAudioRecorder.ts`、`wavEncoder.ts`（PCM16 WAV）
+
+#### 2.4.1 新链路（本地 SenseVoice 侧车）
+
+```
+CoworkPromptInput（语音按钮）
+  → useCoworkVoiceInput.ts（本地模式，VOICE_INPUT_MODE_LABEL='local'）
+    → startLocalVoiceInput()（services/voiceInput/localAsrClient.ts）
+      → batchAudioRecorder.ts 整流采集成 PCM16 WAV（16kHz 单声道）
+        → IPC AsrIpcChannel.Transcribe（'asr:local:transcribe'，shared/asr/constants.ts）
+          → main/ipcHandlers/asr/handlers.ts（registerAsrIpcHandlers）
+            → 落临时 WAV → senseVoice/sidecar.ts（runSenseVoiceRecognition）
+              → spawn 预编译 sherpa-onnx-offline + SenseVoice int8 模型 → 返回文本
+```
+
+- **无服务端、无 WebSocket、无配额**：`AsrIpcChannel` 仅两个通道 —— `GetAvailability`（`asr:local:getAvailability`）与 `Transcribe`（`asr:local:transcribe`）；旧 `asr:realtime:*` 与 `AsrRealtimeSessionData` 配额字段已删除。
+- **可用性判定**：`checkSenseVoiceAvailability()` 校验侧车可执行文件与模型是否存在，缺失即返回 `unavailable`。
+- **音频链路**：整流 WAV（`batchAudioRecorder.ts` + `wavEncoder.ts`），采样率 `VOICE_INPUT_TARGET_SAMPLE_RATE=16000`，与 sherpa-onnx 要求一致，零转换成本。
+- **诊断埋点**：sidecar 通过 `onDiagnostics` 上报 `exitCode / stderr / stdout / wavBytes / durationMs / parsedText`（见 §7.1 D-3）。
 
 ### 2.5 商业壳的耦合点（为什么必须最后做）
 
@@ -149,12 +171,14 @@ CoworkPromptInput（语音按钮）
 
 ### FR-3：语音输入改用 SenseVoice（sherpa-onnx 预编译二进制，已定）
 
-- **FR-3.1（修订）** 运行时形态定为 **sherpa-onnx 预编译二进制**（已确认）：主进程以子进程方式调用 sherpa-onnx 的离线识别可执行文件，**无需 Python 环境**。打包分发 mac-arm64 与 win-x64 两套预编译产物 + SenseVoice Small 量化 ONNX 模型（int8，约 200MB 级，安装时下载或随包分发需在实现期按体积权衡）。
-- **FR-3.2** 主进程新增侧车管理模块：按需拉起 sherpa-onnx 进程，输入 PCM16 WAV 文件路径（16kHz 单声道），stdout 返回识别文本 JSON，进程用毕回收。
-- **FR-3.3** 复用现有音频链路（`realtimeAudioRecorder.ts` / `wavEncoder.ts`，`VOICE_INPUT_TARGET_SAMPLE_RATE=16000` 与 sherpa-onnx 要求一致，零转换成本），不做重复采集。
-- **FR-3.4** 移除服务端 ASR 链路（`handlers.ts` 的 `/api/asr/realtime/sessions`）；`asrQuotaSlice` 删除——本地推理无配额概念。
+> **实现状态（2026-10-14）**：已实现，落点见 4.4 与 §7.1。行号会随重构漂移，以符号名为准。
+
+- **FR-3.1（修订）** 运行时形态定为 **sherpa-onnx 预编译二进制**（已确认）：主进程以子进程方式调用 sherpa-onnx 的离线识别可执行文件，**无需 Python 环境**。打包分发 mac-arm64 与 win-x64 两套预编译产物 + SenseVoice Small 量化 ONNX 模型（int8，约 200MB 级）。**分发方式已决（U-9 方案 A）**：随安装包分发。
+- **FR-3.2** 主进程新增侧车管理模块（`src/main/libs/senseVoice/sidecar.ts`）：按需拉起 sherpa-onnx 进程，输入 PCM16 WAV 文件路径（16kHz 单声道），解析识别结果（**v1.10.30 实际把 JSON 打到 stderr，解析器已按 stderr+stdout 合并、JSON 行 → `text=` 标记 → 纯文本三级解析**，见 §7.1 D-3），进程用毕回收。
+- **FR-3.3** 复用音频采样链路（`batchAudioRecorder.ts` / `wavEncoder.ts`，`VOICE_INPUT_TARGET_SAMPLE_RATE=16000` 与 sherpa-onnx 要求一致，零转换成本），不做重复采集。**注**：原计划的 `realtimeAudioRecorder.ts` 随流式方案一并删除，改由 `batchAudioRecorder.ts` 整流采集。
+- **FR-3.4** 移除服务端 ASR 链路（`handlers.ts` 的 `/api/asr/realtime/sessions`）；`asrQuotaSlice` 删除——本地推理无配额概念。**已落地**：`handlers.ts` 改为 `registerAsrIpcHandlers()` 无参注册本地通道；`shared/asr/constants.ts` 重写为本地契约（无 session/quota 字段）。
 - **FR-3.5** 交互变更：从 WebSocket 流式转写改为**录音结束→一次性识别→出文本**（批量模式），无实时上屏。录音链路（60s 上限、300ms 下限）保留不变。
-- **FR-3.6** 参考 `pythonPipShim.ts` 的"运行时自修复"模式：sherpa-onnx 二进制或模型缺失/损坏时，应用启动检测并提示，语音按钮置灰，不回退服务端。
+- **FR-3.6** 参考 `pythonPipShim.ts` 的"运行时自修复"模式：sherpa-onnx 二进制或模型缺失/损坏时，应用启动检测并提示，语音按钮置灰，不回退服务端。**已落地**：`checkSenseVoiceAvailability()` 覆盖"文件缺失"路径（返回 `unavailable` 并置灰按钮，见 AC-3.3）。
 
 ### FR-4：关闭 HTML 分享与站点部署
 
@@ -226,10 +250,18 @@ CoworkPromptInput（语音按钮）
 
 ### 4.4 FR-3 实现要点（sherpa-onnx，已定）
 
-1. 新增 sherpa-onnx 侧车打包脚本：拉取对应平台的预编译二进制（mac-arm64 / win-x64）+ SenseVoice Small int8 ONNX 模型，落至 `resources/sherpa-onnx/`。
-2. 主进程新增侧车管理模块（生命周期对齐 `openclawEngineManager.ts` 的模式）：按需拉起子进程，传 WAV 路径，收 JSON 结果，用毕回收。
-3. 替换 `realtimeAsrClient.ts`：从 WebSocket 流式改为"录音 → 一次性提交侧车 → 返回文本"（批量模式，无实时上屏；交互变更已确认接受）。
-4. 删除 `asrQuotaSlice.ts` 与 `useCoworkVoiceInput.ts` 中的配额逻辑；`AsrRealtimeSessionData` 中的配额字段（`shared/asr/constants.ts:35-45`）随 IPC 通道一并移除。
+> **已全部落地（2026-10-14 回填）**。行号会随重构漂移，以符号名为准。
+
+1. **侧车打包脚本**（`scripts/setup-sherpa-onnx.js`，新增）：拉取对应平台的预编译二进制（mac-arm64 / win-x64）+ SenseVoice Small int8 ONNX 模型，落至 `resources/sherpa-onnx/`。含自愈逻辑：`isBinaryPrepared()` 将**可执行文件 + 共享库 + 悬空链接检测**共同纳入幂等判断，半成品会被重新解包（见 §7.1）。
+2. **侧车管理模块**（`src/main/libs/senseVoice/`，新增）：
+   - `sidecar.ts`：`checkSenseVoiceAvailability()` / `runSenseVoiceRecognition()`（spawn 子进程、WAV 路径传入、stderr+stdout 合并解析、`onDiagnostics` 上报退出码与原始输出）。
+   - `parsers.ts`：JSON 行 → `text=` 标记 → 纯文本三级解析，排除 flag echo/诊断行。
+   - 配套测试：`parsers.test.ts`、`sidecar.integration.test.ts`（真实二进制端到端）。
+3. **渲染层**：
+   - `localAsrClient.ts`（新增）：`startLocalVoiceInput()` / `isLocalAsrAvailable()`，返回 `LocalVoiceInputSession`（含 `stop()` / `cancel()` / `maxSessionSeconds`）。
+   - `batchAudioRecorder.ts` / `wavEncoder.ts` / `constants.ts` / `errors.ts` / `index.ts`：整流 WAV 采集与错误文案映射。
+   - `useCoworkVoiceInput.ts`：本地模式（`VOICE_INPUT_MODE_LABEL='local'`），已删除全部配额逻辑，保留 60s/300ms 录音约束与 draft 切换取消。
+4. **移除服务端 ASR 与配额**：删除 `realtimeAsrClient.ts`、`realtimeAudioRecorder.ts`、`asrQuotaSlice.ts`、`voiceInput/quota.ts` 及 `voiceInputQuota*` / `voiceInputUpgrade*` / `voiceInputLoginRequired*` i18n 键（后三项归 FR-5 / remove-membership RM-2，已完成）。
 
 ### 4.5 FR-4 / FR-5 实现要点
 
@@ -264,7 +296,8 @@ CoworkPromptInput（语音按钮）
 - `src/main/libs/agentEngine/mediaGenerationTurnInstruction.ts`（工具路由 + 皮肤包工作流）
 - `src/main/mcp/mcpRuntime.ts`（`getMediaCallbackUrl`，媒体回调 bridge）
 - `src/shared/skin/constants.ts`（皮肤包槽位/工作流常量）
-- `src/main/ipcHandlers/asr/handlers.ts`
+- `src/main/ipcHandlers/asr/handlers.ts`（已改为本地通道 `registerAsrIpcHandlers()`）
+- `src/main/libs/senseVoice/*`（新增：`sidecar.ts` / `parsers.ts` + 测试）
 - `src/main/enterpriseAccount/*`（整目录）
 - `src/main/ipcHandlers/enterpriseAccount/*`
 - `src/main/libs/htmlShare/*`、`src/main/libs/site/*`、`src/main/libs/shareDeployment/*`（仅断入口）
@@ -273,9 +306,11 @@ CoworkPromptInput（语音按钮）
 
 - `src/renderer/components/cowork/MediaModelPicker.tsx`
 - `src/renderer/components/cowork/CoworkPromptInput.tsx`
-- `src/renderer/components/cowork/voiceInput/useCoworkVoiceInput.ts`
-- `src/renderer/services/voiceInput/realtimeAsrClient.ts`
-- `src/renderer/store/slices/asrQuotaSlice.ts`
+- `src/renderer/components/cowork/voiceInput/useCoworkVoiceInput.ts`（本地模式，已删配额逻辑）
+- `src/renderer/components/cowork/voiceInput/`（`VoiceInputButton.tsx` / `VoiceInputRecordingStatus.tsx` / `useVoiceInputAvailability.ts` / `voiceInputUiState.ts`）
+- `src/renderer/services/voiceInput/`（本地链路：`localAsrClient.ts` / `batchAudioRecorder.ts` / `wavEncoder.ts` / `constants.ts` / `errors.ts` / `index.ts`）
+- ~~`src/renderer/services/voiceInput/realtimeAsrClient.ts`~~（已删除）
+- ~~`src/renderer/store/slices/asrQuotaSlice.ts`~~（已删除）
 - `src/renderer/components/Settings.tsx`
 - `src/renderer/features/enterpriseAccount/*`（整目录）
 - `src/renderer/components/artifacts/ArtifactPanel.tsx`
@@ -289,7 +324,8 @@ CoworkPromptInput（语音按钮）
 - `src/shared/providers/constants.ts`
 - `src/shared/asr/constants.ts`
 - `scripts/setup-python-runtime.js`（仅参考"运行时自修复"模式）
-- 新增：`scripts/setup-sherpa-onnx.js`（拉取预编译二进制 + SenseVoice 模型）
+- 新增：`scripts/setup-sherpa-onnx.js`（拉取预编译二进制 + SenseVoice 模型，自愈）
+- `scripts/electron-builder-hooks.cjs`（新增 `assertSidecarHasNoSymlinks()` 打包断言）
 - `src/main/libs/mediaProvider/*`（新增，媒体 provider 适配层）
 - `vendor/openclaw-runtime/mac-arm64/third-party-extensions/lobster-media-generation/`（**保留不改**，后端本地化）
 
@@ -298,6 +334,40 @@ CoworkPromptInput（语音按钮）
 ## 7. 验收标准
 
 按 FR 逐条验收，每条必须给出可复现的验证方式。
+
+> **实现状态（2026-10-14 回填）**：FR-1/2/4/5 已实现，FR-3 已实现（U-9 已决：**方案 A 随包分发**）。
+> 验证结果：`tsc --noEmit` 通过；`npm run compile:electron` 通过；`vite build`（用户执行）通过；
+> 全量 vitest 6429 用例仅 3 个失败，均为无关遗留（openclawConfigSync.runtime / popo-sdk / markdownEditorCommands）；
+> 改动文件 eslint 零错误零警告。AC-2.2 / AC-2.5 / AC-3.1 / AC-4.1 / AC-4.2 / AC-G1 等
+> 手动/抓包项待用户验收。
+>
+> **AC-3.2 补验（2026-10-14 真实环境联调）**：首次接线暴露了两个打包脚本缺陷，均已修复并补测，
+> 详见 §7.1。修复后 mac-arm64 侧车可真实运行，离线识别实测通过。
+
+### 7.1 FR-3 打包缺陷记录（2026-10-14）
+
+mac-arm64 首次真实联调时，语音按钮置灰 → 修复后可用，但识别返回"未识别到有效语音"。逐层隔离定位到
+`scripts/setup-sherpa-onnx.js` 两处缺陷（**与运行时业务逻辑无关，运行时无需改动**）：
+
+| # | 现象 | 根因 | 修复 |
+| --- | --- | --- | --- |
+| D-1 | 下载 404，按钮置灰 | 脚本按内部目标名拼 URL（`sherpa-onnx-v1.10.30-mac-arm64.tar.bz2`），上游 macOS 仅有 `osx-universal2-shared` 资产 | 新增 `SHERPA_ONNX_ASSET_SUFFIX` 映射，**区分"运行时布局 `bin/<target>`"与"上游资产名"** |
+| D-2 | 二进制就位后仍报 `recognitionFailed` | `*_shared` 包的依赖库在兄弟目录 `lib/`，脚本只拷了 `bin/`；可执行文件经 `@rpath` 找 `../lib/libonnxruntime.1.17.1.dylib` 失败，进程启动即崩溃（`dyld: Library not loaded`），非零退出被归类为识别失败 | 一并拷贝 `lib/` 至 `bin/lib/`（正好命中 dyld 查找路径） |
+| D-3 | dylib 修复后依旧"未识别到有效语音"（**运行时 bug**） | v1.10.30 二进制把识别结果 JSON 打到 **stderr**（stdout 为空、退出码 0），而 `sidecar.ts` 只解析 stdout；且 `parsers.ts` 只认 `text=` 标记，实际输出是 JSON 行——两层叠加导致永远解析出空文本 | `sidecar.ts` 将 stderr+stdout 合并交给解析器；`parsers.ts` 按 JSON 行 → `text=` 标记 → 纯文本三级解析，并排除 flag echo/诊断行 |
+
+**自愈能力**：`isBinaryPrepared()` 现将**可执行文件 + 共享库**共同纳入幂等判断（此前只看可执行文件，
+半成品会被误判为"已就绪"），缺失时清空目标目录重新解包；脚本末尾完整性校验同步纳入 `bin/lib/`。
+新增 `tests/setupSherpaOnnx.test.ts`（7 用例）覆盖资产名映射与半成品识别。
+
+**验证证据**：`bin/mac-arm64/sherpa-onnx-offline` 离线识别 `今天天气真不错我们出去散步吧`，
+耗时 0.23s，RTF 0.066；缺 lib 时 `isBinaryPrepared` 返回 `false` 并成功自愈补齐；
+D-3 修复后用编译后的真实解析器 + 真实二进制 + 应用同款 spawn 方式（`cwd=os.tmpdir()`、
+stdio pipe）端到端实测，识别文本正确返回。
+
+**使用者路径（U-9 方案 A 的落实）**：`resources/sherpa-onnx` 已通过 `electron-builder.json` 的
+基础 `extraResources` 随安装包分发（打包后位于 `process.resourcesPath/sherpa-onnx/`，正是
+`sidecar.ts` 的首选查找路径），**终端用户无需任何 setup 即可使用语音**。本脚本仅服务于开发者
+checkout。
 
 | 编号 | 验收标准 | 验证方式 |
 | --- | --- | --- |
@@ -311,8 +381,8 @@ CoworkPromptInput（语音按钮）
 | AC-2.4 | 媒体模型列表不来自服务端 | 抓包确认 |
 | AC-2.5 | 皮肤包工作流走本地图片 provider（已决保留） | 手动操作 |
 | AC-3.1 | 语音输入可用，且不产生服务端请求 | 抓包确认无 `/api/asr` 请求 |
-| AC-3.2 | sherpa-onnx 侧车在 mac-arm64 上可打包运行 | 构建产物验证 |
-| AC-3.3 | 侧车损坏时应用能提示而非静默失败 | 手动删除侧车文件后启动 |
+| AC-3.2 | sherpa-onnx 侧车在 mac-arm64 上可打包运行 | **已通过**（2026-10-14 实测）：`npm run setup:sherpa-onnx` 拉取 `osx-universal2-shared` 包并落到 `bin/mac-arm64/`；离线识别实测 `今天天气真不错我们出去散步吧`，耗时 0.23s（RTF 0.066） |
+| AC-3.3 | 侧车损坏时应用能提示而非静默失败 | **部分通过**：`checkSenseVoiceAvailability()` 覆盖"文件缺失"路径（返回 `unavailable` 并置灰按钮）；**已修缺陷**：`bin/lib/` 缺失时原先静默判为"已就绪"，实际 `dyld` 崩溃并误报为 `recognitionFailed`（见下方缺陷记录） |
 | AC-4.1 | HTML 分享入口不可见 | 手动操作 |
 | AC-4.2 | 站点部署入口不可见 | 手动操作 |
 | AC-5.1 | 全局搜索无 `enterprise` 相关请求 | 抓包 + 代码审查 |
@@ -333,7 +403,7 @@ CoworkPromptInput（语音按钮）
 | U-6 | 更新检查与 Skill Store 的后续处置 | 本期外，需另立需求 |
 | ~~U-7~~ | ~~皮肤包迁移还是关闭~~ **已决**：保留，随插件后端本地化自动切换（FR-2.7） | — |
 | ~~U-8~~ | ~~mac 侧 Python 运行时打包~~ **已决**：sherpa-onnx 预编译二进制，无 Python 依赖（FR-3.1） | — |
-| U-9 | SenseVoice 模型分发方式（随安装包 vs 首次使用时下载） | 影响 FR-3.1 打包体积与安装体验 |
+| ~~U-9~~ | ~~SenseVoice 模型分发方式（随安装包 vs 首次使用时下载）~~ **已决**：**随安装包分发**（`extraResources` 打包 `resources/sherpa-onnx`），终端用户零配置；开发者用 `npm run setup:sherpa-onnx`（自愈） | — |
 | ~~U-10~~ | ~~MiniMax 视频适配器细节~~ **已决**：官方三步异步协议已核，域名应为 `api.minimax.cn`（见 10.5 D5） | — |
 
 ---
@@ -361,7 +431,7 @@ CoworkPromptInput（语音按钮）
 | --- | --- | --- |
 | 第 1 轮（FR-1） | LLM provider 首启引导方式（设置页 / 首启向导 / 两者）；OpenClaw 配置中 provider 直连的字段落点 | **已关闭**（见 10.4） |
 | 第 2 轮（FR-2） | U-1、U-10 | **已关闭**（见 10.5） |
-| 第 3 轮（FR-3） | U-9（SenseVoice 模型：随包分发 vs 首次下载；int8 约 200MB 级） | 待开工确认 |
+| 第 3 轮（FR-3） | U-9（SenseVoice 模型：随包分发 vs 首次下载；int8 约 200MB 级） | **已关闭**：随包分发（见 §7.1） |
 | 第 4 轮（FR-5） | U-5（升级场景旧登录态清理策略）；`subscriptionStatus` 收敛后 `resolveMediaGenerationAccess` 的废弃方式 | **已关闭**：U-5 已决（清理旧登录态，登录能力整体移除）；`resolveMediaGenerationAccess` 整体删除（见 `specs/refactors/remove-membership/` §11 D1/D2） |
 
 ### 10.3 轮次交接记录
@@ -371,6 +441,8 @@ CoworkPromptInput（语音按钮）
 | 轮次 | 完成日期 | 实际范围 | 偏差 | 关联修订 |
 | --- | --- | --- | --- | --- |
 | 第 1 轮（FR-1） | 2026-10-13 | `main.ts` 条件化 token proxy 启动；`openclawRuntimeAdapter.ts` 删除 `isLobsterAILoginExpiredMetadata` 及两处调用；同步删除对应测试 | 原计划"配置落点"改为**不新增配置分支**，仅让 proxy 端口天然为 null 触发回落 | 见 10.4 |
+| 第 3 轮（FR-3） | 2026-10-14 | 运行时按原设计实现完毕；联调阶段修复打包脚本两处缺陷（资产名映射、共享库拷贝）并加入自愈与单测 | 原计划未预见上游资产命名与 `lib/` 布局差异；打包脚本从"只校验可执行文件"升级为"可执行文件 + 共享库"完整性判断 | 见 §7.1、U-9 |
+| 第 3 轮（FR-3 补记） | 2026-10-14 | 二/三轮联调再修：`setup-sherpa-onnx.js` 新增 `materializeSymlinks()` 物化符号链接、`isBinaryPrepared` 增加悬空链接检测；`electron-builder-hooks.cjs` 增加打包前 `assertSidecarHasNoSymlinks()` 断言；`sidecar.ts` 合并 stderr+stdout 并新增 `onDiagnostics` | 发现第三处缺陷 D-3（识别结果打到 stderr）与符号链接打包缺陷（悬空链接会随包分发到用户机器崩溃） | 见 §7.1 D-3 及"自愈能力" |
 
 ### 10.4 第 1 轮已关闭决策
 

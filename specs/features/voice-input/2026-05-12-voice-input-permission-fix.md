@@ -1,5 +1,7 @@
 # 语音输入：macOS 听写菜单触发 & 权限处理 & 定时任务语音输入
 
+> ⚠️ 已废弃（2026-10-14）：本方案（macOS 三级降级 + 权限 toast）已被本地 SenseVoice ASR 取代，见 `specs/refactors/de-server-dependency/2026-10-13-de-server-dependency-design.md` 的 FR-3。正文保留作历史参考，不得作为当前实现或验收依据。
+
 ## 1. 概述
 
 ### 1.1 问题/背景

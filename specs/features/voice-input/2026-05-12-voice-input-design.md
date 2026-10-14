@@ -1,5 +1,7 @@
 # 语音输入功能设计文档
 
+> ⚠️ 已废弃（2026-10-14）：本方案（系统原生听写）已被本地 SenseVoice ASR 取代，见 `specs/refactors/de-server-dependency/2026-10-13-de-server-dependency-design.md` 的 FR-3。正文保留作历史参考，不得作为当前实现或验收依据。
+
 ## 1. 概述
 
 ### 1.1 背景
