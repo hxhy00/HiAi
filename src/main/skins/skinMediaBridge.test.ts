@@ -44,7 +44,7 @@ const createAsset = (slot: SkinAssetSlot): SkinAssetRecord => ({
   registeredAt: timestamp,
 });
 
-const createHarness = () => {
+const createHarness = (options?: { hasLocalImageModel?: boolean }) => {
   let current: SkinRecord = {
     id: 'skin-one',
     workflowKind: SkinWorkflowKind.SkinPack,
@@ -78,14 +78,13 @@ const createHarness = () => {
   workflowRegistry.prepareTurn({
     sessionId,
     kitIds: [SkinPackKitId.BuiltIn],
-    mediaGenerationEntitled: true,
     mediaSelection: selection,
   });
   const bridge = new SkinMediaBridge({
     store,
     workflowRegistry,
     resolveSessionId: key => key === sessionKey ? sessionId : null,
-    resolveMediaSelection: () => selection,
+    hasLocalImageModel: () => options?.hasLocalImageModel ?? true,
   });
   return { bridge, store, workflowRegistry };
 };
@@ -131,6 +130,52 @@ describe('skin media bridge', () => {
       { mode: MediaSelectionMode.Image },
     )).toBeNull();
     expect(store.registerAsset).toHaveBeenCalledTimes(1);
+  });
+
+  test('skips the image preflight when the user has no local image model', async () => {
+    const { bridge } = createHarness({ hasLocalImageModel: false });
+
+    await bridge.handleToolRequest({
+      args: { action: SkinToolAction.CreateDraft },
+      context,
+    });
+
+    // No local image model means the skin workflow cannot generate assets, so
+    // the preflight must stay inert even though the draft is missing assets.
+    expect(await bridge.preflightLobsterImageGeneration(
+      sessionId,
+      { mode: MediaSelectionMode.Image },
+    )).toBeNull();
+  });
+
+  test('skips the image preflight when the generation gate rejects the call', async () => {
+    const { bridge } = createHarness();
+
+    // The gate rejects image generation without a turn selection or with a
+    // video selection, so the preflight must not ask the model to create a
+    // draft it cannot use.
+    expect(await bridge.preflightLobsterImageGeneration(sessionId, undefined)).toBeNull();
+    expect(await bridge.preflightLobsterImageGeneration(
+      sessionId,
+      { mode: MediaSelectionMode.None },
+    )).toBeNull();
+    expect(await bridge.preflightLobsterImageGeneration(
+      sessionId,
+      { mode: MediaSelectionMode.Video },
+    )).toBeNull();
+  });
+
+  test('preflights image generation for an auto turn selection', async () => {
+    const { bridge } = createHarness();
+
+    // An auto selection allows the image tool, so the draft requirement applies.
+    expect(await bridge.preflightLobsterImageGeneration(
+      sessionId,
+      { mode: MediaSelectionMode.Auto },
+    )).toMatchObject({
+      isError: true,
+      details: { code: 'draft_required' },
+    });
   });
 
   test('clears the owning workflow only after a successful apply', async () => {

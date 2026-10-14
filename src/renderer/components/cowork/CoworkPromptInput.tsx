@@ -8,7 +8,6 @@ import {
   PlayCircleIcon,
 } from '@heroicons/react/24/outline';
 import { ArrowUpIcon } from '@heroicons/react/24/solid';
-import { AuthSubscriptionStatus } from '@shared/auth/constants';
 import {
   BrowserAnnotationScreenshotStatus,
   type CoworkBrowserAnnotationBatch,
@@ -41,9 +40,8 @@ import {
   CoworkSteerStatus,
 } from '../../../shared/cowork/steer';
 import { agentService } from '../../services/agent';
-import { authService } from '../../services/auth';
 import { configService, ConfigServiceEvent } from '../../services/config';
-import { coworkService } from '../../services/cowork';
+import { COWORK_LOCAL_ACCOUNT_SCOPE, coworkService } from '../../services/cowork';
 import { buildCoworkCapabilitySelection } from '../../services/coworkCapabilitySelection';
 import {
   CoworkPromptPayloadFailureCode,
@@ -58,7 +56,7 @@ import {
   LogReporterEntry,
   reportYdAnalyzer,
 } from '../../services/logReporter';
-import { getOnboardingErrorCode, reportOnboardingAction } from '../../services/onboardingAnalytics';
+import { reportOnboardingAction } from '../../services/onboardingAnalytics';
 import { resolveLocalizedText, skillService } from '../../services/skill';
 import { RootState } from '../../store';
 import { selectDraftPrompts } from '../../store/selectors/coworkSelectors';
@@ -66,7 +64,6 @@ import {
   AsrQuotaStatus,
   ensureAsrQuotaFreshForDay,
   getLocalAsrQuotaDayKey,
-  resetAsrQuota,
 } from '../../store/slices/asrQuotaSlice';
 import {
   addDraftAttachment,
@@ -519,10 +516,8 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     const coworkAgentEngine = useSelector((state: RootState) => state.cowork.config.agentEngine);
     const availableModels = useSelector((state: RootState) => state.model.availableModels);
     const currentSession = useSelector((state: RootState) => state.cowork.currentSession);
-    const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
-    const authQuota = useSelector((state: RootState) => state.auth.quota);
-    const authOwnerAccountKey = useSelector((state: RootState) => state.auth.ownerAccountKey);
-    const authAccountGeneration = useSelector((state: RootState) => state.auth.accountGeneration);
+    const authOwnerAccountKey = COWORK_LOCAL_ACCOUNT_SCOPE.ownerAccountKey;
+    const authAccountGeneration = COWORK_LOCAL_ACCOUNT_SCOPE.accountGeneration;
     const asrQuota = useSelector((state: RootState) => state.asrQuota);
     const [value, setValue] = useState(draftPrompt);
     const [steerValue, setSteerValue] = useState(steerDraft);
@@ -550,7 +545,6 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     const [modelAccessPrompt, setModelAccessPrompt] = useState<ModelAccessPromptKind | null>(null);
     const [showChatLoginExperiencePrompt, setShowChatLoginExperiencePrompt] = useState(false);
     const [chatLoginExperiencePending, setChatLoginExperiencePending] = useState(false);
-    const [showVoiceLoginPrompt, setShowVoiceLoginPrompt] = useState(false);
     const [showVoiceQuotaPrompt, setShowVoiceQuotaPrompt] = useState(false);
     const [isLargeToolbarCompact, setIsLargeToolbarCompact] = useState(false);
     // While the input holds quick-action template text, pin the textarea to
@@ -694,8 +688,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     !!effectiveSelectedModel
     && availableModels.some(model => isSameModelIdentity(model, effectiveSelectedModel))
   ), [availableModels, effectiveSelectedModel]);
-  const modelSelectionRefreshPending = isLoggedIn
-    && availableModels.length === 0
+  const modelSelectionRefreshPending = availableModels.length === 0
     && effectiveSelectedModel?.isServerModel === true;
   const effectiveThinkingLevel = resolveModelThinkingLevel(
     effectiveSelectedModel,
@@ -704,15 +697,8 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
       : currentAgent?.thinkingLevel,
   );
   const modelSupportsImage = !!effectiveSelectedModel?.supportsImage;
-  const hasAccessibleUserModel = useMemo(
-    () => availableModels.some(model => !model.isServerModel && model.accessible !== false),
-    [availableModels],
-  );
 
   const resolveSubmitModelAccessPrompt = useCallback((): ModelAccessPromptKind | null => {
-    if (!isLoggedIn && !hasAccessibleUserModel) {
-      return ModelAccessPromptKind.Login;
-    }
     if (isModelAgenticBlocked(effectiveSelectedModel)) {
       return ModelAccessPromptKind.AgenticNotReady;
     }
@@ -720,19 +706,16 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
       effectiveSelectedModel?.providerKey === ProviderName.LobsteraiServer
       && effectiveSelectedModel.accessible === false
     ) {
-      return isLoggedIn ? ModelAccessPromptKind.Subscribe : ModelAccessPromptKind.Login;
+      return ModelAccessPromptKind.Subscribe;
     }
     return null;
   }, [
     effectiveSelectedModel,
-    hasAccessibleUserModel,
-    isLoggedIn,
   ]);
 
-  const handleChatLoginExperienceStart = useCallback(async (
+  const handleChatLoginExperienceStart = useCallback((
     source: 'chat_login_experience_prompt' | 'new_user_welcome_task' = 'chat_login_experience_prompt',
   ) => {
-    if (chatLoginExperiencePending) return;
     const isNewUserWelcomeTaskSource = source === 'new_user_welcome_task';
     if (isNewUserWelcomeTaskSource) {
       reportOnboardingAction('welcome_task_start_experience_click', {
@@ -743,50 +726,13 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
         source: 'chat_login_experience_prompt',
       });
     }
-    setChatLoginExperiencePending(true);
     logPromptModelSelection(
       'debug',
-      `${source} primary action clicked; starting login handoff`,
+      `${source} primary action clicked; dismissing prompt`,
     );
-    try {
-      const result = await authService.login();
-      if (!result.success) {
-        throw new Error(result.error || i18nService.t('welcomeLoginFailed'));
-      }
-      logPromptModelSelection(
-        'debug',
-        `${source} login handoff succeeded`,
-      );
-      if (isNewUserWelcomeTaskSource) {
-        reportOnboardingAction('welcome_task_login_redirect_result', {
-          source: 'new_user_welcome_task',
-          result: 'success',
-        });
-      }
-      setShowChatLoginExperiencePrompt(false);
-      setChatLoginExperiencePending(false);
-    } catch (error) {
-      logPromptModelSelection(
-        'warn',
-        `${source} login handoff failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      if (isNewUserWelcomeTaskSource) {
-        reportOnboardingAction('welcome_task_login_redirect_result', {
-          source: 'new_user_welcome_task',
-          result: 'failed',
-          errorCode: getOnboardingErrorCode(error),
-        });
-      }
-      showToast(i18nService.t('welcomeLoginFailed'));
-      setChatLoginExperiencePending(false);
-    }
-  }, [chatLoginExperiencePending]);
-
-  useEffect(() => {
-    if (!isLoggedIn) return;
     setShowChatLoginExperiencePrompt(false);
     setChatLoginExperiencePending(false);
-  }, [isLoggedIn]);
+  }, []);
 
   const {
     handleVoiceInput,
@@ -799,12 +745,11 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     value,
     setValue,
     textareaRef,
-    isLoggedIn,
     disabled,
     onQuotaExhausted: () => setShowVoiceQuotaPrompt(true),
   });
 
-  const isAsrSubscribed = authQuota?.subscriptionStatus === AuthSubscriptionStatus.Active;
+  const isAsrSubscribed = false;
   const isAsrQuotaExhaustedToday = asrQuota.status === AsrQuotaStatus.Exhausted
     && asrQuota.dayKey === getLocalAsrQuotaDayKey();
   const voiceInputLocksEditing = isVoiceRecording || isVoiceRecognizing;
@@ -895,12 +840,8 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
   }, [dispatch]);
 
   useEffect(() => {
-    if (!isLoggedIn) {
-      dispatch(resetAsrQuota());
-      return;
-    }
     ensureFreshAsrQuota();
-  }, [dispatch, ensureFreshAsrQuota, isLoggedIn]);
+  }, [ensureFreshAsrQuota]);
 
   const handleVoiceInputClick = useCallback(() => {
     if (isVoiceRecording) {
@@ -914,13 +855,6 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
       reportPromptControl('voice_record_blocked', {
         blockedReason: 'disabled',
       });
-      return;
-    }
-    if (!isLoggedIn) {
-      reportPromptControl('voice_record_blocked', {
-        blockedReason: 'login_required',
-      });
-      setShowVoiceLoginPrompt(true);
       return;
     }
     const todayKey = getLocalAsrQuotaDayKey();
@@ -946,7 +880,6 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     dispatch,
     handleVoiceInput,
     isAsrSubscribed,
-    isLoggedIn,
     isVoiceRecording,
     recordingElapsedSeconds,
     reportPromptControl,
@@ -1728,7 +1661,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
       : CoworkCollaborationMode.Default;
 
     const accessPrompt = resolveSubmitModelAccessPrompt();
-    if (!effectiveModelIsAvailable && accessPrompt !== ModelAccessPromptKind.Login) {
+    if (!effectiveModelIsAvailable && accessPrompt === null) {
       const message = `blocked submit because selected model is unavailable; refreshPending=${modelSelectionRefreshPending}; model=${effectiveSelectedModel?.id ?? 'none'}; provider=${effectiveSelectedModel?.providerKey ?? 'none'}`;
       console.debug(`[CoworkPromptInput] ${message}`);
       try {
@@ -1759,18 +1692,6 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
         ...getPromptTextAnalyticsParams(trimmedValue),
         ...getPromptCapabilityAnalyticsParams(),
       });
-      if (
-        accessPrompt === ModelAccessPromptKind.Login
-        && !isLoggedIn
-        && !hasAccessibleUserModel
-      ) {
-        logPromptModelSelection(
-          'debug',
-          'showing chat login experience prompt because submit requires login and no custom model is configured',
-        );
-        setShowChatLoginExperiencePrompt(true);
-        return;
-      }
       setModelAccessPrompt(accessPrompt);
       return;
     }
@@ -1970,7 +1891,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     resetGoalInput(false);
     draftStartedAnalyticsRef.current = false;
     inputSourceOverrideRef.current = null;
-  }, [value, steerInputActive, steerValue, isVoiceRecording, stopVoiceRecordingAndRecognize, goalInputActive, goalInputMode, resetGoalInput, isStreaming, canSteer, remoteManaged, disabled, submitDisabled, isPatchingModel, onSubmit, onGoalCommand, activeSkillIds, skills, activeKitIds, marketplaceKits, installedKits, attachments, browserAnnotationBatches, showFolderSelector, workingDirectory, dispatch, draftKey, selectedTextSnippets, pendingSteers.length, resolveSubmitModelAccessPrompt, isLoggedIn, hasAccessibleUserModel, isPlanMode, planConfirmation, reportPromptControl, getPromptCapabilityAnalyticsParams, getPromptContextAnalyticsParams, getPromptInputSource, goal, sessionId, preparePromptPayload, modelSupportsImage, queuedMediaSelection, authOwnerAccountKey, authAccountGeneration, effectiveModelIsAvailable, modelSelectionRefreshPending, effectiveSelectedModel?.id, effectiveSelectedModel?.providerKey]);
+  }, [value, steerInputActive, steerValue, isVoiceRecording, stopVoiceRecordingAndRecognize, goalInputActive, goalInputMode, resetGoalInput, isStreaming, canSteer, remoteManaged, disabled, submitDisabled, isPatchingModel, onSubmit, onGoalCommand, activeSkillIds, skills, activeKitIds, marketplaceKits, installedKits, attachments, browserAnnotationBatches, showFolderSelector, workingDirectory, dispatch, draftKey, selectedTextSnippets, pendingSteers.length, resolveSubmitModelAccessPrompt, isPlanMode, planConfirmation, reportPromptControl, getPromptCapabilityAnalyticsParams, getPromptContextAnalyticsParams, getPromptInputSource, goal, sessionId, preparePromptPayload, modelSupportsImage, queuedMediaSelection, authOwnerAccountKey, authAccountGeneration, effectiveModelIsAvailable, modelSelectionRefreshPending, effectiveSelectedModel?.id, effectiveSelectedModel?.providerKey]);
   handleSubmitRef.current = handleSubmit;
 
   const handleSelectSkill = useCallback((skill: Skill) => {
@@ -2839,9 +2760,9 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     && !isVoiceRecognizing
     && !isPatchingModel
     && !selectedModelUnavailable
-    && (effectiveModelIsAvailable || resolveSubmitModelAccessPrompt() === ModelAccessPromptKind.Login)
+    && (effectiveModelIsAvailable || resolveSubmitModelAccessPrompt() === null)
     && (!!activeTextareaValue.trim() || (!steerInputActive && (hasAttachments || browserAnnotationBatches.length > 0)));
-  const showNewUserWelcomeLockOverlay = showNewUserWelcomeLoginOverlay && !isLoggedIn;
+  const showNewUserWelcomeLockOverlay = showNewUserWelcomeLoginOverlay;
   const enhancedContainerClass = isDraggingFiles
     ? `${containerClass} ring-2 ring-primary/50 border-primary/60`
     : containerClass;
@@ -3133,7 +3054,6 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     <VoiceInputButton
       buttonClassName={buttonClassName}
       iconClassName={iconClassName}
-      isLoggedIn={isLoggedIn}
       disabled={disabled}
       isQuotaExhausted={isAsrQuotaExhaustedToday}
       isRecording={isVoiceRecording}
@@ -4103,15 +4023,6 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
         <ModelAccessPromptModal
           promptKind={modelAccessPrompt}
           onClose={() => setModelAccessPrompt(null)}
-        />
-      )}
-      {showVoiceLoginPrompt && (
-        <ModelAccessPromptModal
-          promptKind={ModelAccessPromptKind.Login}
-          titleKey="voiceInputLoginTitle"
-          descriptionKey="voiceInputLoginDesc"
-          showLearnMore={false}
-          onClose={() => setShowVoiceLoginPrompt(false)}
         />
       )}
       {showVoiceQuotaPrompt && (

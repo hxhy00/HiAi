@@ -11,6 +11,7 @@ import {
   isManualDownloadUrl,
 } from '../shared/appUpdate/constants';
 import { BrowserPasskeyUiEvent } from '../shared/browserWebAccess/passkeys';
+import { MediaProviderUiEvent } from '../shared/cowork/mediaProviders';
 import { OpenClawQuestion } from '../shared/cowork/openclawQuestion';
 import {
   LibraryNavigationEvent,
@@ -120,8 +121,6 @@ const AGENT_TASK_SLOT_SHORTCUT_ACTIONS = [
 const NEW_USER_WELCOME_AFTER_LOGIN_STORAGE_KEY = 'lobsterai:newUserWelcomeAfterLogin';
 const NEW_USER_WELCOME_AFTER_LOGIN_RESTART_GRACE_MS = 1800;
 const NEW_USER_WELCOME_AFTER_LOGIN_ENGINE_SETTLE_MS = 700;
-const NEW_USER_WELCOME_UNAUTHENTICATED_RETURN_DELAY_MS = 600;
-const NEW_USER_WELCOME_AUTH_CALLBACK_SUPPRESSION_MS = 5000;
 
 const setNewUserWelcomeAfterLoginPending = (): void => {
   try {
@@ -280,15 +279,14 @@ const App: React.FC = () => {
   const privacyGateRequestIdRef = useRef(0);
   const pendingNewUserWelcomeAfterLoginSawStartupRef = useRef(false);
   const pendingNewUserWelcomeAfterLoginWaitingLoggedRef = useRef(false);
-  const pendingNewUserWelcomeAuthCallbackAtRef = useRef(0);
-  const newUserLoginPendingRef = useRef(false);
   const isUserInitiatedUpdateFlowActiveRef = useRef(false);
   const dispatch = useDispatch();
   const defaultSelectedModel = useSelector((state: RootState) => state.model.defaultSelectedModel);
   const currentSessionId = useSelector(selectCurrentSessionId);
   const pendingPermission = useSelector(selectFirstCurrentSessionPendingPermission);
   const pendingPermissions = useSelector(selectPendingPermissions);
-  const authUser = useSelector((state: RootState) => state.auth.user);
+  // Login has been removed; the app runs as a single local account.
+  const isAuthenticated = false;
   const isWindows = window.electron.platform === 'win32';
   const [minimizedPermissionIds, setMinimizedPermissionIds] = useState<string[]>([]);
   const isPendingPermissionMinimized = pendingPermission
@@ -301,8 +299,7 @@ const App: React.FC = () => {
   );
   const shouldShowNewUserOnboarding =
     privacyAgreed === false
-    && !authUser
-    && !isNewUserOnboardingDismissed
+   && !isNewUserOnboardingDismissed
     && hasResolvedEngineStartupOverlayState
     && !isEngineStartupOverlayVisible
     && !isUpdateInteractionBlocked;
@@ -483,7 +480,6 @@ const App: React.FC = () => {
         void reportYdAnalyzer({
           action: LogReporterAction.AppStarted,
           providerModelCount,
-          hasLoggedInUser: !!store.getState().auth.user?.yid,
         });
       }
     };
@@ -592,11 +588,13 @@ const App: React.FC = () => {
         // concurrent retry could stack them; its in-flight run self-completes
         // once IPC recovers.
         mark('authService.init begin');
-        const authReady = await runStep('authService.init', () => authService.init(), {
+        await runStep('authService.init', async () => {
+          await authService.init();
+        }, {
           attempts: 1,
           firstTimeoutMs: INIT_STEP_RETRY_TIMEOUT_MS,
         });
-        mark(authReady ? 'authService.init done' : 'authService.init pending (auth restore completes in background)');
+        mark('authService.init done');
         coreStartupServicesInitializedRef.current = true;
       }
 
@@ -679,12 +677,6 @@ const App: React.FC = () => {
       unsubscribe();
     };
   }, []);
-
-  useEffect(() => {
-    if (authUser) {
-      void authService.fetchProfileSummary();
-    }
-  }, [authUser]);
 
   // Listen for Copilot token auto-refresh events from the main process
   useEffect(() => {
@@ -1015,7 +1007,7 @@ const App: React.FC = () => {
 
   const runUpdateCheck = useCallback(async (): Promise<boolean> => {
     try {
-      const result = await window.electron.appUpdate.checkNow({ userId: authUser?.yid });
+      const result = await window.electron.appUpdate.checkNow({});
       setAppUpdateState(result.state);
       if (!result.success) {
         console.error('[App] app update check failed:', result.error);
@@ -1026,7 +1018,7 @@ const App: React.FC = () => {
       console.error('Failed to check app update:', error);
       return false;
     }
-  }, [authUser]);
+  }, []);
 
   const updateInfo = appUpdateState.info;
 
@@ -1155,14 +1147,14 @@ const App: React.FC = () => {
     setPrivacyAgreed(true);
   }, []);
 
-  // Release the first-launch gate once login completes in an external auth flow.
+  // Release the first-launch gate on the focused app window.
   useEffect(() => {
-    if (privacyAgreed === false && authUser) {
+    if (privacyAgreed === false) {
       void acceptPrivacyAgreement().catch((error) => {
-        console.warn('[Onboarding] failed to persist privacy agreement after login callback:', error);
+        console.warn('[Onboarding] failed to persist privacy agreement:', error);
       });
     }
-  }, [privacyAgreed, authUser, acceptPrivacyAgreement]);
+  }, [privacyAgreed, acceptPrivacyAgreement]);
 
   const finishNewUserOnboarding = useCallback((source: NewUserOnboardingCompletionSource) => {
     console.log(`[Onboarding] completing new user onboarding source=${source}`);
@@ -1221,9 +1213,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const unsubscribe = window.electron.auth.onCallback(() => {
-      pendingNewUserWelcomeAuthCallbackAtRef.current = Date.now();
       if (hasNewUserWelcomeAfterLoginPending()) {
-        console.log('[Onboarding] auth callback observed during new user login handoff');
+        console.log('[Onboarding] auth callback observed during new user welcome handoff');
         reportOnboardingAction('auth_callback_observed', {
           source: 'new_user_onboarding',
         });
@@ -1236,7 +1227,7 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!authUser || !hasNewUserWelcomeAfterLoginPending()) {
+    if (!hasNewUserWelcomeAfterLoginPending()) {
       pendingNewUserWelcomeAfterLoginSawStartupRef.current = false;
       pendingNewUserWelcomeAfterLoginWaitingLoggedRef.current = false;
       return;
@@ -1250,13 +1241,9 @@ const App: React.FC = () => {
       pendingNewUserWelcomeAfterLoginSawStartupRef.current = true;
       if (!pendingNewUserWelcomeAfterLoginWaitingLoggedRef.current) {
         console.log(
-          '[Onboarding] login callback detected; waiting for OpenClaw startup before opening '
+          '[Onboarding] waiting for OpenClaw startup before opening '
           + `new user welcome task phase=${snapshotPhase ?? 'unknown'}`,
         );
-        reportOnboardingAction('login_success_wait_gateway', {
-          source: 'new_user_onboarding',
-          phase: snapshotPhase ?? 'unknown',
-        });
         pendingNewUserWelcomeAfterLoginWaitingLoggedRef.current = true;
       }
       return;
@@ -1268,7 +1255,7 @@ const App: React.FC = () => {
 
     if (!pendingNewUserWelcomeAfterLoginWaitingLoggedRef.current) {
       console.log(
-        '[Onboarding] login callback detected; delaying new user welcome task open for '
+        '[Onboarding] delaying new user welcome task open for '
         + `gateway restart grace delay=${delayMs}ms phase=${snapshotPhase ?? 'unknown'}`,
       );
       pendingNewUserWelcomeAfterLoginWaitingLoggedRef.current = true;
@@ -1300,96 +1287,17 @@ const App: React.FC = () => {
       pendingNewUserWelcomeAfterLoginSawStartupRef.current = false;
       pendingNewUserWelcomeAfterLoginWaitingLoggedRef.current = false;
       setIsNewUserOnboardingDismissed(true);
-      openNewUserWelcomeTask('start_experience_login_callback');
+      openNewUserWelcomeTask('start_experience_engine_settled');
     }, delayMs);
 
     return () => {
       window.clearTimeout(timer);
     };
   }, [
-    authUser,
     isEngineStartupOverlayVisible,
     newUserWelcomeAfterLoginSignal,
     openNewUserWelcomeTask,
   ]);
-
-  useEffect(() => {
-    if (authUser) return undefined;
-
-    let returnTimer: number | null = null;
-
-    const clearReturnTimer = () => {
-      if (returnTimer === null) return;
-      window.clearTimeout(returnTimer);
-      returnTimer = null;
-    };
-
-    const scheduleUnauthenticatedReturnOpen = (source: string) => {
-      const pendingAgeMs = getNewUserWelcomeAfterLoginPendingAgeMs();
-      if (pendingAgeMs === null) return;
-
-      clearReturnTimer();
-      const delayMs = NEW_USER_WELCOME_UNAUTHENTICATED_RETURN_DELAY_MS;
-      console.log(
-        '[Onboarding] app returned during new user login handoff; verifying auth state '
-        + `source=${source} delay=${delayMs}ms pendingAge=${Math.round(pendingAgeMs)}ms`,
-      );
-
-      returnTimer = window.setTimeout(() => {
-        returnTimer = null;
-        if (!hasNewUserWelcomeAfterLoginPending()) return;
-        if (store.getState().auth.isLoggedIn) return;
-
-        const lastCallbackAgeMs = Date.now() - pendingNewUserWelcomeAuthCallbackAtRef.current;
-        if (lastCallbackAgeMs >= 0 && lastCallbackAgeMs < NEW_USER_WELCOME_AUTH_CALLBACK_SUPPRESSION_MS) {
-          console.log(
-            '[Onboarding] auth callback recently observed; waiting for login exchange before '
-            + `opening fallback welcome task callbackAge=${lastCallbackAgeMs}ms`,
-          );
-          return;
-        }
-
-        if (!consumeNewUserWelcomeAfterLoginPending()) return;
-
-        console.log(
-          '[Onboarding] login handoff returned without authenticated callback; opening '
-          + `new user welcome task source=${source}`,
-        );
-        reportOnboardingAction('login_return_without_auth', {
-          source,
-          pendingAge: Math.round(getNewUserWelcomeAfterLoginPendingAgeMs() ?? 0),
-        });
-        pendingNewUserWelcomeAfterLoginSawStartupRef.current = false;
-        pendingNewUserWelcomeAfterLoginWaitingLoggedRef.current = false;
-        setIsNewUserOnboardingDismissed(true);
-        openNewUserWelcomeTask(source);
-      }, delayMs);
-    };
-
-    const unsubscribeWindowState = window.electron.window.onStateChanged((state) => {
-      if (!state.isFocused) return;
-      scheduleUnauthenticatedReturnOpen('start_experience_window_focus_without_login');
-    });
-
-    const handleWindowFocus = () => {
-      scheduleUnauthenticatedReturnOpen('start_experience_dom_focus_without_login');
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState !== 'visible') return;
-      scheduleUnauthenticatedReturnOpen('start_experience_visibility_without_login');
-    };
-
-    window.addEventListener('focus', handleWindowFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      clearReturnTimer();
-      unsubscribeWindowState();
-      window.removeEventListener('focus', handleWindowFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [authUser, openNewUserWelcomeTask]);
 
   const handleNewUserOnboardingSkip = useCallback(() => {
     reportOnboardingAction('guide_skip_click', {
@@ -1416,53 +1324,20 @@ const App: React.FC = () => {
     finishNewUserOnboarding('next');
   }, [finishNewUserOnboarding, newUserOnboardingStep]);
 
-  const handleNewUserOnboardingStartExperience = useCallback(async () => {
-    if (newUserLoginPendingRef.current) return;
-    newUserLoginPendingRef.current = true;
-    console.log('[Onboarding] start experience clicked; starting login handoff');
+  const handleNewUserOnboardingStartExperience = useCallback(() => {
+    console.log('[Onboarding] start experience clicked; opening new user welcome task');
     reportOnboardingAction('guide_start_experience_click', {
       source: 'new_user_onboarding',
       step: newUserOnboardingStep,
     });
     setNewUserWelcomeAfterLoginPending();
+    finishNewUserOnboarding('start_experience');
     setNewUserWelcomeAfterLoginSignal((value) => value + 1);
-    await authService.login()
-      .then((result) => {
-        if (!result.success) {
-          console.warn(
-            `[Onboarding] login handoff from new user onboarding failed: ${result.error ?? 'unknown error'}`,
-          );
-          reportOnboardingAction('login_redirect_result', {
-            source: 'new_user_onboarding',
-            result: 'failed',
-            errorCode: result.error ? 'login_redirect_failed' : 'unknown',
-          });
-          consumeNewUserWelcomeAfterLoginPending();
-          showToast(i18nService.t('welcomeLoginFailed'));
-          return;
-        }
-        console.log('[Onboarding] login handoff from new user onboarding succeeded');
-        reportOnboardingAction('login_redirect_result', {
-          source: 'new_user_onboarding',
-          result: 'success',
-        });
-        finishNewUserOnboarding('start_experience');
-        setNewUserWelcomeAfterLoginSignal((value) => value + 1);
-      })
-      .catch((error) => {
-        console.warn('[Onboarding] failed to start login from new user onboarding:', error);
-        reportOnboardingAction('login_redirect_result', {
-          source: 'new_user_onboarding',
-          result: 'failed',
-          errorCode: getOnboardingErrorCode(error),
-        });
-        consumeNewUserWelcomeAfterLoginPending();
-        showToast(i18nService.t('welcomeLoginFailed'));
-      })
-      .finally(() => {
-        newUserLoginPendingRef.current = false;
-      });
-  }, [finishNewUserOnboarding, newUserOnboardingStep, showToast]);
+  }, [finishNewUserOnboarding, newUserOnboardingStep]);
+
+  const handleNewUserOnboardingStartExperienceAsync = useCallback(async () => {
+    handleNewUserOnboardingStartExperience();
+  }, [handleNewUserOnboardingStartExperience]);
 
   const handlePermissionResponse = useCallback(async (result: CoworkPermissionResult) => {
     if (!pendingPermission) return false;
@@ -1836,6 +1711,12 @@ const App: React.FC = () => {
     return () => window.removeEventListener(BrowserPasskeyUiEvent.OpenBrowserSettings, openBrowserSettings);
   }, [handleShowSettings]);
 
+  useEffect(() => {
+    const openMediaProviderSettings = () => handleShowSettings({ initialTab: 'mediaProvider' });
+    window.addEventListener(MediaProviderUiEvent.OpenSettings, openMediaProviderSettings);
+    return () => window.removeEventListener(MediaProviderUiEvent.OpenSettings, openMediaProviderSettings);
+  }, [handleShowSettings]);
+
   // 监听托盘菜单打开设置的 IPC 事件
   useEffect(() => {
     const unsubscribe = window.electron.ipcRenderer.on('app:openSettings', () => {
@@ -2176,7 +2057,7 @@ const App: React.FC = () => {
               />
             ) : mainView === 'library' ? (
               <LibraryView
-                isAuthenticated={Boolean(authUser)}
+                isAuthenticated={isAuthenticated}
                 isSidebarCollapsed={isSidebarCollapsed}
                 onToggleSidebar={handleToggleSidebar}
                 onOpenSession={handleOpenLibrarySession}
@@ -2208,7 +2089,7 @@ const App: React.FC = () => {
           </AppUpdateInteractionOverlay>
         )}
         {shouldShowNewUserOnboarding && (
-          <FirstRunLoginIntroduction onStartExperience={handleNewUserOnboardingStartExperience}>
+          <FirstRunLoginIntroduction onStartExperience={handleNewUserOnboardingStartExperienceAsync}>
             <NewUserOnboardingOverlay
               step={newUserOnboardingStep}
               onNext={handleNewUserOnboardingNext}

@@ -41,27 +41,15 @@ describe('startup server model warmup', () => {
       contextWindow: 1_048_576,
       maxTokens: 8_192,
     }];
-    const fetchWithAuth = vi.fn(async (url: string) => {
-      if (url.includes('/api/user/quota')) {
-        return new Response(JSON.stringify({
-          code: 0,
-          data: {
-            subscriptionStatus: 'free',
-          },
-        }), { status: 200 });
-      }
-      return new Response(JSON.stringify({ code: 0, data: serverModels }), {
-        status: 200,
-      });
-    });
+    const fetchWithAuth = vi.fn(async () => new Response(JSON.stringify({ code: 0, data: serverModels }), {
+      status: 200,
+    }));
 
     await runStartupCacheWarmup({
       serverBaseUrl: 'https://lobster.test',
       fetchWithAuth,
       appendKeyfromQuery: url => url,
-      cachedSubscriptionStatus: 'free',
       clientVersion: '2026.7.23',
-      t: key => key,
     });
 
     expect(updateServerModelMetadata).toHaveBeenCalledWith(serverModels);

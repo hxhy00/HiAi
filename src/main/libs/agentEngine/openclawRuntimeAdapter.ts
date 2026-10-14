@@ -77,12 +77,6 @@ import {
   CoworkSteerStatus,
 } from '../../../shared/cowork/steer';
 import { stripNullChars } from '../../../shared/cowork/text';
-import {
-  EnterpriseQuotaMessageMetadataKey,
-  EnterpriseQuotaReason,
-} from '../../../shared/enterpriseAccount/constants';
-import { resolveEnterpriseQuotaError } from '../../../shared/enterpriseAccount/quotaError';
-import type { EnterpriseQuotaErrorDetails } from '../../../shared/enterpriseAccount/types';
 import type {
   KitReference,
   ResolvedKitCapabilities,
@@ -132,7 +126,6 @@ import {
 } from '../openclawHistory';
 import { buildOpenClawLocalTimeContextPrompt } from '../openclawLocalTimeContextPrompt';
 import { resolveOpenClawThinkingLevelForModel } from '../openclawModelThinkingLevels';
-import { consumeRecentOpenClawTokenProxyQuotaError } from '../openclawTokenProxy';
 import { isSystemProxyEnabled } from '../systemProxy';
 import {
   findRedundantFinalPrefixMessageId,
@@ -1788,26 +1781,11 @@ export function resolveOpenClawRuntimeErrorMessage(
 
 export type ResolvedOpenClawRuntimeError = {
   message: string;
-  enterpriseQuotaError: EnterpriseQuotaErrorDetails | null;
-};
-
-const getEnterpriseQuotaErrorMessage = (
-  details: EnterpriseQuotaErrorDetails,
-): string => {
-  switch (details.reason) {
-    case EnterpriseQuotaReason.MemberMonthlyQuotaExhausted:
-      return t('coworkErrorEnterpriseMemberQuotaExhausted');
-    case EnterpriseQuotaReason.EnterprisePoolExhausted:
-      return t('coworkErrorEnterprisePoolExhausted');
-    case EnterpriseQuotaReason.EnterpriseCreditBatchesExpired:
-      return t('coworkErrorEnterpriseCreditBatchesExpired');
-  }
 };
 
 const buildResolvedRuntimeError = (
   message: string,
-  enterpriseQuotaError: EnterpriseQuotaErrorDetails | null = null,
-): ResolvedOpenClawRuntimeError => ({ message, enterpriseQuotaError });
+): ResolvedOpenClawRuntimeError => ({ message });
 
 export function resolveOpenClawRuntimeError(
   errorMessage: string,
@@ -1815,17 +1793,6 @@ export function resolveOpenClawRuntimeError(
 ): ResolvedOpenClawRuntimeError {
   const normalized = normalizeOpenClawRuntimeErrorMessage(errorMessage);
   const metadataClassifiedKey = classifyOpenClawSafeRuntimeErrorMetadata(metadata);
-  const explicitEnterpriseQuotaError = resolveEnterpriseQuotaError(
-    metadata?.errorCode ?? metadata?.code,
-    `${normalized}\n${metadata?.rawErrorPreview ?? ''}`,
-  );
-  if (explicitEnterpriseQuotaError) {
-    consumeRecentOpenClawTokenProxyQuotaError();
-    return buildResolvedRuntimeError(
-      getEnterpriseQuotaErrorMessage(explicitEnterpriseQuotaError),
-      explicitEnterpriseQuotaError,
-    );
-  }
 
   const classifiedKey = metadataClassifiedKey === CoworkErrorI18nKey.QuotaExhausted
     ? metadataClassifiedKey
@@ -1840,24 +1807,10 @@ export function resolveOpenClawRuntimeError(
       || metadataClassifiedKey === CoworkErrorI18nKey.ProviderCooldown
     )
   ) {
-    consumeRecentOpenClawTokenProxyQuotaError();
     return buildResolvedRuntimeError(t(metadataClassifiedKey));
   }
 
   if (classifiedKey) {
-    if (classifiedKey === CoworkErrorI18nKey.QuotaExhausted) {
-      const recentQuotaError = consumeRecentOpenClawTokenProxyQuotaError();
-      const enterpriseQuotaError = resolveEnterpriseQuotaError(
-        metadata?.errorCode ?? metadata?.code ?? recentQuotaError?.code,
-        `${normalized} ${recentQuotaError?.message ?? ''}`,
-      );
-      if (enterpriseQuotaError) {
-        return buildResolvedRuntimeError(
-          getEnterpriseQuotaErrorMessage(enterpriseQuotaError),
-          enterpriseQuotaError,
-        );
-      }
-    }
     if (
       classifiedKey === CoworkErrorI18nKey.NetworkError
       && metadata?.provider?.trim() === ProviderName.LobsteraiServer
@@ -1870,37 +1823,8 @@ export function resolveOpenClawRuntimeError(
     return buildResolvedRuntimeError(t(classifiedKey));
   }
 
-  if (isOpenClawGenericLlmRequestFailed(normalized)) {
-    if (metadataClassifiedKey) {
-      const recentQuotaError = consumeRecentOpenClawTokenProxyQuotaError();
-      if (metadataClassifiedKey === CoworkErrorI18nKey.QuotaExhausted) {
-        const enterpriseQuotaError = resolveEnterpriseQuotaError(
-          metadata?.errorCode ?? metadata?.code ?? recentQuotaError?.code,
-          recentQuotaError?.message ?? '',
-        );
-        if (enterpriseQuotaError) {
-          return buildResolvedRuntimeError(
-            getEnterpriseQuotaErrorMessage(enterpriseQuotaError),
-            enterpriseQuotaError,
-          );
-        }
-      }
-      return buildResolvedRuntimeError(t(metadataClassifiedKey));
-    }
-    const recentQuotaError = consumeRecentOpenClawTokenProxyQuotaError();
-    if (recentQuotaError) {
-      const enterpriseQuotaError = resolveEnterpriseQuotaError(
-        recentQuotaError.code,
-        recentQuotaError.message,
-      );
-      if (enterpriseQuotaError) {
-        return buildResolvedRuntimeError(
-          getEnterpriseQuotaErrorMessage(enterpriseQuotaError),
-          enterpriseQuotaError,
-        );
-      }
-      return buildResolvedRuntimeError(t(CoworkErrorI18nKey.QuotaExhausted));
-    }
+  if (isOpenClawGenericLlmRequestFailed(normalized) && metadataClassifiedKey) {
+    return buildResolvedRuntimeError(t(metadataClassifiedKey));
   }
 
   return buildResolvedRuntimeError(normalized);
@@ -1953,12 +1877,6 @@ export const buildRuntimeErrorMetadata = (
 ): CoworkMessageMetadata => ({
   error: resolvedError.message,
   ...(resolvedError.errorDetail ? { errorDetail: resolvedError.errorDetail } : {}),
-  ...(resolvedError.enterpriseQuotaError
-    ? {
-      [EnterpriseQuotaMessageMetadataKey.ErrorCode]: resolvedError.enterpriseQuotaError.code,
-      [EnterpriseQuotaMessageMetadataKey.Reason]: resolvedError.enterpriseQuotaError.reason,
-    }
-    : {}),
 });
 
 const extractTextBlocksAndSignals = (
@@ -6943,8 +6861,6 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     const planOverride = toolLoopOverride
       ? null
       : resolvePlanModelSubstitutionErrorOverride(turn?.model, rawErrorMessage, metadata);
-    // The plan call's quota capture belongs to this error; keep it from labeling the next one.
-    if (planOverride) consumeRecentOpenClawTokenProxyQuotaError();
     const override = toolLoopOverride ?? planOverride;
     if (override) {
       return {
@@ -10978,7 +10894,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     }
     let errorDetail = this.buildTurnErrorDetail(sessionId, turn, resolved.detailRawErrorMessage, errorMessage, errorMetadata);
     // A tool-loop veto has already replaced the copy; its detail carries the veto reason.
-    const outputLimitMessage = resolved.detailRawErrorMessage === rawErrorMessage && !resolvedError.enterpriseQuotaError
+    const outputLimitMessage = resolved.detailRawErrorMessage === rawErrorMessage
       ? resolveOpenClawOutputLimitErrorMessage(errorMetadata.stopReason, errorDetail?.modelSource)
       : null;
     if (outputLimitMessage) {

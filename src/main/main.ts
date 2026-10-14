@@ -39,7 +39,6 @@ import {
 import {
   LogReporterAction,
   LogReporterSource,
-  LogReporterStoreKey,
 } from '../shared/analytics/constants';
 import { AppIpcChannel } from '../shared/app/constants';
 import { AppSettingsAutoLaunchErrorCode, AppSettingsIpc } from '../shared/appSettings/constants';
@@ -48,17 +47,7 @@ import { ArtifactBrowserPartition, ArtifactPreviewIpc, ArtifactPreviewProtocol }
 import { ReviewIpc, ReviewScope, type ReviewScopeRequest } from '../shared/artifactPreview/reviewScopes';
 import type { ReviewSourceRequest } from '../shared/artifactPreview/reviewSource';
 import { buildWorkspaceChangesArtifact } from '../shared/artifactPreview/workspaceChanges';
-import { createAccountOwnerKey } from '../shared/auth/accountOwner';
-import {
-  AuthIpcChannel,
-  type AuthLifecycleEvent,
-  AuthLifecycleEventType,
-  AuthRefreshOutcome,
-  AuthRefreshReason,
-  type AuthSessionChangedEvent,
-  AuthSessionChangeReason,
-  AuthSessionStatus,
-} from '../shared/auth/constants';
+import { AuthRefreshOutcome } from '../shared/auth/constants';
 import {
   type AgentBrowserCredentialSavePromptRequest,
   AgentBrowserHostMenuAction,
@@ -119,6 +108,7 @@ import {
   formatCoworkImageAttachmentLimit,
   validateCoworkImageAttachmentSize,
 } from '../shared/cowork/imageAttachments';
+import { normalizeMediaProvidersConfig } from '../shared/cowork/mediaProviders';
 import { OpenClawQuestion } from '../shared/cowork/openclawQuestion';
 import { containsPlanModePrompt } from '../shared/cowork/planMode';
 import type { CoworkSearchMessageCursor } from '../shared/cowork/search';
@@ -137,11 +127,6 @@ import {
   DataMigrationRestoreStatus,
 } from '../shared/dataMigration/constants';
 import { DialogIpc } from '../shared/dialog/constants';
-import {
-  EnterpriseAccountIpcChannel,
-  EnterpriseAccountMode,
-  EnterpriseApiErrorCode,
-} from '../shared/enterpriseAccount/constants';
 import {
   HtmlShareAccessMode,
   type HtmlShareAccessMode as HtmlShareAccessModeValue,
@@ -218,7 +203,6 @@ import { type ShellGetBrowserAppsInput, ShellIpc, ShellOpenFailureReason } from 
 import { AgentManager } from './agentManager';
 import { APP_NAME, APP_USER_MODEL_ID, DB_FILENAME } from './appConstants';
 import { createLocalFileProtocolResponse } from './artifactLocalFileProtocol';
-import { authQuotaGateStateFromQuota, AuthSubscriptionStatus, createDefaultAuthQuotaGateState, normalizeAuthQuota } from './authQuota';
 import { type AutoLaunchStatus, getAutoLaunchStatus, isAutoLaunched, setAutoLaunchEnabled } from './autoLaunchManager';
 import { BrowserCredentialApprovalService } from './browserCredentials/browserCredentialApprovalService';
 import { BrowserCredentialService } from './browserCredentials/browserCredentialService';
@@ -227,24 +211,6 @@ import { readEnvironmentSnapshot } from './conversation/environmentSnapshot';
 import { WorkspaceReviewSourceStore } from './conversation/reviewSource';
 import { isScopedReview, ScopedReviewStore } from './conversation/scopedReview';
 import { type CoworkForkContextMessage, type CoworkMessage, CoworkStore } from './coworkStore';
-import {
-  buildEnterpriseAccountRequestHeaders,
-  clearEnterpriseAccountContext,
-  fetchEnterpriseAccountContext,
-  fetchEnterpriseAccountIdentities,
-  getPersistedEnterpriseAccountContext,
-  normalizeEnterpriseAccountContext,
-  persistEnterpriseAccountContext,
-  readAccountMode,
-  requestEnterpriseQuotaIncrease,
-} from './enterpriseAccount/context';
-import {
-  createEnterpriseAuthSessionSnapshot,
-  createEnterpriseMembershipRevocationHandler,
-  EnterpriseMembershipRevocationSource,
-  readEnterpriseApiErrorCode,
-  resolveEnterpriseMembershipRevocationSource,
-} from './enterpriseAccount/membershipRevocation';
 import { setLanguage, t } from './i18n';
 import { IMGatewayConfig, IMGatewayManager } from './im';
 import {
@@ -265,14 +231,12 @@ import type {
   TelegramInstanceConfig,
   WecomInstanceConfig,
 } from './im/types';
-import { registerActivityIpcHandlers } from './ipcHandlers/activity';
 import { registerAgentHandlers } from './ipcHandlers/agents';
 import { registerAsrIpcHandlers } from './ipcHandlers/asr';
 import { registerBrowserCredentialHandlers } from './ipcHandlers/browserCredentials/handlers';
 import { registerCoworkSubagentHandlers } from './ipcHandlers/coworkSubagent';
 import { isDecisionModelFeatureActive, registerDecisionModelHandlers } from './ipcHandlers/decisionModel/handlers';
 import { ensureDshEngineReady, registerDshHandlers } from './ipcHandlers/dsh/handlers';
-import { registerEnterpriseAccountHandlers } from './ipcHandlers/enterpriseAccount';
 import { registerKitHandlers } from './ipcHandlers/kits';
 import { hasUnsafeMarkdownEdits, registerMarkdownEditingHandlers } from './ipcHandlers/markdownEditing';
 import { registerMcpHandlers } from './ipcHandlers/mcp';
@@ -290,7 +254,6 @@ import {
 import { registerSessionDiagnosticsHandlers } from './ipcHandlers/sessionDiagnostics';
 import { registerSiteIpcHandlers } from './ipcHandlers/site';
 import { registerSkillHandlers } from './ipcHandlers/skills';
-import { registerSubscriptionTrialIpcHandlers } from './ipcHandlers/subscriptionTrial';
 import { LibraryIndexService } from './library/libraryIndexService';
 import { registerLibraryIpcHandlers } from './library/libraryIpc';
 import { LibraryLocalStore } from './library/libraryLocalStore';
@@ -312,20 +275,9 @@ import { hideAppWindowsForQuit } from './libs/appQuitWindows';
 import { AppUpdateCoordinator, INSTALLATION_UUID_KEY } from './libs/appUpdateCoordinator';
 import { AppUpdateGrayClient, type AppUpdateGraySession } from './libs/appUpdateGrayClient';
 import { ArtifactFileWatcher } from './libs/artifactFileWatcher';
-import { AuthCallbackRouter } from './libs/authCallbackRouter';
-import {
-  appendCallbackReturnTo,
-  appendLoginParams,
-  startAuthLocalCallback,
-} from './libs/authLocalCallbackServer';
-import {
-  AuthSessionManager,
-  resolveAuthSessionStatusFromError,
-} from './libs/authSessionManager';
 import type { BrowserAnnotationAssetIdentity, SaveBrowserAnnotationAssetInput } from './libs/browserAnnotationAssetStore';
 import { BrowserAnnotationAssetStore } from './libs/browserAnnotationAssetStore';
 import {
-  clearServerModelMetadata,
   evaluateServerModelRunGate,
   getAllServerModelMetadata,
   getCurrentApiConfig,
@@ -336,12 +288,10 @@ import {
   resolveRawApiConfig,
   type ServerModelMetadataInput,
   ServerModelRunGateReason,
-  setAuthTokensGetter,
   setServerBaseUrlGetter,
   setStoreGetter,
   updateServerModelMetadata,
 } from './libs/claudeSettings';
-import { appendClientBannerVersion } from './libs/clientBannerRequest';
 import {
   clearCopilotTokenState,
   initCopilotTokenManager,
@@ -362,7 +312,6 @@ import {
   ensureCoworkTempGitignore,
   findCoworkTempRoot,
 } from './libs/coworkTempJanitor';
-import { CoworkTurnUsageService } from './libs/coworkTurnUsage';
 import {
   ensureElectronNodeShim,
   generateSessionTitle,
@@ -445,11 +394,19 @@ import {
 import { inferImageMimeTypeFromDataUrl, type PersistedGeneratedImageAsset, persistGeneratedImageAssets, type PersistGeneratedImageAssetsResult, persistGeneratedVideoAssets, type RemoteGeneratedMediaAsset } from './libs/mediaAssetPersistence';
 import {
   getImageMediaProvider,
+  getVideoMediaProvider,
   initMediaProviders,
+  type MediaProvider,
+  type MediaProviderTarget,
+  MediaTaskStatus,
+  mergeMediaProviderApiKeys,
+  readMediaProvidersConfigForRenderer,
+  resolveMediaTaskTarget,
+  setMediaProviderCrypto,
+  writeMediaProvidersConfig,
 } from './libs/mediaProvider';
 import {
   migrateAgentModelRefs,
-  parsePrimaryModelRef,
   resolveQualifiedAgentModelRef,
   resolveServerModelRefForRun,
   ServerModelRefResolutionStatus,
@@ -534,12 +491,6 @@ import {
 } from './libs/openclawPluginInstallMigration';
 import { readOpenClawRepairQuarantinedStoreCount } from './libs/openclawRepairPreflight';
 import { collectReferencedEnvVarNames, pickReferencedSecretEnvVars } from './libs/openclawSecretEnv';
-import {
-  getOpenClawTokenProxyPort,
-  getOpenClawTokenProxyTraceStats,
-  startOpenClawTokenProxy,
-  stopOpenClawTokenProxy,
-} from './libs/openclawTokenProxy';
 import { runLegacyWeixinAllowFromMigration } from './libs/openclawWeixinPairingMigration';
 import { migrateMainAgentWorkspace } from './libs/openclawWorkspaceMigration';
 import { ensurePythonRuntimeReady } from './libs/pythonRuntime';
@@ -567,10 +518,7 @@ import {
 } from './libs/shareDeployment/shareDeploymentOperationCoordinator';
 import { SqliteBackupTrigger } from './libs/sqliteBackup/constants';
 import { SqliteBackupManager } from './libs/sqliteBackup/sqliteBackupManager';
-import {
-  buildServerModelCapabilityHeaders,
-  runStartupCacheWarmup,
-} from './libs/startupCacheWarmup';
+import { buildServerModelCapabilityHeaders } from './libs/startupCacheWarmup';
 import {
   applySystemProxyEnv,
   resolveSystemProxyUrlForTargets,
@@ -582,14 +530,10 @@ import { getLogFilePath, getRecentMainLogEntries, initLogger } from './logger';
 import { type AskUserResponse, McpRuntime } from './mcp/mcpRuntime';
 import {
   type AccountBoundValue,
-  type AuthExchangeIntentSnapshot,
-  type AuthStateSnapshot,
   bindAccountValue,
   canAccessTrackedMediaTask,
-  clearMediaTaskOwnerAliasesForOwner,
   createAccountScopedFetch,
-  isAuthExchangeIntentCurrent,
-  isAuthStateSnapshotCurrent,
+  createLocalMediaAccountScope,
   isMediaAccountScopeCurrent,
   isMediaAccountScopeSnapshotCurrent,
   type MediaAccountScope,
@@ -690,9 +634,6 @@ const SHARE_DEPLOYMENT_CANDIDATE_SOURCES = new Set<string>(
 const shareDeploymentOperationCoordinator = new ShareDeploymentOperationCoordinator();
 const ENGINE_NOT_READY_CODE = 'ENGINE_NOT_READY';
 const LOCAL_WEB_SERVICE_PROBE_TIMEOUT_MS = 700;
-// The logged-out model selector waits on this catalog; the renderer retries
-// with backoff, so a stalled connection must fail instead of hanging.
-const PRICING_CATALOG_REQUEST_TIMEOUT_MS = 10_000;
 const LOCAL_WEB_SERVICE_TITLE_MAX_LENGTH = 80;
 const LOCAL_WEB_SERVICE_PORTS = Array.from(
   new Set([
@@ -2170,8 +2111,6 @@ let sqliteBackupManager: SqliteBackupManager | null = null;
 let openClawEngineManager: OpenClawEngineManager | null = null;
 let openClawConfigSync: OpenClawConfigSync | null = null;
 let openClawBootstrapPromise: Promise<OpenClawEngineStatus> | null = null;
-let cachedSubscriptionStatus: string = AuthSubscriptionStatus.Free;
-let cachedMediaGenerationEntitled = false;
 let openClawStatusForwarderBound = false;
 let coworkRuntimeForwarderBound = false;
 let memoryMigrationDone = false;
@@ -2472,18 +2411,6 @@ const bootstrapOpenClawEngine = async (
   return promise;
 };
 
-// Injected after the auth session manager is created. This keeps gateway startup
-// able to await an in-flight refresh without exposing refresh internals globally.
-let waitForPendingTokenRefresh: () => Promise<void> = async () => {};
-// Created with the auth session manager; settles each finished turn's LLM usage from the server ledger.
-let coworkTurnUsageService: CoworkTurnUsageService | null = null;
-
-const settleCoworkTurnUsage = (sessionId: string): void => {
-  void coworkTurnUsageService?.settleLatestTurn(sessionId).catch((error) => {
-    console.warn(`[TurnUsage] settlement failed for session ${sessionId}.`, error);
-  });
-};
-
 /** What a cowork request depends on while a config change is still unapplied. */
 type CoworkEngineAdmission = {
   /** Model the task pins before its turn; only changes to that model hold it back. */
@@ -2507,18 +2434,11 @@ const ensureOpenClawRunningForCowork = async (admission: CoworkEngineAdmission =
   const manager = getOpenClawEngineManager();
   const status = manager.getStatus();
   if (status.phase === 'running') {
-    // Token proxy handles dynamic token injection — no need to restart
-    // the gateway for token changes. Just wait for any in-flight refresh.
-    await waitForPendingTokenRefresh();
     return manager.getStatus();
   }
   if (status.phase === 'starting') {
     return status;
   }
-
-  // Wait for any in-flight token refresh so that the gateway starts with
-  // a fresh token rather than the stale one that triggered the refresh.
-  await waitForPendingTokenRefresh();
 
   // Ensure AskUser server is started and config is synced before launching the gateway,
   // so that mcp.servers config is available in openclaw.json when the gateway loads.
@@ -2584,36 +2504,6 @@ const resolveSessionWorkingDirectory = (options: { cwd?: string; agentId?: strin
 const NEW_USER_WELCOME_SESSION_ID_STORE_KEY = 'new_user_welcome_session_id';
 const NEW_USER_WELCOME_CONTENT_MAX_LENGTH = 4000;
 
-const isLobsteraiServerModelRef = (modelRef: string): boolean => {
-  const normalized = modelRef.trim();
-  if (!normalized) return false;
-
-  const parsed = parsePrimaryModelRef(normalized);
-  if (parsed) {
-    return parsed.providerId === ProviderName.LobsteraiServer;
-  }
-
-  return getAllServerModelMetadata().some(model => model.modelId === normalized);
-};
-
-const shouldRefreshServerQuotaForSession = (sessionId: string): boolean => {
-  const session = getCoworkStore().getSession(sessionId);
-  const sessionModelRef = session?.modelOverride?.trim();
-  if (sessionModelRef) {
-    return isLobsteraiServerModelRef(sessionModelRef);
-  }
-
-  const agentModelRef = session?.agentId
-    ? getAgentManager().getAgent(session.agentId)?.model?.trim()
-    : '';
-  if (agentModelRef) {
-    return isLobsteraiServerModelRef(agentModelRef);
-  }
-
-  const apiConfig = resolveCurrentApiConfig();
-  return apiConfig.providerMetadata?.providerName === ProviderName.LobsteraiServer;
-};
-
 const resolveCoworkAgentEngine = (): CoworkAgentEngine => {
   return 'openclaw';
 };
@@ -2624,7 +2514,6 @@ const getOpenClawConfigSync = (): OpenClawConfigSync => {
       engineManager: getOpenClawEngineManager(),
       getCoworkConfig: () => getCoworkStore().getConfig(),
       getBrowserWebAccessConfig: () => getStore().get<AppConfigSettings>('app_config')?.browserWebAccess,
-      isEnterprise: () => !!getStore().get('enterprise_config'),
       getOpenClawSessionPolicy: () => loadOpenClawSessionPolicyConfig(getStore()),
       getSkillsList: () =>
         getSkillManager()
@@ -2767,7 +2656,6 @@ const getOpenClawConfigSync = (): OpenClawConfigSync => {
           .listUserPlugins()
           .filter(p => !isHiddenUserPluginId(p.pluginId))
           .map(p => ({ pluginId: p.pluginId, enabled: p.enabled, config: p.config })),
-      canUseMediaGeneration: () => cachedMediaGenerationEntitled,
     });
   }
   return openClawConfigSync;
@@ -3921,24 +3809,11 @@ const bindCoworkRuntimeForwarder = (): void => {
     skinRuntimeController?.handleRuntimeComplete(sessionId);
     mediaReferencesBySession.delete(sessionId);
     getDesktopNotificationManager().handleComplete(sessionId);
-    settleCoworkTurnUsage(sessionId);
     const windows = BrowserWindow.getAllWindows();
     windows.forEach(win => {
       if (win.isDestroyed()) return;
       win.webContents.send('cowork:stream:complete', { sessionId, claudeSessionId });
     });
-    // If this session used a server model, notify renderer to refresh quota.
-    try {
-      if (shouldRefreshServerQuotaForSession(sessionId)) {
-        const windows = BrowserWindow.getAllWindows();
-        windows.forEach(win => {
-          if (win.isDestroyed()) return;
-          win.webContents.send(AuthIpcChannel.QuotaChanged);
-        });
-      }
-    } catch {
-      // ignore
-    }
   });
 
   runtime.on('error', (sessionId: string, error: string) => {
@@ -3946,8 +3821,6 @@ const bindCoworkRuntimeForwarder = (): void => {
     mediaTurnAccountScopeBySession.delete(sessionId);
     skinRuntimeController?.handleRuntimeError(sessionId);
     mediaReferencesBySession.delete(sessionId);
-    // A failed turn may still have consumed credits before it stopped.
-    settleCoworkTurnUsage(sessionId);
     // Mark session as error in store so the .catch() fallback can detect duplicates.
     try {
       getCoworkStore().updateSession(sessionId, { status: 'error' });
@@ -3959,17 +3832,6 @@ const bindCoworkRuntimeForwarder = (): void => {
       if (win.isDestroyed()) return;
       win.webContents.send('cowork:stream:error', { sessionId, error });
     });
-    try {
-      if (shouldRefreshServerQuotaForSession(sessionId)) {
-        windows.forEach(win => {
-          if (!win.isDestroyed()) {
-            win.webContents.send('auth:quotaChanged');
-          }
-        });
-      }
-    } catch {
-      // Quota refresh is best-effort after a runtime error.
-    }
   });
 
   coworkRuntimeForwarderBound = true;
@@ -4566,7 +4428,11 @@ const activeStreamControllers = new Map<string, AbortController>();
 // Media generation selection and authenticated owner per session turn.
 const mediaSelectionBySession = new Map<string, AccountBoundValue<MediaSelectionState>>();
 const mediaTurnAccountScopeBySession = new Map<string, MediaAccountScope>();
-let resolveCurrentMediaAccountScope = (): MediaAccountScope | null => null;
+// Resolves the account scope when logged in, the shared local owner scope when
+// logged out, or null when an authenticated scope cannot be resolved (callers
+// must fail closed in that case). It is null until the IPC layer wires in the
+// real resolver, so any early call fails closed rather than assuming a scope.
+let resolveCurrentMediaOwnerScope = (): MediaAccountScope | null => null;
 
 // Media attachment references per session (for @ mentions, FR-9)
 const mediaReferencesBySession = new Map<string, MediaAttachmentRefMain[]>();
@@ -4594,6 +4460,7 @@ interface MediaTaskTracker {
   lastPollAt?: number;
 }
 const pendingMediaTasks = new Map<string, MediaTaskTracker>();
+
 const mediaTaskOwnerById = new Map<string, string>();
 const mediaStatusPollCounts = new Map<string, number>();
 const mediaTasksHandledByStatusPolling = new Set<string>();
@@ -4653,7 +4520,7 @@ const resolveMediaSelectionForSession = (sessionId: string | null): MediaSelecti
 
     const selection = normalizeMediaSelectionState(resolveAccountBoundValue(
       mediaSelectionBySession.get(current),
-      resolveCurrentMediaAccountScope(),
+      resolveCurrentMediaOwnerScope(),
     ));
     if (selection && selection.mode !== 'none') {
       return selection;
@@ -4707,7 +4574,7 @@ const getSkinRuntimeController = (): SkinRuntimeController => {
       resolveSessionId: sessionKey => (
         resolveCoworkSessionIdByOpenClawSessionKey(getStore().getDatabase(), sessionKey)
       ),
-      resolveMediaSelection: resolveMediaSelectionForSession,
+      hasLocalImageModel: () => (getImageMediaProvider()?.resolver.listModels().length ?? 0) > 0,
       onChanged: notifySkinChanged,
     });
   }
@@ -4846,26 +4713,6 @@ const clearHandledMediaTasksForSession = (sessionId: string): void => {
       mediaTasksHandledByStatusPolling.delete(key);
     }
   }
-};
-
-const clearMediaPollingStateForOwner = (ownerAccountKey: string): void => {
-  const ownerSegment = `${MEDIA_STATUS_POLL_KEY_SEPARATOR}${ownerAccountKey}${MEDIA_STATUS_POLL_KEY_SEPARATOR}`;
-  for (const [taskId, tracker] of pendingMediaTasks) {
-    if (tracker.ownerAccountKey === ownerAccountKey) {
-      pendingMediaTasks.delete(taskId);
-    }
-  }
-  for (const key of mediaStatusPollCounts.keys()) {
-    if (key.includes(ownerSegment)) {
-      mediaStatusPollCounts.delete(key);
-    }
-  }
-  for (const key of mediaTasksHandledByStatusPolling) {
-    if (key.includes(ownerSegment)) {
-      mediaTasksHandledByStatusPolling.delete(key);
-    }
-  }
-  clearMediaTaskOwnerAliasesForOwner(mediaTaskOwnerById, ownerAccountKey);
 };
 
 const emitMediaStatusPollUpdate = (update: MediaStatusPollUpdate): void => {
@@ -5022,33 +4869,6 @@ if (!gotTheLock) {
   }
   app.quit();
 } else {
-  // Register custom protocol for OAuth callback
-  if (!app.isPackaged) {
-    // In dev mode, setAsDefaultProtocolClient needs the electron exe path
-    // and the app entry point as extra args so the OS can relaunch correctly
-    app.setAsDefaultProtocolClient('lobsterai', process.execPath, [
-      path.resolve(process.argv[1]),
-    ]);
-  } else {
-    app.setAsDefaultProtocolClient('lobsterai');
-  }
-
-  const authCallbackRouter = new AuthCallbackRouter({
-    getTarget: () => {
-      if (!mainWindow || mainWindow.isDestroyed()) return null;
-      return mainWindow.webContents;
-    },
-    onParseError: error => {
-      console.error('[Main] Failed to parse deep link:', error);
-    },
-  });
-
-  /**
-   * Parse a lobsterai:// deep link and send (or buffer) the auth code.
-   */
-  const handleDeepLink = (url: string) => {
-    authCallbackRouter.handleDeepLink(url);
-  };
 
   // First-frame gate for window activation. Showing a window whose renderer
   // has never painted produces a stuck plain-white window (field case: slow
@@ -5105,27 +4925,11 @@ if (!gotTheLock) {
     fn(`[Renderer][${safeTag}] ${safeMessage}`);
   });
 
-  // Allow renderer to retrieve a buffered auth code on init
-  ipcMain.handle(AuthIpcChannel.GetPendingCallback, () =>
-    authCallbackRouter.markListenerReadyAndConsumePending());
-
-  // macOS: handle open-url event for deep links
-  app.on('open-url', (event, url) => {
-    event.preventDefault();
-    handleDeepLink(url);
-  });
-
   app.on('second-instance', (_event, commandLine, workingDirectory) => {
     console.debug('[Main] second-instance event', { commandLine, workingDirectory });
     if (isDataMigrationRestoreInProgress) {
       console.log('[DataMigration] ignored second-instance activation while restore is in progress.');
       return;
-    }
-
-    // Check for deep link in command line args (Windows/Linux)
-    const deepLink = commandLine.find(arg => arg.startsWith('lobsterai://'));
-    if (deepLink) {
-      handleDeepLink(deepLink);
     }
 
     focusMainWindow('second instance activation');
@@ -5438,217 +5242,16 @@ if (!gotTheLock) {
   });
 
   // ── Auth IPC handlers ──
+  // Login capability removed (remove-membership §11 D1): no tokens, no cached
+  // user, no enterprise context. Media generation is bound to the shared
+  // "local" owner scope; `authAccountGeneration` survives only so per-app-run
+  // owner-scope snapshots stay stable.
 
   let authAccountGeneration = 0;
-  let authExchangeIntentSequence = 0;
-  let activeAuthExchangeIntent: AuthExchangeIntentSnapshot | null = null;
 
-  /**
-   * Helper: Persist auth tokens into the kv store.
-   */
-  const saveAuthTokens = (accessToken: string, refreshToken: string) => {
-    getStore().set('auth_tokens', { accessToken, refreshToken });
-  };
-
-  const getAuthTokens = (): { accessToken: string; refreshToken: string } | null => {
-    return getStore().get<{ accessToken: string; refreshToken: string }>('auth_tokens') || null;
-  };
-
-  const captureAuthStateSnapshot = (): AuthStateSnapshot | null => {
-    const tokens = getAuthTokens();
-    return tokens
-      ? {
-        accountGeneration: authAccountGeneration,
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      }
-      : null;
-  };
-
-  const isCurrentAuthStateSnapshot = (snapshot: AuthStateSnapshot | null): boolean => (
-    snapshot !== null
-    && isAuthStateSnapshotCurrent(snapshot, authAccountGeneration, getAuthTokens())
-  );
-
-  const clearAuthTokens = () => {
-    getStore().delete('auth_tokens');
-  };
-
-  const getEnterpriseAccountHeaders = (): Record<string, string> => (
-    buildEnterpriseAccountRequestHeaders(
-      getPersistedEnterpriseAccountContext(getStore()),
-    )
-  );
-
-  const getAuthUser = (): Record<string, unknown> | null => {
-    try {
-      return getStore().get<Record<string, unknown>>(LogReporterStoreKey.AuthUser) || null;
-    } catch (error) {
-      console.warn('[Auth] failed to read cached auth user:', error);
-      return null;
-    }
-  };
-
-  const saveAuthUser = (user: Record<string, unknown>) => {
-    try {
-      getStore().set(LogReporterStoreKey.AuthUser, user);
-    } catch (error) {
-      console.warn('[Auth] failed to save auth user for attribution:', error);
-    }
-  };
-
-  const getCurrentMediaAccountScope = (): MediaAccountScope | null => {
-    if (!getAuthTokens()) return null;
-    try {
-      const user = getStore().get<Record<string, unknown>>(LogReporterStoreKey.AuthUser);
-      const enterpriseContext = getPersistedEnterpriseAccountContext(getStore());
-      if (
-        !enterpriseContext
-        && (
-          user?.accountMode === EnterpriseAccountMode.Enterprise
-          || cachedSubscriptionStatus === AuthSubscriptionStatus.Enterprise
-        )
-      ) {
-        return null;
-      }
-      const ownerAccountKey = createAccountOwnerKey({
-        user,
-        enterpriseId: enterpriseContext?.enterpriseId,
-      });
-      return ownerAccountKey
-        ? { ownerAccountKey, accountGeneration: authAccountGeneration }
-        : null;
-    } catch (error) {
-      console.warn('[MediaGeneration] failed to resolve authenticated account owner:', error);
-      return null;
-    }
-  };
-  resolveCurrentMediaAccountScope = getCurrentMediaAccountScope;
-
-  const captureEnterpriseAuthSessionSnapshot = (
-    accountScope = getCurrentMediaAccountScope(),
-  ) => createEnterpriseAuthSessionSnapshot(
-    accountScope,
-    getPersistedEnterpriseAccountContext(getStore())?.enterpriseId,
-  );
-
-  const handleEnterpriseMembershipRevocation = createEnterpriseMembershipRevocationHandler({
-    getCurrentSession: captureEnterpriseAuthSessionSnapshot,
-    invalidateCurrentSession: (event) => {
-      console.warn(
-        '[EnterpriseAccount] invalidating revoked enterprise auth session '
-        + `source=${event.source} code=${event.code} `
-        + `generation=${event.requestSession?.accountGeneration ?? 'unknown'}`,
-      );
-      clearLocalAuthSession({
-        reason: AuthSessionChangeReason.EnterpriseMembershipRevoked,
-        notifyRenderer: true,
-      });
-    },
-  });
-
-  const notifyAuthQuotaChanged = (): void => {
-    BrowserWindow.getAllWindows().forEach(win => {
-      if (!win.isDestroyed()) win.webContents.send(AuthIpcChannel.QuotaChanged);
-    });
-  };
-
-  const handleEnterpriseAccountContextMismatch = (
-    code: number,
-    requestAccountScope: MediaAccountScope | null,
-  ): boolean => {
-    if (code === EnterpriseApiErrorCode.NotMember) {
-      return handleEnterpriseMembershipRevocation({
-        code,
-        source: EnterpriseMembershipRevocationSource.JsonApi,
-        requestSession: captureEnterpriseAuthSessionSnapshot(requestAccountScope),
-      });
-    }
-
-    const currentAccountScope = getCurrentMediaAccountScope();
-    if (
-      code !== EnterpriseApiErrorCode.AccountModeMismatch
-      || !getAuthTokens()
-      || !isMediaAccountScopeSnapshotCurrent(requestAccountScope, currentAccountScope)
-    ) {
-      return false;
-    }
-
-    authExchangeIntentSequence += 1;
-    activeAuthExchangeIntent = null;
-    authAccountGeneration += 1;
-    const quotaGateChanged = (
-      cachedSubscriptionStatus !== AuthSubscriptionStatus.Free
-      || cachedMediaGenerationEntitled
-    );
-    cachedSubscriptionStatus = AuthSubscriptionStatus.Free;
-    cachedMediaGenerationEntitled = false;
-    clearAuthTokens();
-    clearAuthUser();
-    clearEnterpriseAccountContext(getStore());
-    clearServerModelMetadata();
-    mediaSelectionBySession.clear();
-    mediaTurnAccountScopeBySession.clear();
-    mediaReferencesBySession.clear();
-    if (requestAccountScope) {
-      clearMediaPollingStateForOwner(requestAccountScope.ownerAccountKey);
-    }
-    if (pendingMediaTasks.size === 0) {
-      stopMediaPollTimer();
-    }
-    syncOpenClawConfig({
-      reason: 'enterprise-account-context-invalidated',
-      restartGatewayIfRunning: quotaGateChanged,
-    }).catch(error => {
-      console.warn('[EnterpriseAccount] failed to sync OpenClaw after context invalidation:', error);
-    });
-
-    BrowserWindow.getAllWindows().forEach(win => {
-      if (!win.isDestroyed()) {
-        win.webContents.send(EnterpriseAccountIpcChannel.ContextInvalidated);
-      }
-    });
-
-    const dialogOptions = {
-      type: 'warning' as const,
-      title: t('enterpriseAccountContextMismatchTitle'),
-      message: t('enterpriseAccountContextMismatchMessage'),
-      buttons: [t('enterpriseAccountContextMismatchConfirm')],
-    };
-    const ownerWindow = BrowserWindow.getFocusedWindow()
-      ?? (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null);
-    const prompt = ownerWindow
-      ? dialog.showMessageBox(ownerWindow, dialogOptions)
-      : dialog.showMessageBox(dialogOptions);
-    void prompt.catch(error => {
-      console.warn('[EnterpriseAccount] failed to show account context mismatch prompt:', error);
-    });
-    console.warn(
-      `[EnterpriseAccount] invalidated account context and media polling after server code ${code}`,
-    );
-    return true;
-  };
-
-  const getAuthUserId = (): string | null => {
-    try {
-      const user = getAuthUser();
-      const yid = user?.yid;
-      if (typeof yid === 'string' && yid.trim()) return yid;
-      const userId = user?.userId;
-      if (typeof userId === 'string' && userId.trim()) return userId;
-    } catch (error) {
-      console.warn('[Auth] failed to read auth user for attribution:', error);
-    }
-    return null;
-  };
-
-  const clearAuthUser = () => {
-    try {
-      getStore().delete(LogReporterStoreKey.AuthUser);
-    } catch (error) {
-      console.warn('[Auth] failed to clear auth user for attribution:', error);
-    }
-  };
+  const getCurrentMediaOwnerScope = (): MediaAccountScope =>
+    createLocalMediaAccountScope(authAccountGeneration);
+  resolveCurrentMediaOwnerScope = getCurrentMediaOwnerScope;
 
   const getOrCreateInstallationId = (): string | null => {
     try {
@@ -5669,25 +5272,17 @@ if (!gotTheLock) {
     firstKeyfrom: string;
     latestKeyfrom: string;
     uuid?: string;
-    userId?: string;
     version: string;
   } => {
     const { firstKeyfrom, latestKeyfrom } = getKeyfromAttribution(getStore());
     const uuid = getOrCreateInstallationId();
-    const userId = getAuthUserId();
     return {
       firstKeyfrom,
       latestKeyfrom,
       ...(uuid ? { uuid } : {}),
-      ...(userId ? { userId } : {}),
       version: app.getVersion(),
     };
   };
-
-  const withKeyfromBody = <T extends Record<string, unknown>>(body: T) => ({
-    ...body,
-    ...buildKeyfromPayload(),
-  });
 
   const appendKeyfromQuery = (url: string): string => {
     const parsed = new URL(url);
@@ -5700,122 +5295,12 @@ if (!gotTheLock) {
     return parsed.toString();
   };
 
-  const emitAuthLifecycleEvent = (event: AuthLifecycleEvent): void => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(AuthIpcChannel.LifecycleEvent, event);
-    }
-  };
+  // No auth session: authenticated requests degrade to plain fetch. Kept as a
+  // named alias so call sites remain descriptive.
+  const fetchWithAuth = async (url: string, options?: RequestInit): Promise<Response> =>
+    net.fetch(url, options);
 
-  const emitAuthSessionChanged = (event: AuthSessionChangedEvent): void => {
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (!window.isDestroyed()) {
-        window.webContents.send(AuthIpcChannel.SessionChanged, event);
-      }
-    }
-  };
-
-  const getAuthSessionKey = (): string | null => {
-    if (!getAuthTokens()) return null;
-    const scope = getCurrentMediaAccountScope();
-    return `${scope?.ownerAccountKey ?? 'unresolved'}:${authAccountGeneration}`;
-  };
-
-  resolveAppUpdateGraySession = () => {
-    const tokens = getAuthTokens();
-    if (!tokens || !getCurrentMediaAccountScope()) return null;
-    const sessionKey = getAuthSessionKey();
-    return sessionKey ? { sessionKey, accessToken: tokens.accessToken, headers: getEnterpriseAccountHeaders() } : null;
-  };
-
-  const authSessionManager = new AuthSessionManager({
-    getTokens: getAuthTokens,
-    getSessionKey: getAuthSessionKey,
-    saveTokens: tokens => saveAuthTokens(tokens.accessToken, tokens.refreshToken),
-    fetch: (url, options) => {
-      const headers = new Headers(options?.headers);
-      for (const [name, value] of Object.entries(getEnterpriseAccountHeaders())) {
-        headers.set(name, value);
-      }
-      return net.fetch(url, {
-        ...options,
-        headers,
-      });
-    },
-    getRefreshUrl: () => `${getServerApiBaseUrl()}/api/auth/refresh`,
-    buildRefreshRequestBody: refreshToken => JSON.stringify(withKeyfromBody({ refreshToken })),
-    onTerminalFailure: (result) => {
-      if (result.errorCode === EnterpriseApiErrorCode.NotMember) {
-        handleEnterpriseMembershipRevocation({
-          code: result.errorCode,
-          source: EnterpriseMembershipRevocationSource.Refresh,
-          requestSession: captureEnterpriseAuthSessionSnapshot(),
-        });
-        return;
-      }
-      clearLocalAuthSession({
-        reason: AuthSessionChangeReason.RefreshRejected,
-        notifyRenderer: true,
-      });
-    },
-    onRefreshSuccess: result => {
-      syncOpenClawConfig({
-        reason: `token-refresh:${result.reason}`,
-        restartGatewayIfRunning: false,
-      }).catch((error) => {
-        console.warn('[Auth] post-refresh OpenClaw config sync failed:', error);
-      });
-    },
-    onLifecycleEvent: emitAuthLifecycleEvent,
-    log: {
-      info: message => console.log(message),
-      warn: (message, error) => {
-        if (error === undefined) {
-          console.warn(message);
-        } else {
-          console.warn(message, error);
-        }
-      },
-    },
-  });
-  waitForPendingTokenRefresh = () => authSessionManager.waitForPendingRefresh();
-
-  const fetchWithAuth = async (url: string, options?: RequestInit): Promise<Response> => {
-    const requestEnterpriseSession = captureEnterpriseAuthSessionSnapshot();
-    const response = await authSessionManager.fetchWithAuth(url, options);
-    if (
-      requestEnterpriseSession
-      && response.headers.get('content-type')?.includes('application/json')
-    ) {
-      try {
-        const code = readEnterpriseApiErrorCode(await response.clone().json());
-        if (code === EnterpriseApiErrorCode.NotMember) {
-          handleEnterpriseMembershipRevocation({
-            code,
-            source: resolveEnterpriseMembershipRevocationSource(url),
-            requestSession: requestEnterpriseSession,
-          });
-        }
-      } catch {
-        // The original response remains available to the endpoint-specific parser.
-      }
-    }
-    return response;
-  };
-
-  coworkTurnUsageService = new CoworkTurnUsageService({
-    getStore: () => getCoworkStore(),
-    fetchWithAuth,
-    hasAuthTokens: () => Boolean(getAuthTokens()?.accessToken),
-    buildServerUrl: pathWithQuery => appendKeyfromQuery(`${getServerApiBaseUrl()}${pathWithQuery}`),
-    getTraceStats: getOpenClawTokenProxyTraceStats,
-    emitTurnUsage: (event) => {
-      for (const win of BrowserWindow.getAllWindows()) {
-        if (!win.isDestroyed()) {
-          win.webContents.send(CoworkIpcChannel.StreamTurnUsage, event);
-        }
-      }
-    },
-  });
+  resolveAppUpdateGraySession = () => null;
 
   type AvailableServerModel = ServerModelMetadataInput & {
     modelId: string;
@@ -5834,8 +5319,6 @@ if (!gotTheLock) {
     awaitConfigSync?: boolean;
     forceConfigSync?: boolean;
   }): Promise<AvailableServerModel[]> => {
-    const requestAccountGeneration = authAccountGeneration;
-    const requestAccountScope = getCurrentMediaAccountScope();
     const serverBaseUrl = getServerApiBaseUrl();
     const url = appendKeyfromQuery(`${serverBaseUrl}/api/models/available`);
     console.log(`[Auth:getModels] requesting available models at ${url}`);
@@ -5847,25 +5330,11 @@ if (!gotTheLock) {
       throw new Error(`Server model request failed with HTTP ${resp.status}.`);
     }
 
-    const responseAuthState = captureAuthStateSnapshot();
     const data = (await resp.json()) as {
       code: number;
       message?: string;
       data?: AvailableServerModel[];
     };
-    if (
-      authAccountGeneration !== requestAccountGeneration
-      || !isCurrentAuthStateSnapshot(responseAuthState)
-      || !isMediaAccountScopeSnapshotCurrent(
-        requestAccountScope,
-        getCurrentMediaAccountScope(),
-      )
-    ) {
-      throw new Error('Account changed while loading server models');
-    }
-    if (handleEnterpriseAccountContextMismatch(data.code ?? -1, requestAccountScope)) {
-      throw new Error('Enterprise account context changed while loading server models');
-    }
     console.log('[Auth:getModels] Response data:', JSON.stringify(data).slice(0, 500));
     if (data.code !== 0 || !Array.isArray(data.data)) {
       throw new Error(data.message || 'Server model response is invalid.');
@@ -6096,110 +5565,46 @@ if (!gotTheLock) {
     accountScope: MediaAccountScope;
     scopedFetch: typeof fetchWithAuth;
   } => {
-    const accountScope = getCurrentMediaAccountScope();
-    if (accountScope === null) {
-      throw new Error(t('authLoginRequired'));
-    }
+    const accountScope = getCurrentMediaOwnerScope();
     return {
       accountScope,
       scopedFetch: createAccountScopedFetch(
         accountScope,
-        getCurrentMediaAccountScope,
+        getCurrentMediaOwnerScope,
         fetchWithAuth,
       ),
     };
   };
 
-  let pendingEnterpriseAccountContextRefresh: {
-    generation: number;
-    promise: ReturnType<typeof fetchEnterpriseAccountContext>;
-  } | null = null;
-
-  const refreshEnterpriseAccountContext = (): ReturnType<typeof fetchEnterpriseAccountContext> => {
-    const generation = authAccountGeneration;
-    const requestAccountScope = getCurrentMediaAccountScope();
-    const requestEnterpriseSession = captureEnterpriseAuthSessionSnapshot(requestAccountScope);
-    if (pendingEnterpriseAccountContextRefresh?.generation === generation) {
-      return pendingEnterpriseAccountContextRefresh.promise;
-    }
-
-    const promise = fetchEnterpriseAccountContext({
-      getServerBaseUrl: getServerApiBaseUrl,
-      fetchWithAuth,
-      store: getStore(),
-      isRequestCurrent: () => authAccountGeneration === generation && getAuthTokens() !== null,
-      onAccountModeMismatch: () => {
-        handleEnterpriseAccountContextMismatch(
-          EnterpriseApiErrorCode.AccountModeMismatch,
-          requestAccountScope,
-        );
-      },
-      onMembershipRevoked: () => {
-        handleEnterpriseMembershipRevocation({
-          code: EnterpriseApiErrorCode.NotMember,
-          source: EnterpriseMembershipRevocationSource.EnterpriseContext,
-          requestSession: requestEnterpriseSession,
-        });
-      },
-    }).finally(() => {
-      if (pendingEnterpriseAccountContextRefresh?.promise === promise) {
-        pendingEnterpriseAccountContextRefresh = null;
-      }
-    });
-    pendingEnterpriseAccountContextRefresh = { generation, promise };
-    return promise;
-  };
-
-  const syncEnterpriseAccountContextFromPayload = async (
-    payload: unknown,
-  ) => {
-    const context = normalizeEnterpriseAccountContext(payload);
-    if (context) {
-      persistEnterpriseAccountContext(getStore(), context);
-      console.debug(`[EnterpriseAccount] applied context from auth payload for enterprise ${context.enterpriseId} with role ${context.role}`);
-      return context;
-    }
-
-    if (readAccountMode(payload) === EnterpriseAccountMode.Personal) {
-      clearEnterpriseAccountContext(getStore());
-      console.debug('[EnterpriseAccount] cleared context from personal auth payload');
-      return null;
-    }
-
-    const result = await refreshEnterpriseAccountContext();
-    return result.context;
-  };
-
-  registerEnterpriseAccountHandlers({
-    getContext: refreshEnterpriseAccountContext,
-    getIdentities: () => {
-      const generation = authAccountGeneration;
-      return fetchEnterpriseAccountIdentities({
-        getServerBaseUrl: getServerApiBaseUrl,
-        fetchWithAuth,
-        isRequestCurrent: () => authAccountGeneration === generation && getAuthTokens() !== null,
-      });
-    },
-    requestQuotaIncrease: (enterpriseId, requestType) => {
-      const currentContext = getPersistedEnterpriseAccountContext(getStore());
-      if (!currentContext || currentContext.enterpriseId !== enterpriseId) {
-        console.warn('[EnterpriseAccount] rejected quota request outside the current enterprise context');
-        return Promise.resolve({
-          success: false,
-          error: 'Enterprise account context changed before the quota request',
-        });
-      }
-      const generation = authAccountGeneration;
-      return requestEnterpriseQuotaIncrease({
-        getServerBaseUrl: getServerApiBaseUrl,
-        fetchWithAuth,
-        isRequestCurrent: () => authAccountGeneration === generation && getAuthTokens() !== null,
-      }, enterpriseId, requestType);
-    },
-  });
-
   const extractSessionIdFromKey = (sessionKey: string): string | null =>
     resolveCoworkSessionIdByOpenClawSessionKey(getStore().getDatabase(), sessionKey);
+
+  /**
+   * Recover the full provider target for a task id.
+   *
+   * The persisted registry deliberately omits the api key, so the credentials
+   * are re-resolved from the current provider config by model id. This keeps
+   * the plaintext key out of sqlite while still letting async tasks be polled
+   * and cancelled after a restart.
+   */
+  const resolveHydratedMediaTaskTarget = (
+    taskId: string,
+    provider: MediaProvider | undefined,
+  ): MediaProviderTarget | undefined => {
+    const persisted = resolveMediaTaskTarget(getStore(), taskId);
+    if (!persisted || !provider) return undefined;
+    const resolved = provider.resolver.resolveTarget(persisted.modelId);
+    if (!resolved) return undefined;
+    return {
+      ...persisted,
+      // Prefer the freshly resolved credentials; fall back to the persisted
+      // endpoint fields if the entry only partially matches.
+      providerKey: resolved.providerKey,
+      baseUrl: resolved.baseUrl,
+      apiKey: resolved.apiKey,
+      displayName: resolved.displayName,
+    };
+  };
 
   /**
    * Handle media generation tool callbacks from the OpenClaw plugin.
@@ -6216,11 +5621,16 @@ if (!gotTheLock) {
     }
     const action = (args.action as string) || 'generate';
     const sessionId = extractSessionIdFromKey(request.context.sessionKey);
-    const requestAccountScope = resolveMediaTurnAccountScopeForSession(sessionId);
-    const isRequestAccountCurrent = (): boolean => (
-      requestAccountScope !== null
-      && isMediaAccountScopeCurrent(requestAccountScope, getCurrentMediaAccountScope())
+    // The turn scope is recorded when the turn starts; fall back to the current
+    // owner scope (account or local) for turns that predate scope tracking.
+    const turnAccountScope = resolveMediaTurnAccountScopeForSession(sessionId);
+    const resolveRequestScope = (): MediaAccountScope | null => (
+      turnAccountScope ?? getCurrentMediaOwnerScope()
     );
+    const isRequestAccountCurrent = (): boolean => {
+      const scope = resolveRequestScope();
+      return scope !== null && isMediaAccountScopeCurrent(scope, getCurrentMediaOwnerScope());
+    };
     const staleAccountResult = () => ({
       content: [{
         type: 'text',
@@ -6229,10 +5639,8 @@ if (!gotTheLock) {
       isError: true,
       details: { status: 'cancelled', warnings: ['MEDIA_ACCOUNT_CHANGED'] },
     });
-    if (
-      requestAccountScope === null
-      || !isMediaAccountScopeCurrent(requestAccountScope, getCurrentMediaAccountScope())
-    ) {
+    const requestAccountScope = resolveRequestScope();
+    if (requestAccountScope === null || !isRequestAccountCurrent()) {
       return staleAccountResult();
     }
     const selection = resolveMediaSelectionForSession(sessionId);
@@ -6317,7 +5725,6 @@ if (!gotTheLock) {
           console.warn('[MediaGeneration] blocked status request because taskId was missing.');
           return { content: [{ type: 'text', text: 'taskId is required for status action.' }], isError: true };
         }
-        if (requestAccountScope === null) return staleAccountResult();
         const taskOwnerAccountKey = resolveMediaTaskOwner(taskId);
         if (!canAccessTrackedMediaTask(taskOwnerAccountKey, requestAccountScope)) {
           return staleAccountResult();
@@ -6334,7 +5741,7 @@ if (!gotTheLock) {
           : getVideoMediaProvider();
         // Local tasks are polled upstream, so the owning provider target has to
         // be recovered from the task id recorded at creation time.
-        const statusTarget = resolveMediaTaskTarget(getStore(), taskId);
+        const statusTarget = resolveHydratedMediaTaskTarget(taskId, statusProvider);
         if (!statusProvider || !statusTarget) {
           return {
             content: [{ type: 'text', text: `Task "${taskId}" is not tracked by a local media provider.` }],
@@ -6437,13 +5844,12 @@ if (!gotTheLock) {
           console.warn('[MediaGeneration] blocked cancel request because taskId was missing.');
           return { content: [{ type: 'text', text: 'taskId is required for cancel action.' }], isError: true };
         }
-        if (requestAccountScope === null) return staleAccountResult();
         const taskOwnerAccountKey = resolveMediaTaskOwner(taskId);
         if (!canAccessTrackedMediaTask(taskOwnerAccountKey, requestAccountScope)) {
           return staleAccountResult();
         }
         const cancelProvider = getVideoMediaProvider();
-        const cancelTarget = resolveMediaTaskTarget(getStore(), taskId);
+        const cancelTarget = resolveHydratedMediaTaskTarget(taskId, cancelProvider);
         if (!cancelProvider?.cancel || !cancelTarget) {
           return {
             content: [{ type: 'text', text: `Task "${taskId}" is not tracked by a local media provider.` }],
@@ -6590,7 +5996,7 @@ if (!gotTheLock) {
       }
 
       // Image generation runs locally against the user's own configured media
-      // provider. Video generation still goes through the LobsterAI server.
+      // provider; video follows further below.
       if (mediaType === 'image') {
         const imageProvider = getImageMediaProvider();
         if (!imageProvider) {
@@ -6783,6 +6189,13 @@ if (!gotTheLock) {
   };
 
   getMcpRuntime().setMediaGenerationHandler(handleMediaGenerationCallback);
+  // Media API keys are encrypted at rest with the OS keychain.
+  //
+  // This must stay on the post-`app.whenReady()` path: `safeStorage` throws if
+  // `encryptString`/`decryptString` are called before the app is ready (on
+  // Windows and Linux encryption is also unavailable until then). Every actual
+  // call happens later, inside IPC handlers and tool callbacks.
+  setMediaProviderCrypto(safeStorage);
   initMediaProviders({ store: getStore() });
 
   const registerMediaTaskForPolling = (tracker: MediaTaskTracker) => {
@@ -6817,14 +6230,13 @@ if (!gotTheLock) {
       return;
     }
 
-    const serverBaseUrl = getServerApiBaseUrl();
     const now = Date.now();
     const tasksToRemove = new Map<string, MediaTaskTracker>();
 
     for (const [taskId, tracker] of pendingMediaTasks) {
       const reboundAccountScope = rebindMediaAccountScope(
         tracker.ownerAccountKey,
-        getCurrentMediaAccountScope(),
+        getCurrentMediaOwnerScope(),
       );
       if (reboundAccountScope === null) {
         // Keep the task paused in memory. If the user switches back to the
@@ -6872,16 +6284,27 @@ if (!gotTheLock) {
       tracker.lastPollAt = now;
 
       try {
-        const endpoint = tracker.mediaType === 'video' ? 'videos' : 'images';
-        const resp = await fetchWithAuth(`${serverBaseUrl}/api/media/${endpoint}/tasks/${taskId}`);
-        const body = await resp.json() as { code: number; data?: Record<string, unknown>; message?: string };
-
-        if (!isMediaAccountScopeCurrent(trackerAccountScope, getCurrentMediaAccountScope())) {
+        // Poll the owning local provider instead of the LobsterAI server.
+        const pollProvider = tracker.mediaType === 'video' ? getVideoMediaProvider() : getImageMediaProvider();
+        const pollTarget = resolveHydratedMediaTaskTarget(taskId, pollProvider);
+        if (!pollProvider || !pollTarget) {
+          tasksToRemove.set(taskId, tracker);
           continue;
         }
-        if (handleEnterpriseAccountContextMismatch(body.code, trackerAccountScope)) continue;
-        if (body.code !== 0) continue;
-        const task = body.data!;
+        const polledTask = await pollProvider.status(taskId, pollTarget);
+
+        if (!isMediaAccountScopeCurrent(trackerAccountScope, getCurrentMediaOwnerScope())) {
+          continue;
+        }
+        const task = {
+          taskId: polledTask.taskId,
+          upstreamTaskId: polledTask.upstreamTaskId,
+          status: polledTask.status,
+          resultUrls: polledTask.resultUrls,
+          model: polledTask.model,
+          upstreamModel: polledTask.upstreamModel,
+          errorMessage: polledTask.errorMessage,
+        } as Record<string, unknown>;
         rememberMediaTaskOwnership(
           tracker.ownerAccountKey,
           task.taskId,
@@ -6915,7 +6338,7 @@ if (!gotTheLock) {
           }));
           if (status === 'succeeded' && tracker.mediaType === 'image') {
             const persistResult = await persistGeneratedImages(tracker.sessionId, assets);
-            if (!isMediaAccountScopeCurrent(trackerAccountScope, getCurrentMediaAccountScope())) {
+            if (!isMediaAccountScopeCurrent(trackerAccountScope, getCurrentMediaOwnerScope())) {
               continue;
             }
             if (persistResult && persistResult.saved.length > 0) {
@@ -6945,7 +6368,7 @@ if (!gotTheLock) {
             }
           } else if (status === 'succeeded' && tracker.mediaType === 'video') {
             const persistResult = await persistGeneratedVideos(tracker.sessionId, assets);
-            if (!isMediaAccountScopeCurrent(trackerAccountScope, getCurrentMediaAccountScope())) {
+            if (!isMediaAccountScopeCurrent(trackerAccountScope, getCurrentMediaOwnerScope())) {
               continue;
             }
             if (persistResult && persistResult.saved.length > 0) {
@@ -7007,13 +6430,12 @@ if (!gotTheLock) {
           }
           if (!shouldRemoveMediaTaskAfterPoll(
             trackerAccountScope,
-            getCurrentMediaAccountScope(),
+            getCurrentMediaOwnerScope(),
             true,
           )) {
             continue;
           }
           tasksToRemove.set(taskId, tracker);
-          notifyAuthQuotaChanged();
         }
       } catch (error) {
         // Keep retries quiet during transient failures while retaining enough
@@ -7161,770 +6583,6 @@ if (!gotTheLock) {
       return cachedAssets.length > 0 ? { saved: cachedAssets, failed: [] } : null;
     }
   };
-
-  const MEDIA_ENTITLEMENT_SYNC_REASON = 'media-entitlement-changed';
-
-  const getAuthQuotaGateState = () => ({
-    subscriptionStatus: cachedSubscriptionStatus,
-    mediaGenerationEntitled: cachedMediaGenerationEntitled,
-  });
-
-  const hasAuthQuotaGateStateChanged = (previous: ReturnType<typeof getAuthQuotaGateState>) => (
-    cachedSubscriptionStatus !== previous.subscriptionStatus
-    || cachedMediaGenerationEntitled !== previous.mediaGenerationEntitled
-  );
-
-  const syncOpenClawConfigIfAuthQuotaGateChanged = (previous: ReturnType<typeof getAuthQuotaGateState>) => {
-    if (hasAuthQuotaGateStateChanged(previous)) {
-      // The auth quota gate is enforced in the main process. Let config sync
-      // decide whether its rendered changes require a restart instead of
-      // forcing one before the post-login server-model metadata sync.
-      syncOpenClawConfig({ reason: MEDIA_ENTITLEMENT_SYNC_REASON, restartGatewayIfRunning: false }).catch((error) => {
-        console.warn('[Auth] failed to sync OpenClaw config after quota gate changed:', error);
-      });
-      return true;
-    }
-    return false;
-  };
-
-  const resetAuthQuotaGateState = () => {
-    const defaultGateState = createDefaultAuthQuotaGateState();
-    cachedSubscriptionStatus = defaultGateState.subscriptionStatus;
-    cachedMediaGenerationEntitled = defaultGateState.mediaGenerationEntitled;
-  };
-
-  const clearLocalAuthSession = (options: {
-    reason: AuthSessionChangeReason;
-    notifyRenderer: boolean;
-  }): void => {
-    const previousAccountScope = getCurrentMediaAccountScope();
-    const previousQuotaGateState = getAuthQuotaGateState();
-    authExchangeIntentSequence += 1;
-    activeAuthExchangeIntent = null;
-    authAccountGeneration += 1;
-    mediaSelectionBySession.clear();
-    mediaTurnAccountScopeBySession.clear();
-    mediaReferencesBySession.clear();
-    if (previousAccountScope) {
-      clearMediaPollingStateForOwner(previousAccountScope.ownerAccountKey);
-    }
-    if (pendingMediaTasks.size === 0) {
-      stopMediaPollTimer();
-    }
-    clearAuthTokens();
-    clearAuthUser();
-    clearEnterpriseAccountContext(getStore());
-    clearServerModelMetadata();
-    resetAuthQuotaGateState();
-
-    const quotaGateSyncScheduled = syncOpenClawConfigIfAuthQuotaGateChanged(previousQuotaGateState);
-    if (!quotaGateSyncScheduled) {
-      const syncReason = options.reason === AuthSessionChangeReason.EnterpriseMembershipRevoked
-        ? 'enterprise-membership-revoked-server-models-cleared'
-        : options.reason === AuthSessionChangeReason.RefreshRejected
-          ? 'auth-session-expired-server-models-cleared'
-          : 'auth-logout-server-models-cleared';
-      syncOpenClawConfig({
-        reason: syncReason,
-        restartGatewayIfRunning: false,
-      }).catch(error => {
-        console.warn('[Auth] failed to sync OpenClaw config after auth cleanup:', error);
-      });
-    }
-
-    if (options.notifyRenderer) {
-      emitAuthSessionChanged({
-        status: AuthSessionStatus.Expired,
-        reason: options.reason,
-      });
-      emitAuthLifecycleEvent({
-        eventType: AuthLifecycleEventType.TerminalExpired,
-        outcome: AuthSessionStatus.Expired,
-        reason: options.reason,
-      });
-    }
-  };
-
-  /**
-   * Normalize quota data from various server response formats into a unified shape.
-   */
-  const normalizeQuota = (raw: Record<string, unknown>) => {
-    const quota = normalizeAuthQuota(raw, {
-      freePlanName: t('authPlanFree'),
-      standardPlanName: t('authPlanStandard'),
-      fallbackSubscriptionStatus: cachedSubscriptionStatus,
-    });
-    const quotaGateState = authQuotaGateStateFromQuota(quota);
-    cachedSubscriptionStatus = quotaGateState.subscriptionStatus;
-    cachedMediaGenerationEntitled = quotaGateState.mediaGenerationEntitled;
-    return quota;
-  };
-
-  ipcMain.handle(AuthIpcChannel.Login, async (_event, { loginUrl }: { loginUrl?: string } = {}) => {
-    const baseUrl = loginUrl || `${getServerApiBaseUrl()}/login`;
-    const fallbackUrl = appendLoginParams(baseUrl, { source: 'electron' });
-    let localCallback: Awaited<ReturnType<typeof startAuthLocalCallback>> | null = null;
-
-    try {
-      console.log('[Auth] starting browser login with local callback server');
-      localCallback = await startAuthLocalCallback({
-        onCode: code => {
-          authCallbackRouter.handleAuthCode(code);
-          focusMainWindow('local auth callback');
-        },
-      });
-      const returnTo = appendLoginParams(baseUrl, {
-        source: 'electron',
-        electronLogin: 'success',
-      });
-      const finalUrl = appendLoginParams(baseUrl, {
-        source: 'electron',
-        redirect_uri: appendCallbackReturnTo(localCallback.redirectUri, returnTo),
-        state: localCallback.state,
-      });
-      console.log('[Auth] opening portal login with local callback redirect');
-      await shell.openExternal(finalUrl);
-      return { success: true, redirectUrl: finalUrl };
-    } catch (error) {
-      // The callback may be shared by another login page and will clean itself up on timeout.
-      console.warn('[Auth] local callback login failed, falling back to deep link login:', error);
-      try {
-        await shell.openExternal(fallbackUrl);
-        return { success: true, redirectUrl: fallbackUrl };
-      } catch (fallbackError) {
-        console.error('[Auth] login failed:', fallbackError);
-        return {
-          success: false,
-          error: fallbackError instanceof Error ? fallbackError.message : 'Failed to open login',
-        };
-      }
-    }
-  });
-
-  registerActivityIpcHandlers({
-    ipcMain,
-    getMainWindow: () => mainWindow,
-    getServerBaseUrl: getServerApiBaseUrl,
-    getClientVersion: () => app.getVersion(),
-    platform: process.platform,
-    hasAuthTokens: () => getAuthTokens() !== null,
-    fetchPublic: (url, options) => net.fetch(url, options),
-    fetchWithAuth,
-  });
-
-  registerSubscriptionTrialIpcHandlers({
-    ipcMain,
-    getMainWindow: () => mainWindow,
-    getServerBaseUrl: getServerApiBaseUrl,
-    getClientVersion: () => app.getVersion(),
-    platform: process.platform,
-    hasAuthTokens: () => getAuthTokens() !== null,
-    fetchPublic: (url, options) => net.fetch(url, options),
-    fetchWithAuth,
-  });
-
-  const activateLowCreditPurchaseOffer = async (): Promise<Record<string, unknown> | null> => {
-    try {
-      const response = await fetchWithAuth(`${getServerApiBaseUrl()}/api/purchase-offers/low-credit/activate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!response.ok) return null;
-      const body = (await response.json()) as {
-        code: number;
-        data?: Record<string, unknown>;
-      };
-      if (body.code !== 0 || !body.data) return null;
-      return { ...body.data, receivedAtEpochMs: Date.now() };
-    } catch (error) {
-      console.warn('[Auth] low-credit purchase offer activation failed:', error);
-      return null;
-    }
-  };
-
-  ipcMain.handle(AuthIpcChannel.Exchange, async (_event, { code }: { code: string }) => {
-    const startingTokens = getAuthTokens();
-    const startingUser = getAuthUser();
-    const startingEnterpriseContext = getPersistedEnterpriseAccountContext(getStore());
-    const startingQuotaGateState = getAuthQuotaGateState();
-    const startingServerModels = getAllServerModelMetadata();
-    const exchangeIntent: AuthExchangeIntentSnapshot = {
-      intentId: ++authExchangeIntentSequence,
-      accountGeneration: authAccountGeneration,
-      accessToken: startingTokens?.accessToken ?? null,
-      refreshToken: startingTokens?.refreshToken ?? null,
-    };
-    activeAuthExchangeIntent = exchangeIntent;
-    const isExchangeIntentCurrent = (): boolean => isAuthExchangeIntentCurrent(
-      exchangeIntent,
-      activeAuthExchangeIntent?.intentId ?? null,
-      authAccountGeneration,
-      getAuthTokens(),
-    );
-    let committedExchangeGeneration: number | null = null;
-
-    try {
-      const serverBaseUrl = getServerApiBaseUrl();
-      const exchangeUrl = `${serverBaseUrl}/api/auth/exchange`;
-      console.log(`[Auth] requesting auth exchange at ${exchangeUrl}`);
-      const resp = await net.fetch(exchangeUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(withKeyfromBody({ authCode: code })),
-      });
-      if (!resp.ok) {
-        return { success: false, error: `Exchange failed: ${resp.status}` };
-      }
-      const body = (await resp.json()) as {
-        code: number;
-        message?: string;
-        data: {
-          accessToken: string;
-          refreshToken: string;
-          user: Record<string, unknown>;
-          quota: Record<string, unknown>;
-        };
-      };
-      if (body.code !== 0 || !body.data) {
-        return { success: false, error: body.message || 'Exchange failed' };
-      }
-      if (!isExchangeIntentCurrent()) {
-        return { success: false, error: t('authAccountChanged') };
-      }
-
-      const previousAccountScope = getCurrentMediaAccountScope();
-      activeAuthExchangeIntent = null;
-      authAccountGeneration += 1;
-      const exchangeAccountGeneration = authAccountGeneration;
-      clearEnterpriseAccountContext(getStore());
-      clearServerModelMetadata();
-      // A login exchange can switch accounts without an explicit logout.
-      // Reset entitlement fallbacks before normalizing the new account so a
-      // partial quota payload cannot inherit the previous account's plan.
-      resetAuthQuotaGateState();
-      saveAuthTokens(body.data.accessToken, body.data.refreshToken);
-      saveAuthUser(body.data.user);
-      committedExchangeGeneration = exchangeAccountGeneration;
-      const enterpriseContext = await syncEnterpriseAccountContextFromPayload(body.data);
-      const requiresEnterpriseContext = (
-        readAccountMode(body.data) === EnterpriseAccountMode.Enterprise
-        || body.data.quota.subscriptionStatus === AuthSubscriptionStatus.Enterprise
-      );
-      if (requiresEnterpriseContext && !enterpriseContext) {
-        throw new Error('Enterprise account context was unavailable after token exchange');
-      }
-      if (
-        authAccountGeneration !== exchangeAccountGeneration
-        || authExchangeIntentSequence !== exchangeIntent.intentId
-      ) {
-        return { success: false, error: t('authAccountChanged') };
-      }
-      mediaSelectionBySession.clear();
-      mediaTurnAccountScopeBySession.clear();
-      mediaReferencesBySession.clear();
-      if (previousAccountScope) {
-        clearMediaPollingStateForOwner(previousAccountScope.ownerAccountKey);
-      }
-      if (pendingMediaTasks.size === 0) {
-        stopMediaPollTimer();
-      }
-      console.log(
-        `[Auth] exchange completed; enterpriseContext=${enterpriseContext ? 'present' : 'absent'}`,
-      );
-      const quota = normalizeQuota(body.data.quota);
-      const purchaseOffer = await activateLowCreditPurchaseOffer();
-      syncOpenClawConfigIfAuthQuotaGateChanged(startingQuotaGateState);
-      return {
-        success: true,
-        user: body.data.user,
-        quota,
-        purchaseOffer,
-        enterpriseContext,
-      };
-    } catch (error) {
-      if (
-        committedExchangeGeneration !== null
-        && authAccountGeneration === committedExchangeGeneration
-        && authExchangeIntentSequence === exchangeIntent.intentId
-      ) {
-        authAccountGeneration += 1;
-        if (startingTokens) {
-          saveAuthTokens(startingTokens.accessToken, startingTokens.refreshToken);
-        } else {
-          clearAuthTokens();
-        }
-        if (startingUser) {
-          saveAuthUser(startingUser);
-        } else {
-          clearAuthUser();
-        }
-        if (startingEnterpriseContext) {
-          persistEnterpriseAccountContext(getStore(), startingEnterpriseContext);
-        } else {
-          clearEnterpriseAccountContext(getStore());
-        }
-        updateServerModelMetadata(startingServerModels);
-        cachedSubscriptionStatus = startingQuotaGateState.subscriptionStatus;
-        cachedMediaGenerationEntitled = startingQuotaGateState.mediaGenerationEntitled;
-        syncOpenClawConfig({
-          reason: 'auth-exchange-rollback',
-          restartGatewayIfRunning: false,
-        }).catch(syncError => {
-          console.warn('[Auth] failed to sync OpenClaw config after exchange rollback:', syncError);
-        });
-        console.warn('[Auth] rolled back local credentials after an incomplete exchange');
-      }
-      console.error('[Auth] exchange failed:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Exchange failed',
-      };
-    } finally {
-      if (activeAuthExchangeIntent?.intentId === exchangeIntent.intentId) {
-        activeAuthExchangeIntent = null;
-      }
-    }
-  });
-
-  ipcMain.handle(AuthIpcChannel.GetUser, async () => {
-    const createUnavailableResponse = () => {
-      const hasCredentials = Boolean(getAuthTokens());
-      return {
-        success: false,
-        status: hasCredentials
-          ? AuthSessionStatus.TemporarilyUnavailable
-          : AuthSessionStatus.Unauthenticated,
-        hasCredentials,
-        cachedUser: hasCredentials ? getAuthUser() : null,
-      };
-    };
-
-    try {
-      const tokens = getAuthTokens();
-      if (!tokens) {
-        return {
-          success: false,
-          status: AuthSessionStatus.Unauthenticated,
-          hasCredentials: false,
-        };
-      }
-      const requestAccountGeneration = authAccountGeneration;
-      const requestAccountScope = getCurrentMediaAccountScope();
-      const serverBaseUrl = getServerApiBaseUrl();
-      // Fetch user profile
-      const profileResp = await fetchWithAuth(`${serverBaseUrl}/api/user/profile`);
-      if (authAccountGeneration !== requestAccountGeneration) {
-        return createUnavailableResponse();
-      }
-      if (!profileResp.ok) {
-        return {
-          success: false,
-          status: AuthSessionStatus.TemporarilyUnavailable,
-          hasCredentials: true,
-          cachedUser: getAuthUser(),
-        };
-      }
-      const profileResponseAuthState = captureAuthStateSnapshot();
-      const profileBody = (await profileResp.json()) as {
-        code: number;
-        data: Record<string, unknown>;
-      };
-      if (!isCurrentAuthStateSnapshot(profileResponseAuthState)) {
-        return createUnavailableResponse();
-      }
-      if (handleEnterpriseAccountContextMismatch(profileBody.code, requestAccountScope)) {
-        return createUnavailableResponse();
-      }
-      if (profileBody.code !== 0 || !profileBody.data) {
-        return {
-          success: false,
-          status: AuthSessionStatus.TemporarilyUnavailable,
-          hasCredentials: true,
-          cachedUser: getAuthUser(),
-        };
-      }
-      saveAuthUser(profileBody.data);
-      // Fetch quota separately
-      const quotaResp = await fetchWithAuth(`${serverBaseUrl}/api/user/quota`);
-      if (authAccountGeneration !== requestAccountGeneration) {
-        return createUnavailableResponse();
-      }
-      let quota = null;
-      if (quotaResp.ok) {
-        const quotaResponseAuthState = captureAuthStateSnapshot();
-        const quotaBody = (await quotaResp.json()) as {
-          code: number;
-          data: Record<string, unknown>;
-        };
-        if (!isCurrentAuthStateSnapshot(quotaResponseAuthState)) {
-          return createUnavailableResponse();
-        }
-        if (handleEnterpriseAccountContextMismatch(quotaBody.code, requestAccountScope)) {
-          return createUnavailableResponse();
-        }
-        if (quotaBody.code === 0 && quotaBody.data) {
-          const previousQuotaGateState = getAuthQuotaGateState();
-          quota = normalizeQuota(quotaBody.data);
-          syncOpenClawConfigIfAuthQuotaGateChanged(previousQuotaGateState);
-        }
-      }
-      if (authAccountGeneration !== requestAccountGeneration) {
-        return createUnavailableResponse();
-      }
-      const enterpriseContext = await syncEnterpriseAccountContextFromPayload(profileBody.data);
-      if (authAccountGeneration !== requestAccountGeneration) {
-        return createUnavailableResponse();
-      }
-      const requiresEnterpriseContext = (
-        readAccountMode(profileBody.data) === EnterpriseAccountMode.Enterprise
-        || quota?.subscriptionStatus === AuthSubscriptionStatus.Enterprise
-      );
-      if (requiresEnterpriseContext && !enterpriseContext) {
-        console.warn('[Auth] enterprise account context was unavailable during profile refresh');
-        return createUnavailableResponse();
-      }
-      console.log(
-        `[Auth] profile refresh completed; quota=${quota ? 'present' : 'absent'}; `
-        + `enterpriseContext=${enterpriseContext ? 'present' : 'absent'}`,
-      );
-      const purchaseOffer = await activateLowCreditPurchaseOffer();
-      return {
-        success: true,
-        status: AuthSessionStatus.Authenticated,
-        user: profileBody.data,
-        quota,
-        purchaseOffer,
-        enterpriseContext,
-      };
-    } catch (error) {
-      const status = resolveAuthSessionStatusFromError(error);
-      if (status === AuthSessionStatus.TemporarilyUnavailable) {
-        console.warn('[Auth] getUser temporarily unavailable:', error);
-      }
-      return {
-        success: false,
-        status,
-        hasCredentials: status !== AuthSessionStatus.Unauthenticated && Boolean(getAuthTokens()),
-        cachedUser: status === AuthSessionStatus.TemporarilyUnavailable
-          ? getAuthUser()
-          : null,
-      };
-    }
-  });
-
-  ipcMain.handle(AuthIpcChannel.GetQuota, async () => {
-    try {
-      const tokens = getAuthTokens();
-      if (!tokens) return { success: false };
-      const requestAccountGeneration = authAccountGeneration;
-      const requestAccountScope = getCurrentMediaAccountScope();
-      const serverBaseUrl = getServerApiBaseUrl();
-      const resp = await fetchWithAuth(`${serverBaseUrl}/api/user/quota`);
-      if (authAccountGeneration !== requestAccountGeneration) return { success: false };
-      if (!resp.ok) return { success: false };
-      const responseAuthState = captureAuthStateSnapshot();
-      const body = (await resp.json()) as { code: number; data: Record<string, unknown> };
-      if (!isCurrentAuthStateSnapshot(responseAuthState)) return { success: false };
-      if (handleEnterpriseAccountContextMismatch(body.code, requestAccountScope)) {
-        return { success: false };
-      }
-      if (body.code !== 0 || !body.data) return { success: false };
-      const previousQuotaGateState = getAuthQuotaGateState();
-      const quota = normalizeQuota(body.data);
-      syncOpenClawConfigIfAuthQuotaGateChanged(previousQuotaGateState);
-      const enterpriseContextResult = await refreshEnterpriseAccountContext();
-      if (authAccountGeneration !== requestAccountGeneration) return { success: false };
-      const purchaseOffer = await activateLowCreditPurchaseOffer();
-      if (authAccountGeneration !== requestAccountGeneration) return { success: false };
-      return {
-        success: true,
-        quota,
-        purchaseOffer,
-        enterpriseContext: enterpriseContextResult.context,
-      };
-    } catch {
-      return { success: false };
-    }
-  });
-
-  ipcMain.handle(AuthIpcChannel.GetProfileSummary, async () => {
-    try {
-      const tokens = getAuthTokens();
-      if (!tokens) return { success: false };
-      const requestAccountGeneration = authAccountGeneration;
-      const requestAccountScope = getCurrentMediaAccountScope();
-      if (requestAccountScope === null) return { success: false };
-      const serverBaseUrl = getServerApiBaseUrl();
-      const profileSummaryUrl = appendKeyfromQuery(`${serverBaseUrl}/api/user/profile-summary`);
-      console.log(`[Auth] requesting profile summary at ${profileSummaryUrl}`);
-      const resp = await fetchWithAuth(profileSummaryUrl);
-      if (
-        authAccountGeneration !== requestAccountGeneration
-        || !isMediaAccountScopeCurrent(requestAccountScope, getCurrentMediaAccountScope())
-      ) {
-        return { success: false };
-      }
-      if (!resp.ok) return { success: false };
-      const responseAuthState = captureAuthStateSnapshot();
-      const body = (await resp.json()) as { code: number; data: Record<string, unknown> };
-      if (
-        !isCurrentAuthStateSnapshot(responseAuthState)
-        || !isMediaAccountScopeCurrent(requestAccountScope, getCurrentMediaAccountScope())
-      ) {
-        return { success: false };
-      }
-      if (handleEnterpriseAccountContextMismatch(body.code, requestAccountScope)) {
-        return { success: false };
-      }
-      if (body.code !== 0 || !body.data) return { success: false };
-      return { success: true, data: body.data };
-    } catch {
-      return { success: false };
-    }
-  });
-
-  ipcMain.handle(AuthIpcChannel.ClaimCreditsFinalReward, async (_event, payload: { campaignCode?: string }) => {
-    try {
-      const campaignCode = payload?.campaignCode?.trim();
-      if (!campaignCode) return { success: false, error: 'Missing campaign code' };
-      const serverBaseUrl = getServerApiBaseUrl();
-      const url = appendKeyfromQuery(`${serverBaseUrl}/api/credits-reset-campaign/free-credits/claim`);
-      const resp = await fetchWithAuth(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaignCode }),
-      });
-      const body = (await resp.json()) as {
-        code: number;
-        message?: string;
-        data?: Record<string, unknown>;
-      };
-      if (!resp.ok || body.code !== 0 || !body.data) {
-        return { success: false, error: body.message || `Claim failed (${resp.status})` };
-      }
-      return { success: true, data: body.data };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Claim failed',
-      };
-    }
-  });
-
-  ipcMain.handle(AuthIpcChannel.GetActiveClientBanner, async () => {
-    try {
-      const serverBaseUrl = getServerApiBaseUrl();
-      const url = appendKeyfromQuery(appendClientBannerVersion(
-        `${serverBaseUrl}/api/client-banners/active?placement=desktop_sidebar`,
-        app.getVersion(),
-      ));
-      const resp = await net.fetch(url, { cache: 'no-store' });
-      if (!resp.ok) return { success: false };
-      const body = (await resp.json()) as { code: number; data: Record<string, unknown> | null };
-      if (body.code !== 0) return { success: false };
-      return { success: true, data: body.data ?? null };
-    } catch {
-      return { success: false };
-    }
-  });
-
-  ipcMain.handle(AuthIpcChannel.GetActiveClientBanners, async () => {
-    try {
-      const serverBaseUrl = getServerApiBaseUrl();
-      const url = appendKeyfromQuery(appendClientBannerVersion(
-        `${serverBaseUrl}/api/client-banners/active-list?placement=desktop_sidebar`,
-        app.getVersion(),
-      ));
-      const resp = await net.fetch(url, { cache: 'no-store' });
-      if (!resp.ok) return { success: false };
-      const body = (await resp.json()) as { code: number; data: Record<string, unknown>[] | null };
-      if (body.code !== 0) return { success: false };
-      return { success: true, data: Array.isArray(body.data) ? body.data : [] };
-    } catch {
-      return { success: false };
-    }
-  });
-
-  ipcMain.handle(AuthIpcChannel.GetClientBannerSnapshot, async () => {
-    const serverBaseUrl = getServerApiBaseUrl();
-    try {
-      const snapshotUrl = appendKeyfromQuery(
-        appendClientBannerVersion(
-          `${serverBaseUrl}/api/client-banners/snapshot?placement=desktop_sidebar`,
-          app.getVersion(),
-        ),
-      );
-      const snapshotResponse = await net.fetch(snapshotUrl, { cache: 'no-store' });
-      if (snapshotResponse.ok) {
-        const snapshotBody = (await snapshotResponse.json()) as {
-          code: number;
-          data?: {
-            serverTime?: string;
-            nextRefreshAt?: string | null;
-            banners?: Record<string, unknown>[];
-          };
-        };
-        if (snapshotBody.code === 0
-            && snapshotBody.data
-            && typeof snapshotBody.data.serverTime === 'string'
-            && Array.isArray(snapshotBody.data.banners)) {
-          return {
-            success: true,
-            data: {
-              serverTime: snapshotBody.data.serverTime,
-              nextRefreshAt: snapshotBody.data.nextRefreshAt ?? null,
-              clientVersion: app.getVersion(),
-              banners: snapshotBody.data.banners,
-            },
-          };
-        }
-      }
-    } catch {
-      // Fall through to the legacy list endpoint during mixed-version rollout.
-    }
-
-    try {
-      const legacyUrl = appendKeyfromQuery(
-        appendClientBannerVersion(
-          `${serverBaseUrl}/api/client-banners/active-list?placement=desktop_sidebar`,
-          app.getVersion(),
-        ),
-      );
-      const legacyResponse = await net.fetch(legacyUrl, { cache: 'no-store' });
-      if (!legacyResponse.ok) return { success: false };
-      const legacyBody = (await legacyResponse.json()) as {
-        code: number;
-        data: Record<string, unknown>[] | null;
-      };
-      if (legacyBody.code !== 0) return { success: false };
-      return {
-        success: true,
-        data: {
-          serverTime: new Date().toISOString(),
-          nextRefreshAt: null,
-          clientVersion: app.getVersion(),
-          banners: Array.isArray(legacyBody.data) ? legacyBody.data : [],
-        },
-      };
-    } catch {
-      return { success: false };
-    }
-  });
-
-  ipcMain.handle(AuthIpcChannel.Logout, async () => {
-    const tokens = getAuthTokens();
-    const enterpriseHeaders = getEnterpriseAccountHeaders();
-    const logoutBody = JSON.stringify(withKeyfromBody({}));
-    clearLocalAuthSession({
-      reason: AuthSessionChangeReason.UserLogout,
-      notifyRenderer: false,
-    });
-    console.log('[Auth] cleared local login state and scheduled server model config refresh');
-
-    if (tokens) {
-      try {
-        const serverBaseUrl = getServerApiBaseUrl();
-        const logoutUrl = `${serverBaseUrl}/api/auth/logout`;
-        console.log(`[Auth] requesting logout at ${logoutUrl}`);
-        await net.fetch(logoutUrl, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${tokens.accessToken}`,
-            'Content-Type': 'application/json',
-            ...enterpriseHeaders,
-          },
-          body: logoutBody,
-        });
-      } catch (error) {
-        console.warn('[Auth] remote logout failed after local credentials were cleared:', error);
-      }
-    }
-    return { success: true };
-  });
-
-  ipcMain.handle(AuthIpcChannel.RefreshToken, async () => {
-    try {
-      const result = await authSessionManager.refresh(AuthRefreshReason.Manual);
-      return result.outcome === AuthRefreshOutcome.Success
-        ? { success: true, accessToken: result.accessToken, outcome: result.outcome }
-        : { success: false, outcome: result.outcome };
-    } catch {
-      return { success: false };
-    }
-  });
-
-  ipcMain.handle(AuthIpcChannel.GetAccessToken, async () => {
-    const tokens = getAuthTokens();
-    return tokens?.accessToken || null;
-  });
-
-  ipcMain.handle(AuthIpcChannel.GetPricingCatalog, async () => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), PRICING_CATALOG_REQUEST_TIMEOUT_MS);
-    try {
-      const serverBaseUrl = getServerApiBaseUrl();
-      const url = `${serverBaseUrl}/api/models/pricing-catalog`;
-      console.log(`[Auth:getPricingCatalog] requesting public pricing catalog at ${url}`);
-      const resp = await net.fetch(url, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-        signal: controller.signal,
-      });
-      console.log(`[Auth:getPricingCatalog] server returned HTTP ${resp.status}.`);
-      if (!resp.ok) {
-        return { success: false, error: `HTTP ${resp.status}` };
-      }
-      const body = await resp.json() as {
-        code: number;
-        message?: string;
-        data?: {
-          textModels?: unknown[];
-          imageModels?: unknown[];
-          videoModels?: unknown[];
-        };
-      };
-      if (body.code !== 0) {
-        console.warn('[Auth:getPricingCatalog] server rejected pricing catalog request:', serializeForLog({
-          code: body.code,
-          message: body.message,
-        }));
-        return { success: false, error: body.message || 'Failed to load pricing catalog.' };
-      }
-      const textModels = Array.isArray(body.data?.textModels) ? body.data.textModels : [];
-      const imageModels = Array.isArray(body.data?.imageModels) ? body.data.imageModels : [];
-      const videoModels = Array.isArray(body.data?.videoModels) ? body.data.videoModels : [];
-      console.log(
-        '[Auth:getPricingCatalog] loaded public pricing catalog: '
-        + `${textModels.length} text, ${imageModels.length} image, ${videoModels.length} video models.`,
-      );
-      return { success: true, textModels, imageModels, videoModels };
-    } catch (error) {
-      console.error('[Auth:getPricingCatalog] pricing catalog request failed:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    } finally {
-      clearTimeout(timeout);
-    }
-  });
-
-  ipcMain.handle(AuthIpcChannel.GetModels, async () => {
-    try {
-      const tokens = getAuthTokens();
-      if (!tokens) {
-        console.log('[Auth:getModels] No auth tokens available');
-        return { success: false };
-      }
-      const models = await loadAvailableServerModels({
-        reason: 'server-models-updated',
-      });
-      return { success: true, models };
-    } catch (e) {
-      console.error('[Auth:getModels] Error:', e);
-      return { success: false };
-    }
-  });
 
   ipcMain.handle(HtmlShareIpc.CreateFromHtmlFile, async (_event, input: unknown) => {
     let archivePath: string | undefined;
@@ -8660,33 +7318,13 @@ if (!gotTheLock) {
         console.warn('[Media:getModels] rejected invalid media type');
         return { success: false, error: 'Invalid media type' };
       }
-      const tokens = getAuthTokens();
-      const requestAccountScope = getCurrentMediaAccountScope();
-      if (!tokens || requestAccountScope === null) {
-        console.warn('[Media:getModels] No auth tokens, skipping');
-        return { success: false, error: t('authLoginRequired') };
-      }
-      const serverBaseUrl = getServerApiBaseUrl();
-      const endpoint = type === 'image' ? '/api/media/images/models' : '/api/media/videos/models';
-      const resp = await fetchWithAuth(`${serverBaseUrl}${endpoint}`);
-      const body = await resp.json() as { code: number; data?: unknown[]; message?: string };
-      if (!isMediaAccountScopeCurrent(requestAccountScope, getCurrentMediaAccountScope())) {
-        return { success: false, error: t('authAccountChanged') };
-      }
-      if (handleEnterpriseAccountContextMismatch(body.code, requestAccountScope)) {
-        return { success: false, error: t('enterpriseAccountContextMismatchMessage') };
-      }
-      if (!resp.ok) return { success: false, error: body.message || `HTTP ${resp.status}` };
-      if (body.code !== 0) return { success: false, error: body.message };
-      const models = (body.data || []).map(model => {
-        const mediaModel = model as { modelId?: string; displayName?: string };
-        const modelId = canonicalizeMediaModelId(mediaModel.modelId);
-        return {
-          ...(model as Record<string, unknown>),
-          modelId,
-          displayName: mediaModelDisplayName(modelId, mediaModel.displayName),
-        };
-      });
+      // Models come from the user's own provider config, so this no longer
+      // depends on a LobsterAI account or the server catalog.
+      const provider = type === 'image' ? getImageMediaProvider() : getVideoMediaProvider();
+      const models = (provider?.resolver.listModels() ?? []).map(model => ({
+        ...model,
+        modelId: canonicalizeMediaModelId(model.modelId),
+      }));
       return { success: true, models };
     } catch (e) {
       console.error('[Media:getModels] Error:', e);
@@ -8694,48 +7332,68 @@ if (!gotTheLock) {
     }
   });
 
-  ipcMain.handle('media:getTaskStatus', async (_event, taskId: number, type: 'image' | 'video') => {
+  ipcMain.handle(CoworkIpcChannel.GetMediaProviders, async () => {
+    try {
+      // Secrets are stripped: the renderer only learns whether a key is stored.
+      return { success: true, config: readMediaProvidersConfigForRenderer(getStore()) };
+    } catch (e) {
+      console.error('[Media:getProviders] Error:', e);
+      return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
+    }
+  });
+
+  ipcMain.handle(CoworkIpcChannel.SetMediaProviders, async (_event, config: unknown) => {
+    try {
+      const normalized = normalizeMediaProvidersConfig(config);
+      if (!normalized) {
+        return { success: false, error: 'Invalid media provider config.' };
+      }
+      // Carry the existing key over for any entry whose key the renderer did
+      // not (or could not) send back. Otherwise editing an unrelated field
+      // would blank a stored key, and a key that could not be decrypted would
+      // be destroyed outright.
+      const merged = mergeMediaProviderApiKeys(getStore(), normalized);
+      writeMediaProvidersConfig(getStore(), merged);
+      // Adapters read the store on every call, so the new config is live
+      // without an extra refresh step.
+      return { success: true, config: readMediaProvidersConfigForRenderer(getStore()) };
+    } catch (e) {
+      console.error('[Media:setProviders] Error:', e);
+      return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
+    }
+  });
+
+  ipcMain.handle('media:getTaskStatus', async (_event, taskId: string, type: 'image' | 'video') => {
     try {
       if (type !== 'image' && type !== 'video') {
         console.warn('[Media:getTaskStatus] rejected invalid media type');
         return { success: false, error: 'Invalid media type' };
       }
-      const tokens = getAuthTokens();
-      const requestAccountScope = getCurrentMediaAccountScope();
-      if (!tokens || requestAccountScope === null) {
-        return { success: false, error: t('authLoginRequired') };
-      }
+      const requestAccountScope = getCurrentMediaOwnerScope();
       const taskOwnerAccountKey = resolveMediaTaskOwner(taskId);
-      if (!canAccessTrackedMediaTask(taskOwnerAccountKey, requestAccountScope)) {
+      if (
+        requestAccountScope === null
+        || !canAccessTrackedMediaTask(taskOwnerAccountKey, requestAccountScope)
+      ) {
         return { success: false, error: t('mediaTaskAccountMismatch') };
       }
-      const serverBaseUrl = getServerApiBaseUrl();
-      const mediaPath = type === 'image' ? 'images' : 'videos';
-      const taskUrl = `${serverBaseUrl}/api/media/${mediaPath}/tasks/${taskId}`;
-      console.debug(`[Media:getTaskStatus] requesting ${type} task ${taskId}`);
-      const resp = await fetchWithAuth(taskUrl);
-      const body = await resp.json() as { code: number; data?: unknown; message?: string };
-      const responseTask = body.data && typeof body.data === 'object'
-        ? body.data as Record<string, unknown>
-        : null;
-      console.debug(
-        `[Media:getTaskStatus] response HTTP ${resp.status}; code=${body.code}; status=${String(responseTask?.status ?? 'unknown')}`,
-      );
-      if (!isMediaAccountScopeCurrent(requestAccountScope, getCurrentMediaAccountScope())) {
+      // Task state now comes from the owning local provider.
+      const provider = type === 'video' ? getVideoMediaProvider() : getImageMediaProvider();
+      const target = resolveHydratedMediaTaskTarget(taskId, provider);
+      if (!provider || !target) {
+        return { success: false, error: 'Task is not tracked by a local media provider.' };
+      }
+      console.debug(`[Media:getTaskStatus] querying local ${type} task ${taskId}`);
+      const task = await provider.status(taskId, target);
+      if (!isMediaAccountScopeCurrent(requestAccountScope, getCurrentMediaOwnerScope())) {
         return { success: false, error: t('authAccountChanged') };
       }
-      if (handleEnterpriseAccountContextMismatch(body.code, requestAccountScope)) {
-        return { success: false, error: t('enterpriseAccountContextMismatchMessage') };
-      }
-      if (!resp.ok) return { success: false, error: body.message || `HTTP ${resp.status}` };
-      if (body.code !== 0) return { success: false, error: body.message };
-      const task = body.data as Record<string, unknown> | undefined;
       rememberMediaTaskOwnership(
         requestAccountScope.ownerAccountKey,
-        task?.taskId,
-        task?.upstreamTaskId,
+        task.taskId,
+        task.upstreamTaskId,
       );
-      return { success: true, task: body.data };
+      return { success: true, task: task as unknown as Record<string, unknown> };
     } catch (e) {
       console.error('[Media:getTaskStatus] Error:', e);
       return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
@@ -9378,35 +8036,12 @@ if (!gotTheLock) {
 
   registerDshHandlers({
     getStore: () => getStore(),
+    // Membership removed: the billed plan routed through the token proxy no
+    // longer exists, so no DSH plan provider is available.
+    getPlanProvider: () => null,
     getProviders: () => {
       const appConfig = getStore().get<{ providers?: Record<string, ProviderConfig> }>('app_config');
-      const providers = { ...(appConfig?.providers ?? {}) };
-      // The billed built-in provider authenticates through the token proxy;
-      // syncing its raw key/baseUrl into dsh would produce a dead route.
-      delete providers[ProviderName.LobsteraiServer];
-      return providers;
-    },
-    getPlanProvider: () => {
-      // The billed plan has no user-supplied key: requests go to the local
-      // token proxy, which swaps in the account's access token. Without a
-      // running proxy there is nothing usable to hand dsh.
-      const proxyPort = getOpenClawTokenProxyPort();
-      if (!proxyPort) return null;
-      const planModels = getAllServerModelMetadata();
-      if (planModels.length === 0) return null;
-      return {
-        baseUrl: `http://127.0.0.1:${proxyPort}/v1`,
-        apiKey: getOpenClawLoopbackState().proxyToken,
-        displayName: t('dshPlanProviderName'),
-        models: planModels.map(model => ({
-          modelId: model.modelId,
-          modelName: model.modelName,
-          apiFormat: model.apiFormat,
-          supportsImage: model.supportsImage,
-          contextWindow: model.contextWindow,
-          maxTokens: model.maxTokens,
-        })),
-      };
+      return { ...(appConfig?.providers ?? {}) };
     },
     getDefaultCwd: () => {
       try {
@@ -9454,7 +8089,7 @@ if (!gotTheLock) {
     ) => {
       try {
         const ipcStartedAtMs = Date.now();
-        const requestAccountScope = getCurrentMediaAccountScope();
+        const requestAccountScope = getCurrentMediaOwnerScope();
         console.log(
           '[CoworkFirstResponseTiming] start IPC received.',
           `Prompt length ${options.prompt.length}.`,
@@ -9481,7 +8116,7 @@ if (!gotTheLock) {
         }
         if (!isMediaAccountScopeSnapshotCurrent(
           requestAccountScope,
-          getCurrentMediaAccountScope(),
+          getCurrentMediaOwnerScope(),
         )) {
           return {
             success: false,
@@ -9562,7 +8197,6 @@ if (!gotTheLock) {
           sessionId: session.id,
           kitIds: options.kitIds,
           mediaSelection: normalizeMediaSelectionState(options.mediaSelection),
-          mediaGenerationEntitled: cachedMediaGenerationEntitled,
         });
         const { workflowKind, mediaSelection: normalizedMediaSelection } = skinTurn;
         if (requestAccountScope) {
@@ -9710,7 +8344,7 @@ if (!gotTheLock) {
     ) => {
       try {
         const ipcStartedAtMs = Date.now();
-        const requestAccountScope = getCurrentMediaAccountScope();
+        const requestAccountScope = getCurrentMediaOwnerScope();
         console.log(
           '[CoworkFirstResponseTiming] continue IPC received.',
           `Session ${options.sessionId}.`,
@@ -9731,7 +8365,7 @@ if (!gotTheLock) {
         }
         if (!isMediaAccountScopeSnapshotCurrent(
           requestAccountScope,
-          getCurrentMediaAccountScope(),
+          getCurrentMediaOwnerScope(),
         )) {
           return {
             success: false,
@@ -9776,7 +8410,6 @@ if (!gotTheLock) {
           sessionId: options.sessionId,
           kitIds: options.kitIds,
           mediaSelection: normalizeMediaSelectionState(options.mediaSelection),
-          mediaGenerationEntitled: cachedMediaGenerationEntitled,
         });
         const { workflowKind, mediaSelection: normalizedMediaSelection } = skinTurn;
         if (requestAccountScope) {
@@ -10016,7 +8649,7 @@ if (!gotTheLock) {
       ? options.clientSteerId.trim()
       : `steer-${Date.now()}`;
     try {
-      const requestAccountScope = getCurrentMediaAccountScope();
+      const requestAccountScope = getCurrentMediaOwnerScope();
       const sessionId = typeof options?.sessionId === 'string' ? options.sessionId.trim() : '';
       const text = typeof options?.text === 'string' ? options.text.trim() : '';
       if (!sessionId || !text) {
@@ -10060,7 +8693,7 @@ if (!gotTheLock) {
       if (
         !isMediaAccountScopeSnapshotCurrent(
           requestAccountScope,
-          getCurrentMediaAccountScope(),
+          getCurrentMediaOwnerScope(),
         )
         || !isMediaAccountScopeSnapshotCurrent(
           requestTurnAccountScope,
@@ -10090,7 +8723,7 @@ if (!gotTheLock) {
       const result = await runtime.submitSteer(sessionId, text, clientSteerId);
       if (!isMediaAccountScopeSnapshotCurrent(
         requestAccountScope,
-        getCurrentMediaAccountScope(),
+        getCurrentMediaOwnerScope(),
       )) {
         return {
           success: false,
@@ -10180,16 +8813,6 @@ if (!gotTheLock) {
     if (isScopedReview(input.artifactId)) return scopedReviews.readSource(input);
     return reviewSources.read(input);
   });
-
-  ipcMain.handle(
-    CoworkIpcChannel.RefreshTurnUsage,
-    async (_event, options: { sessionId?: unknown; messageId?: unknown } | undefined) => {
-      const sessionId = typeof options?.sessionId === 'string' ? options.sessionId.trim() : '';
-      const messageId = typeof options?.messageId === 'string' ? options.messageId.trim() : '';
-      if (!sessionId || !messageId || !coworkTurnUsageService) return null;
-      return coworkTurnUsageService.refresh(sessionId, messageId);
-    },
-  );
 
   ipcMain.handle(CoworkIpcChannel.StopSession, async (_event, sessionId: string) => {
     try {
@@ -10867,31 +9490,32 @@ if (!gotTheLock) {
 
   ipcMain.handle(CoworkIpcChannel.CancelMediaTask, async (_event, taskId: string) => {
     try {
-      const requestAccountScope = getCurrentMediaAccountScope();
-      if (requestAccountScope === null) {
-        return { success: false, message: t('authLoginRequired') };
-      }
+      const requestAccountScope = getCurrentMediaOwnerScope();
       const taskOwnerAccountKey = resolveMediaTaskOwner(taskId);
-      if (!canAccessTrackedMediaTask(taskOwnerAccountKey, requestAccountScope)) {
+      if (
+        requestAccountScope === null
+        || !canAccessTrackedMediaTask(taskOwnerAccountKey, requestAccountScope)
+      ) {
         return { success: false, message: t('mediaTaskAccountMismatch') };
       }
-      const serverBaseUrl = getServerApiBaseUrl();
-      const resp = await fetchWithAuth(`${serverBaseUrl}/api/media/videos/tasks/${taskId}/cancel`, { method: 'POST' });
-      const body = await resp.json() as { code: number; message?: string };
-      if (!isMediaAccountScopeCurrent(requestAccountScope, getCurrentMediaAccountScope())) {
+      // Cancellation also runs against the local provider; the owning target
+      // is recovered from the registry recorded at creation time.
+      const provider = getVideoMediaProvider();
+      const target = resolveHydratedMediaTaskTarget(taskId, provider);
+      if (!provider?.cancel || !target) {
+        return { success: false, message: 'Task is not tracked by a local media provider.' };
+      }
+      const cancelResult = await provider.cancel(taskId, target);
+      if (!isMediaAccountScopeCurrent(requestAccountScope, getCurrentMediaOwnerScope())) {
         return { success: false, message: t('authAccountChanged') };
       }
-      if (handleEnterpriseAccountContextMismatch(body.code, requestAccountScope)) {
-        return { success: false, message: t('enterpriseAccountContextMismatchMessage') };
+      if (!cancelResult.cancelled) {
+        return { success: false, message: cancelResult.errorMessage || 'Cancel failed' };
       }
-      if (body.code === 0) {
-        return { success: true };
-      }
-      const msg = body.message || '';
-      if (msg.includes('409') || msg.includes('running') || msg.includes('Conflict')) {
-        return { success: false, message: 'Task is already running and cannot be cancelled.' };
-      }
-      return { success: false, message: msg || 'Cancel failed' };
+      // Stop the background poll so it does not keep querying a cancelled task.
+      pendingMediaTasks.delete(taskId);
+      if (pendingMediaTasks.size === 0) stopMediaPollTimer();
+      return { success: true };
     } catch (error) {
       return { success: false, message: error instanceof Error ? error.message : 'Cancel failed' };
     }
@@ -13455,8 +12079,12 @@ if (!gotTheLock) {
     }
   });
 
+  // MOCK: asr-stub-getAuthTokens — login is removed and the server-backed ASR
+  // feature is scheduled for deletion in FR-3. Returning null makes all ASR
+  // handlers fail fast with Unauthorized. Replace this whole registration when
+  // FR-3 lands.
   registerAsrIpcHandlers({
-    getAuthTokens,
+    getAuthTokens: () => null,
     fetchWithAuth,
     getServerApiBaseUrl,
   });
@@ -14224,7 +12852,6 @@ if (!gotTheLock) {
 
     // 处理渲染进程崩溃或退出
     mainWindow.webContents.on('render-process-gone', (_event, details) => {
-      authCallbackRouter.markRendererUnavailable();
       console.error('Window render process gone:', details);
       scheduleReload('webContents-crashed');
     });
@@ -14273,7 +12900,6 @@ if (!gotTheLock) {
       if (isMainFrame && !isInPlace) {
         isOpenSessionFromNotificationReady = false;
       }
-      authCallbackRouter.handleNavigationStarted({ isMainFrame, isInPlace });
     });
 
     if (isDev) {
@@ -14290,7 +12916,6 @@ if (!gotTheLock) {
       clearLoadWatchdog();
       clearTimeout(showFallbackTimer);
       windowStatePersist.cleanup();
-      authCallbackRouter.markRendererUnavailable();
       isOpenSessionFromNotificationReady = false;
       agentBrowserHost?.setWindowVisible(false);
       mainWindow = null;
@@ -14594,8 +13219,6 @@ if (!gotTheLock) {
       console.error('[HtmlPreviewServer] Failed to stop:', error);
     });
 
-    stopOpenClawTokenProxy();
-
     // Stop the cron job polling
     currentAppCleanupStep = 'cron-and-store';
     try {
@@ -14818,28 +13441,6 @@ if (!gotTheLock) {
     }
     // Inject store getter into claudeSettings
     setStoreGetter(() => store);
-    // Inject auth getters for lobsterai-server provider routing
-    // The getter proactively triggers a background token refresh when the
-    // accessToken is within 5 minutes of expiry, so that the SDK always
-    // gets a fresh token without blocking.
-
-    setAuthTokensGetter(() => {
-      const tokens = getAuthTokens();
-      if (!tokens) return null;
-      // Check if accessToken is close to expiry and trigger background refresh
-      try {
-        const payload = JSON.parse(
-          Buffer.from(tokens.accessToken.split('.')[1], 'base64').toString(),
-        );
-        const expiresAt = payload.exp * 1000;
-        if (expiresAt - Date.now() < 5 * 60 * 1000) {
-          void authSessionManager.refresh(AuthRefreshReason.Proactive); // fire-and-forget
-        }
-      } catch {
-        /* unable to parse JWT, return token as-is */
-      }
-      return tokens;
-    });
     setServerBaseUrlGetter(() => getServerApiBaseUrl());
 
     // Initialize Copilot token manager and restore token state if available
@@ -14863,17 +13464,6 @@ if (!gotTheLock) {
         });
     }
 
-    registerProxyTokenRefresher(ProviderName.LobsteraiServer, async rejectedToken => {
-      const latestAccessToken = getAuthTokens()?.accessToken;
-      if (latestAccessToken && rejectedToken && latestAccessToken !== rejectedToken) {
-        return {
-          outcome: AuthRefreshOutcome.Success,
-          accessToken: latestAccessToken,
-        };
-      }
-      return authSessionManager.refresh(AuthRefreshReason.CompatProxy);
-    });
-
     registerProxyTokenRefresher(ProviderName.Copilot, async () => {
       try {
         const { refreshCopilotTokenNow } = await import('./libs/copilotTokenManager');
@@ -14887,45 +13477,6 @@ if (!gotTheLock) {
         return { outcome: AuthRefreshOutcome.TransientFailure };
       }
     });
-
-    // Start the lightweight token proxy before OpenClaw config sync so that
-    // lobsterai-server provider can use the proxy URL in its config.
-    //
-    // The proxy only serves signed-in LobsterAI accounts: without auth tokens
-    // every forwarded request would fail with "No auth tokens available"
-    // (openclawTokenProxy.ts:406). Skipping it keeps getOpenClawTokenProxyPort()
-    // null, so openclawConfigSync falls back to the real provider config and
-    // agents run against user-configured providers (Ollama / LM Studio / custom
-    // OpenAI-compatible endpoints) with no login.
-    profiler.mark('openClawTokenProxy');
-    if (getAuthTokens()) {
-      try {
-        const tokenProxy = await startOpenClawTokenProxy({
-          getAuthTokens,
-          refreshToken: reason => authSessionManager.refresh(reason),
-          getServerBaseUrl: getServerApiBaseUrl,
-          getAccountContextHeaders: getEnterpriseAccountHeaders,
-          getSessionKey: getAuthSessionKey,
-          getClientVersion: () => app.getVersion(),
-          getEnterpriseAuthSessionSnapshot: captureEnterpriseAuthSessionSnapshot,
-          onEnterpriseMembershipRevoked: event => {
-            handleEnterpriseMembershipRevocation({
-              ...event,
-              source: EnterpriseMembershipRevocationSource.LlmSse,
-            });
-          },
-          preferredPort: getOpenClawLoopbackState().getPreferredPort(OpenClawLoopbackService.TokenProxy),
-          getInboundAuthToken: () => getOpenClawLoopbackState().proxyToken,
-        });
-        getOpenClawLoopbackState().rememberPort(OpenClawLoopbackService.TokenProxy, tokenProxy.port);
-        console.log('[Main] OpenClaw token proxy started');
-      } catch (err) {
-        console.warn('[Main] OpenClaw token proxy failed to start (non-fatal):', err);
-      }
-    } else {
-      console.log('[Main] Skipping OpenClaw token proxy (no auth tokens; using direct providers)');
-    }
-    profiler.measure('openClawTokenProxy');
 
     // Enterprise config sync — must run before openclawConfigSync
     profiler.mark('enterpriseConfigSync');
@@ -15047,23 +13598,6 @@ if (!gotTheLock) {
       console.error('Failed to start OpenAI compatibility proxy:', error);
     });
     profiler.measure('coworkOpenAICompatProxy');
-
-    // ── Pre-warm quota & model caches so provider resolution and config sync
-    // see real server data instead of empty defaults ──
-    if (getAuthTokens()) {
-      profiler.mark('startupCacheWarmup');
-      const warmupResult = await runStartupCacheWarmup({
-        serverBaseUrl: getServerApiBaseUrl(),
-        fetchWithAuth,
-        appendKeyfromQuery,
-        cachedSubscriptionStatus,
-        clientVersion: app.getVersion(),
-        t,
-      });
-      cachedSubscriptionStatus = warmupResult.subscriptionStatus;
-      cachedMediaGenerationEntitled = warmupResult.mediaGenerationEntitled;
-      profiler.measure('startupCacheWarmup');
-    }
 
     // Agent model migration — runs after cache warmup so resolveMatchedProvider
     // can match lobsterai-server models without falling back.
@@ -15235,13 +13769,6 @@ if (!gotTheLock) {
     profiler.measure('skillManager');
 
     console.log(profiler.summary());
-
-    // Windows/Linux cold start: parse deep link from process.argv.
-    // The router buffers it because the renderer is not ready yet after createWindow().
-    const coldStartDeepLink = process.argv.find(arg => arg.startsWith('lobsterai://'));
-    if (coldStartDeepLink) {
-      handleDeepLink(coldStartDeepLink);
-    }
 
     // Auto-reconnect IM bots that were enabled before restart
     getIMGatewayManager()

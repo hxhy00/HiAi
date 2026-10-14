@@ -45,13 +45,11 @@ interface QueuedFollowUpOperation {
   cancelled: boolean;
 }
 
-export const isQueuedSteerAccountCurrent = (
-  queuedSteer: Pick<CoworkPendingSteer, 'ownerAccountKey' | 'accountGeneration'>,
-  authState: Pick<RootState['auth'], 'ownerAccountKey' | 'accountGeneration'>,
-): boolean => (
-  queuedSteer.ownerAccountKey === authState.ownerAccountKey
-  && queuedSteer.accountGeneration === authState.accountGeneration
-);
+// Login has been removed; the account scope is fixed to the single local account.
+export const COWORK_LOCAL_ACCOUNT_SCOPE = {
+  ownerAccountKey: 'local',
+  accountGeneration: 0,
+} as const;
 
 export class CoworkQueuedFollowUpCoordinator {
   private readonly inFlightBySessionId = new Map<string, QueuedFollowUpOperation>();
@@ -396,9 +394,9 @@ export class CoworkQueuedFollowUpCoordinator {
   }
 
   private isQueuedSteerCurrent(queuedSteer: CoworkPendingSteer): boolean {
-    return isQueuedSteerAccountCurrent(
-      queuedSteer,
-      this.dependencies.getState().auth,
+    return (
+      queuedSteer.ownerAccountKey === COWORK_LOCAL_ACCOUNT_SCOPE.ownerAccountKey
+      && queuedSteer.accountGeneration === COWORK_LOCAL_ACCOUNT_SCOPE.accountGeneration
     );
   }
 

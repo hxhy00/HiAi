@@ -67,10 +67,6 @@ import { type DecisionModelConfigUpdate, DecisionModelIpcChannel } from '../shar
 import { DialogIpc } from '../shared/dialog/constants';
 import { DshIpcChannel } from '../shared/dshEngine/constants';
 import {
-  EnterpriseAccountIpcChannel,
-  type EnterpriseQuotaRequestType,
-} from '../shared/enterpriseAccount/constants';
-import {
   type HtmlShareAccessMode,
   type HtmlShareAnalyticsInput,
   type HtmlShareConfigurableStatus,
@@ -239,18 +235,6 @@ contextBridge.exposeInMainWorld('electron', {
   },
   enterprise: {
     getConfig: () => ipcRenderer.invoke('enterprise:getConfig'),
-  },
-  enterpriseAccount: {
-    getContext: () => ipcRenderer.invoke(EnterpriseAccountIpcChannel.GetContext),
-    getIdentities: () => ipcRenderer.invoke(EnterpriseAccountIpcChannel.GetIdentities),
-    requestQuotaIncrease: (enterpriseId: number, requestType: EnterpriseQuotaRequestType) => (
-      ipcRenderer.invoke(EnterpriseAccountIpcChannel.RequestQuotaIncrease, enterpriseId, requestType)
-    ),
-    onContextInvalidated: (callback: () => void) => {
-      const handler = () => callback();
-      ipcRenderer.on(EnterpriseAccountIpcChannel.ContextInvalidated, handler);
-      return () => ipcRenderer.removeListener(EnterpriseAccountIpcChannel.ContextInvalidated, handler);
-    },
   },
   api: {
     // 普通 API 请求（非流式）
@@ -1415,7 +1399,11 @@ contextBridge.exposeInMainWorld('electron', {
   media: {
     getModels: (type: 'image' | 'video') =>
       ipcRenderer.invoke(CoworkIpcChannel.GetMediaModels, type) as Promise<{ success: boolean; models?: unknown[]; error?: string }>,
-    getTaskStatus: (taskId: number, type: 'image' | 'video') =>
+    getProviders: () =>
+      ipcRenderer.invoke(CoworkIpcChannel.GetMediaProviders) as Promise<{ success: boolean; config?: unknown; error?: string }>,
+    setProviders: (config: unknown) =>
+      ipcRenderer.invoke(CoworkIpcChannel.SetMediaProviders, config) as Promise<{ success: boolean; config?: unknown; error?: string }>,
+    getTaskStatus: (taskId: string, type: 'image' | 'video') =>
       ipcRenderer.invoke('media:getTaskStatus', taskId, type) as Promise<{ success: boolean; task?: unknown; error?: string }>,
   },
   feishu: {

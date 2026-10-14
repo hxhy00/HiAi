@@ -12,15 +12,12 @@ import {
 
 import { configService } from '@/services/config';
 import { LogReporterAction, reportYdAnalyzer } from '@/services/logReporter';
-import { rememberPublishingConversionAttribution } from '@/services/publishingConversionAttribution';
-import { store } from '@/store';
 
 import {
   type ArtifactPreviewActionSource,
   type ArtifactPublishEntryPoint,
 } from './artifactAnalytics';
 import {
-  ArtifactSubscriptionBlockReason,
   ArtifactSubscriptionFeature,
   type ArtifactSubscriptionFeature as ArtifactSubscriptionFeatureValue,
 } from './artifactSubscriptionGate';
@@ -269,18 +266,6 @@ export const createPublishingAnalyticsDialog = (
   trialAccessTtlSeconds,
 });
 
-export const getPublishingDialogTypeForSubscriptionReason = (
-  reason: ArtifactSubscriptionBlockReason,
-): PublishingAnalyticsDialogType => {
-  if (reason === ArtifactSubscriptionBlockReason.LoginRequired) {
-    return PublishingAnalyticsDialogType.LoginRequired;
-  }
-  if (reason === ArtifactSubscriptionBlockReason.EnterpriseUnavailable) {
-    return PublishingAnalyticsDialogType.EnterpriseUnavailable;
-  }
-  return PublishingAnalyticsDialogType.SubscriptionRequired;
-};
-
 export const getPublishingDialogTypeForQuota = (
   quota: PublishingQuotaErrorData,
 ): PublishingAnalyticsDialogType => (
@@ -440,28 +425,6 @@ export const reportPublishingRecoveryCtaAction = (
   const analyticsEnabled = configService.getConfig().usageAnalyticsEnabled !== false;
 
   if (analyticsEnabled && context.ownerAccountKey.trim() && context.resourceKey.trim()) {
-    rememberPublishingConversionAttribution({
-      ownerAccountKey: context.ownerAccountKey,
-      resourceKey: context.resourceKey,
-      attemptId: context.attemptId,
-      operationId,
-      interactionType: PublishingRecoveryAnalyticsInteractionType.RecoveryCta,
-      feature: context.feature,
-      resourceKind: context.resourceKind,
-      operationType: PublishingAnalyticsOperationType.SubscriptionRecovery,
-      source: context.source,
-      entryPoint: context.entryPoint,
-      surface: context.surface,
-      recoverySurface: context.recoverySurface,
-      pageViewId: context.pageViewId,
-      hasExistingResource: true,
-      subscriptionRecoveryMode: context.subscriptionRecoveryMode,
-      exposureId: context.exposureId,
-      identityType: PublishingIdentityType.Free,
-      ctaId: PublishingAnalyticsCtaId.Primary,
-      target: PublishingAnalyticsTarget.Pricing,
-      exposureToClickMs,
-    }, clickedAt);
     publishingRecoveryResultCorrelations.set(
       getPublishingRecoveryLocalKey(context.ownerAccountKey, context.resourceKey),
       { context: { ...context }, operationId, clickedAt },
@@ -608,42 +571,6 @@ export const reportPublishingDialogAction = (
 ): string => {
   const dialogVisibleMs = Math.max(0, Date.now() - context.openedAt);
   const operationId = options.operationId ?? createPublishingAnalyticsOperationId();
-  if (
-    options.actionType === PublishingAnalyticsActionType.Click
-    && (
-      options.target === PublishingAnalyticsTarget.Login
-      || options.target === PublishingAnalyticsTarget.Pricing
-      || options.target === PublishingAnalyticsTarget.LearnBenefits
-    )
-  ) {
-    const ownerAccountKey = store.getState().auth.ownerAccountKey;
-    if (ownerAccountKey) {
-      rememberPublishingConversionAttribution({
-        ownerAccountKey,
-        attemptId: context.attempt.attemptId,
-        feature: context.attempt.feature,
-        resourceKind: context.attempt.resourceKind,
-        operationType: context.attempt.operationType,
-        source: context.attempt.source,
-        entryPoint: context.attempt.entryPoint,
-        surface: context.attempt.surface,
-        pageViewId: context.attempt.pageViewId,
-        hasExistingResource: context.attempt.hasExistingResource,
-        dialogType: context.dialogType,
-        exposureId: context.exposureId,
-        identityType: context.quota?.identityType,
-        countMode: context.quota?.countMode,
-        quotaUsed: context.quota?.used,
-        quotaLimit: context.quota?.limit,
-        canReleaseByClosing: context.quota?.canReleaseByClosing,
-        trialAccessTtlSeconds: context.trialAccessTtlSeconds,
-        ctaId: options.ctaId,
-        target: options.target,
-        operationId,
-        dialogVisibleMs,
-      });
-    }
-  }
   void reportYdAnalyzer({
     action: LogReporterAction.PublishingDialogAction,
     ...getDialogParams(context),

@@ -31,7 +31,6 @@ vi.mock('electron', () => ({
 }));
 
 const mockRuntimeState = vi.hoisted(() => ({
-  proxyPort: null as number | null,
   thirdPartyExtensionsDir: null as string | null,
   modelCompatPluginAvailable: true,
   serverModels: [] as Array<{
@@ -135,17 +134,12 @@ vi.mock('./openclawLocalExtensions', () => ({
   },
 }));
 
-vi.mock('./openclawTokenProxy', () => ({
-  getOpenClawTokenProxyPort: () => mockRuntimeState.proxyPort,
-}));
-
 describe('OpenClawConfigSync runtime config output', () => {
   let tmpDir: string;
   let configPath: string;
   let stateDir: string;
 
   beforeEach(() => {
-    mockRuntimeState.proxyPort = null;
     mockRuntimeState.thirdPartyExtensionsDir = null;
     mockRuntimeState.modelCompatPluginAvailable = true;
     mockRuntimeState.serverModels = [];
@@ -218,18 +212,6 @@ describe('OpenClawConfigSync runtime config output', () => {
       ...overrides,
     } as never);
   };
-
-  test('prepares a changed proxy config without publishing it to the live watcher', async () => {
-    const sync = await createSync();
-    expect(sync.sync('bootstrap')).toMatchObject({ ok: true });
-    const original = fs.readFileSync(configPath, 'utf8');
-    mockRuntimeState.proxyPort = 4121;
-    mockRuntimeState.serverModels = [{ modelId: 'deepseek-flash', provider: 'deepseek', apiFormat: 'openai-completions' }];
-    const prepared = sync.prepare('proxy-rebound');
-    expect(prepared).toMatchObject({ ok: true, changed: true });
-    expect(prepared.target?.raw).toContain('4121');
-    expect(fs.readFileSync(configPath, 'utf8')).toBe(original);
-  });
 
   test('enables channel scheduling without promoting IM senders to global owners', async () => {
     fs.writeFileSync(configPath, JSON.stringify({
@@ -1731,208 +1713,7 @@ describe('OpenClawConfigSync runtime config output', () => {
     expect(fs.existsSync(path.join(writerWorkspace, 'USER.md'))).toBe(false);
   });
 
-  test('merges all server models into existing lobsterai provider and updates image input', async () => {
-    mockRuntimeState.proxyPort = 56646;
-    mockRuntimeState.serverModels = [
-      {
-        modelId: 'qwen3.5-plus-YoudaoInner',
-        modelName: 'qwen3.5-plus-YoudaoInner',
-        provider: 'YoudaoInner',
-        apiFormat: 'openai',
-        supportsImage: true,
-        explicitContextCache: true,
-      },
-      {
-        modelId: 'qwen3.6-plus-YoudaoInner',
-        modelName: 'qwen3.6-plus-YoudaoInner',
-        provider: 'YoudaoInner',
-        apiFormat: 'openai',
-        supportsImage: true,
-        explicitContextCache: true,
-      },
-      {
-        modelId: 'claude-sonnet-4-6-YoudaoInner',
-        modelName: 'claude-sonnet-4-6-YoudaoInner',
-        provider: 'YoudaoInner',
-        apiFormat: 'anthropic',
-        supportsImage: true,
-        supportsThinking: true,
-        contextWindow: 1_000_000,
-        explicitContextCache: true,
-      },
-      {
-        modelId: 'claude-opus-4-YoudaoInner',
-        modelName: 'claude-opus-4-YoudaoInner',
-        provider: 'YoudaoInner',
-        apiFormat: 'anthropic',
-        supportsImage: true,
-        supportsThinking: true,
-      },
-      {
-        modelId: 'claude-sonnet-4-6',
-        modelName: 'Claude Sonnet 4.6 OpenAI Compat',
-        provider: 'YoudaoInner',
-        apiFormat: 'openai',
-        supportsImage: true,
-        supportsThinking: true,
-        contextWindow: 1_000_000,
-        explicitContextCache: true,
-      },
-      {
-        modelId: 'glm-5.1-YoudaoInner',
-        provider: 'YoudaoInner',
-        apiFormat: 'openai',
-        supportsImage: false,
-        supportsThinking: true,
-      },
-      {
-        modelId: 'deepseek-v3.2-YoudaoInner',
-        provider: 'YoudaoInner',
-        apiFormat: 'openai',
-        supportsImage: false,
-      },
-    ];
-    mockRuntimeState.rawApiConfig = {
-      config: {
-        baseURL: 'https://lobsterai-server.youdao.com/api/proxy/v1',
-        apiKey: 'access-token',
-        model: 'qwen3.5-plus-YoudaoInner',
-        apiType: 'openai',
-      },
-      providerMetadata: {
-        providerName: 'lobsterai-server',
-        codingPlanEnabled: false,
-        supportsImage: false,
-        modelName: 'Qwen3.5 Plus',
-      },
-    };
-
-    const { OpenClawConfigSync } = await import('./openclawConfigSync');
-
-    const sync = new OpenClawConfigSync({
-      engineManager: {
-        getConfigPath: () => configPath,
-        getGatewayToken: () => 'gateway-token',
-        getStateDir: () => stateDir,
-        getBaseDir: () => tmpDir,
-      } as never,
-      getCoworkConfig: () => ({
-        workingDirectory: tmpDir,
-        systemPrompt: '',
-        executionMode: 'local',
-        agentEngine: 'openclaw',
-        memoryEnabled: false,
-        memoryImplicitUpdateEnabled: false,
-        memoryLlmJudgeEnabled: false,
-        memoryGuardLevel: 'balanced',
-        memoryUserMemoriesMaxItems: 100,
-        skipMissedJobs: false,
-      }),
-      isEnterprise: () => false,
-      getTelegramInstances: () => [],
-      getDiscordOpenClawConfig: () => null,
-      getDingTalkInstances: () => [],
-      getFeishuInstances: () => [],
-      getQQInstances: () => [],
-      getWecomConfig: () => null,
-      getWecomInstances: () => [],
-      getPopoInstances: () => [],
-      getNimConfig: () => null,
-      getNeteaseBeeChanConfig: () => null,
-      getWeixinConfig: () => null,
-      getIMSettings: () => null,
-      getSkillsList: () => [],
-      getAgents: () => [],
-    });
-
-    const result = sync.sync('server-models-updated');
-    expect(result.ok).toBe(true);
-
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    const provider = config.models.providers['lobsterai-server'];
-    expect(provider.baseUrl).toBe('http://127.0.0.1:56646/v1');
-    expect(provider.apiKey).toBe('${LOBSTER_PROXY_TOKEN}');
-    expect(JSON.stringify(config)).not.toContain('LOBSTER_APIKEY_SERVER');
-    expect(provider.models).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        id: 'qwen3.5-plus-YoudaoInner',
-        api: 'openai-completions',
-        input: ['text', 'image'],
-        compat: expect.objectContaining({ cacheControlFormat: 'anthropic' }),
-      }),
-      expect.objectContaining({
-        id: 'qwen3.6-plus-YoudaoInner',
-        api: 'openai-completions',
-        input: ['text', 'image'],
-        compat: expect.objectContaining({ cacheControlFormat: 'anthropic' }),
-      }),
-      expect.objectContaining({
-        id: 'claude-sonnet-4-6-YoudaoInner',
-        api: 'anthropic-messages',
-        input: ['text', 'image'],
-        reasoning: true,
-        contextWindow: 1_000_000,
-      }),
-      expect.objectContaining({
-        id: 'claude-opus-4-YoudaoInner',
-        api: 'anthropic-messages',
-        input: ['text', 'image'],
-        reasoning: true,
-      }),
-      expect.objectContaining({
-        id: 'claude-sonnet-4-6',
-        api: 'openai-completions',
-        input: ['text', 'image'],
-        reasoning: true,
-        contextWindow: 1_000_000,
-        compat: expect.objectContaining({ cacheControlFormat: 'anthropic' }),
-      }),
-      expect.objectContaining({
-        id: 'glm-5.1-YoudaoInner',
-        api: 'openai-completions',
-        input: ['text'],
-        reasoning: true,
-      }),
-      expect.objectContaining({
-        id: 'deepseek-v3.2-YoudaoInner',
-        api: 'openai-completions',
-        input: ['text'],
-      }),
-    ]));
-    expect(provider.models).toHaveLength(7);
-    expect(JSON.stringify(provider.models)).toContain('cacheControlFormat');
-    expect(JSON.stringify(provider.models)).not.toContain('supportsLongCacheRetention');
-    expect(config.agents.defaults.models).toEqual(expect.objectContaining({
-      'lobsterai-server/qwen3.5-plus-YoudaoInner': {
-        params: {
-          cacheRetention: 'short',
-        },
-      },
-      'lobsterai-server/qwen3.6-plus-YoudaoInner': {
-        params: {
-          cacheRetention: 'short',
-        },
-      },
-      'lobsterai-server/claude-sonnet-4-6-YoudaoInner': {
-        params: {
-          cacheRetention: 'short',
-        },
-      },
-      'lobsterai-server/claude-opus-4-YoudaoInner': {
-        params: {
-          cacheRetention: 'short',
-        },
-      },
-      'lobsterai-server/claude-sonnet-4-6': {
-        params: {
-          cacheRetention: 'short',
-        },
-      },
-    }));
-  });
-
   test('writes Claude OpenAI-compatible explicit cache params when server metadata is not loaded', async () => {
-    mockRuntimeState.proxyPort = 56646;
     mockRuntimeState.serverModels = [];
     mockRuntimeState.rawApiConfig = {
       config: {
@@ -1970,25 +1751,6 @@ describe('OpenClawConfigSync runtime config output', () => {
         },
       },
     }));
-  });
-
-  test('keeps the plan provider without a placeholder model while the plan catalog is empty', async () => {
-    mockRuntimeState.proxyPort = 56646;
-    mockRuntimeState.serverModels = [];
-
-    const sync = await createSync();
-    expect(sync.sync('signed-out-custom-primary')).toMatchObject({ ok: true });
-
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    // Agents bound to plan models still route to the token proxy.
-    expect(config.models.providers['lobsterai-server']).toMatchObject({
-      baseUrl: 'http://127.0.0.1:56646/v1',
-      models: [],
-    });
-    // No plan model borrows the custom primary's ID (openai/gpt-test).
-    expect(Object.keys(config.agents.defaults.models ?? {}).filter(ref => ref.startsWith('lobsterai-server/')))
-      .toEqual([]);
-    expect(JSON.stringify(config.agents.defaults.modelPolicy ?? {})).not.toContain('lobsterai-server/');
   });
 
   test('writes explicit cache params for Anthropic, Qwen, and custom providers', async () => {
@@ -2133,11 +1895,6 @@ describe('OpenClawConfigSync runtime config output', () => {
   test('writes a complete agent model allowlist when any model has custom params', async () => {
     const { ProviderName } = await import('../../shared/providers');
 
-    mockRuntimeState.proxyPort = 56646;
-    mockRuntimeState.serverModels = [
-      { modelId: 'MiniMax-M2.7-YoudaoInner', supportsImage: false },
-      { modelId: 'kimi-k2.6-inhouse-ZhiYun', supportsImage: true },
-    ];
     mockRuntimeState.rawApiConfig = {
       config: {
         baseURL: 'https://api.deepseek.com',
@@ -2231,20 +1988,15 @@ describe('OpenClawConfigSync runtime config output', () => {
         },
       },
       'deepseek/deepseek-v4-pro': {},
-      'lobsterai-server/MiniMax-M2.7-YoudaoInner': {},
-      'lobsterai-server/kimi-k2.6-inhouse-ZhiYun': {},
     }));
     expect(Object.keys(modelDefaults)).toEqual(expect.arrayContaining([
       'deepseek/deepseek-v4-flash',
       'deepseek/deepseek-v4-pro',
       'custom_0/custom-thinking-model',
-      'lobsterai-server/MiniMax-M2.7-YoudaoInner',
-      'lobsterai-server/kimi-k2.6-inhouse-ZhiYun',
     ]));
   });
 
-  test('activates deterministic Kimi K3 ownership for exact custom and package models', async () => {
-    mockRuntimeState.proxyPort = 56646;
+  test('activates deterministic Kimi K3 ownership for exact custom models', async () => {
     mockRuntimeState.rawApiConfig = {
       config: {
         baseURL: 'https://gateway.example.com/v1',
@@ -2283,21 +2035,6 @@ describe('OpenClawConfigSync runtime config output', () => {
         },
       ],
     }];
-    mockRuntimeState.serverModels = [
-      {
-        modelId: 'kimi-k3-package',
-        modelName: 'Kimi K3 Package',
-        apiFormat: 'openai',
-        runtimeProfile: 'moonshot-kimi-k3',
-        supportsImage: false,
-        supportsVideo: false,
-        supportsThinking: false,
-        supportsToolCalling: true,
-        agenticReady: true,
-        contextWindow: 128_000,
-        maxTokens: 1024,
-      },
-    ];
 
     const sync = await createSync();
     const { OpenClawConfigImpact } = await import('./openclawConfigImpact');
@@ -2309,14 +2046,10 @@ describe('OpenClawConfigSync runtime config output', () => {
 
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     const customProvider = config.models.providers.custom_0;
-    const serverProvider = config.models.providers['lobsterai-server'];
     const customK3 = customProvider.models.find((model: { id: string }) =>
       model.id === 'kimi-k3');
-    const serverK3 = serverProvider.models.find((model: { id: string }) =>
-      model.id === 'kimi-k3-package');
 
     expect(customProvider.api).toBe('lobsterai-model-compat');
-    expect(serverProvider.api).toBe('lobsterai-model-compat');
     expect(customProvider.models).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'plain-model', api: 'openai-completions' }),
       expect.objectContaining({ id: 'kimi-k3', api: 'openai-completions' }),
@@ -2343,13 +2076,6 @@ describe('OpenClawConfigSync runtime config output', () => {
         supportedReasoningEfforts: ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
       },
     });
-    expect(serverK3).toMatchObject({
-      api: 'openai-completions',
-      reasoning: true,
-      input: ['text', 'image', 'video'],
-      contextWindow: 1_048_576,
-      maxTokens: 1_048_576,
-    });
     expect(config.agents.defaults.models['custom_0/kimi-k3']).toEqual({
       params: {
         extra_body: {
@@ -2369,7 +2095,6 @@ describe('OpenClawConfigSync runtime config output', () => {
       config: {
         modelProfiles: {
           'custom_0/kimi-k3': 'moonshot-kimi-k3',
-          'lobsterai-server/kimi-k3-package': 'moonshot-kimi-k3',
         },
       },
     });
@@ -2543,117 +2268,6 @@ describe('OpenClawConfigSync runtime config output', () => {
     },
   );
 
-  test('preserves the legacy OpenAI fallback for ordinary package models without apiFormat', async () => {
-    mockRuntimeState.proxyPort = 56646;
-    mockRuntimeState.serverModels = [{
-      modelId: 'ordinary-package-model',
-      modelName: 'Ordinary Package Model',
-    }];
-
-    const sync = await createSync();
-    expect(sync.sync('ordinary-package-api-fallback')).toMatchObject({ ok: true });
-
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    expect(config.models.providers['lobsterai-server'].models).toContainEqual(
-      expect.objectContaining({
-        id: 'ordinary-package-model',
-        api: 'openai-completions',
-      }),
-    );
-  });
-
-  test('writes server thinking profiles without taking over the provider transport', async () => {
-    mockRuntimeState.proxyPort = 56646;
-    mockRuntimeState.serverModels = [{
-      modelId: 'deepseek-v4-flash',
-      modelName: 'DeepSeek V4 Flash',
-      apiFormat: 'openai',
-      supportsThinking: true,
-      thinkingConfig: {
-        options: [
-          { level: 'off', openclawLevel: 'off' },
-          { level: 'high', openclawLevel: 'high' },
-          { level: 'max', openclawLevel: 'xhigh' },
-        ],
-        defaultLevel: 'high',
-      },
-      requestCapabilities: ['lobsterai-options-v1'],
-    }];
-
-    const sync = await createSync();
-    expect(sync.sync('server-thinking-profile')).toMatchObject({ ok: true });
-
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    expect(config.models.providers['lobsterai-server'].api).toBe('openai-completions');
-    expect(config.models.providers['lobsterai-server'].models[0]).toEqual(
-      expect.objectContaining({
-        thinkingLevelMap: {
-          off: 'off',
-          minimal: null,
-          low: null,
-          medium: null,
-          high: 'high',
-          xhigh: 'xhigh',
-        },
-        compat: expect.objectContaining({
-          supportsReasoningEffort: true,
-          supportedReasoningEfforts: ['high', 'xhigh'],
-        }),
-      }),
-    );
-    expect(config.plugins.entries['lobsterai-model-compat']).toEqual({
-      enabled: true,
-      config: {
-        thinkingProfiles: {
-          'lobsterai-server/deepseek-v4-flash': {
-            options: [
-              { level: 'off', openclawLevel: 'off' },
-              { level: 'high', openclawLevel: 'high' },
-              { level: 'max', openclawLevel: 'xhigh' },
-            ],
-            defaultLevel: 'high',
-            requestOptionsVersion: 1,
-          },
-        },
-      },
-    });
-    expect(config.plugins.allow).toContain('lobsterai-model-compat');
-  });
-
-  test('keeps legacy thinking transport when the server does not advertise request options', async () => {
-    mockRuntimeState.proxyPort = 56646;
-    mockRuntimeState.serverModels = [{
-      modelId: 'deepseek-v4-flash',
-      modelName: 'DeepSeek V4 Flash',
-      apiFormat: 'openai',
-      supportsThinking: true,
-      thinkingConfig: {
-        options: [
-          { level: 'off', openclawLevel: 'off' },
-          { level: 'high', openclawLevel: 'high' },
-          { level: 'max', openclawLevel: 'xhigh' },
-        ],
-        defaultLevel: 'high',
-      },
-    }];
-
-    const sync = await createSync();
-    expect(sync.sync('legacy-server-thinking-profile')).toMatchObject({ ok: true });
-
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    expect(
-      config.plugins.entries['lobsterai-model-compat']
-        .config.thinkingProfiles['lobsterai-server/deepseek-v4-flash'],
-    ).toEqual({
-      options: [
-        { level: 'off', openclawLevel: 'off' },
-        { level: 'high', openclawLevel: 'high' },
-        { level: 'max', openclawLevel: 'xhigh' },
-      ],
-      defaultLevel: 'high',
-    });
-  });
-
   test('fails closed when the Kimi K3 compatibility extension is unavailable', async () => {
     mockRuntimeState.modelCompatPluginAvailable = false;
     mockRuntimeState.rawApiConfig = {
@@ -2736,13 +2350,12 @@ describe('OpenClawConfigSync runtime config output', () => {
     expect(config.agents.defaults.models).toBeUndefined();
   });
 
-  test('enables media generation plugin when media entitlement is available', async () => {
+  test('always enables the media generation plugin', async () => {
     const sync = await createSync({
-      canUseMediaGeneration: () => true,
       getMediaCallbackUrl: () => 'http://127.0.0.1:5175/media-callback',
     });
 
-    const result = sync.sync('media-entitlement-enabled');
+    const result = sync.sync('media-generation-enabled');
     expect(result.ok).toBe(true);
 
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -2767,28 +2380,6 @@ describe('OpenClawConfigSync runtime config output', () => {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     // LobsterAI pairs no OpenClaw node; desktop control goes through the Computer Use kit.
     expect(config.tools.deny).toEqual(expect.arrayContaining(['web_search', 'computer', 'nodes', 'mobile_ui']));
-  });
-
-  test('keeps media generation plugin configured without media entitlement', async () => {
-    const sync = await createSync({
-      canUseMediaGeneration: () => false,
-      getMediaCallbackUrl: () => 'http://127.0.0.1:5175/media-callback',
-    });
-
-    const result = sync.sync('media-entitlement-disabled');
-    expect(result.ok).toBe(true);
-
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    expect(config.plugins.entries['lobster-media-generation']).toEqual({
-      enabled: true,
-      config: {
-        callbackUrl: 'http://127.0.0.1:5175/media-callback',
-        secret: '${LOBSTER_MCP_BRIDGE_SECRET}',
-        requestTimeoutMs: 150000,
-      },
-    });
-    expect(config.tools.deny).not.toContain('image_generate');
-    expect(config.tools.deny).not.toContain('video_generate');
   });
 
   test('keeps the experimental decision model plugin disabled until it is active', async () => {

@@ -39,8 +39,6 @@ import { i18nService, LanguageType } from '../services/i18n';
 import { imService } from '../services/im';
 import { LogReporterAction, reportYdAnalyzer } from '../services/logReporter';
 import { resolveOpenClawRepairError, resolveOpenClawRepairHistoryWarning } from '../services/openclawRepair';
-import { clearPendingPublishingConversionAttribution } from '../services/publishingConversionAttribution';
-import { clearPublishingSubscriptionRecoveryAnalytics } from '../services/publishingSubscriptionRecovery';
 import { formatShortcutForDisplay, getShortcutConflictSignature, isTextEditingSafeShortcut, matchesShortcut } from '../services/shortcuts';
 import {
   type ThemeDefaultChangedDetail,
@@ -48,7 +46,6 @@ import {
   ThemeServiceEvent,
 } from '../services/theme';
 import { applyTypographyPreferences } from '../services/typography';
-import type { RootState } from '../store';
 import { selectCoworkConfig } from '../store/selectors/coworkSelectors';
 import { setAvailableModels } from '../store/slices/modelSlice';
 import type {
@@ -77,6 +74,7 @@ import IMSettings from './im/IMSettings';
 import PluginsSettings, { type PluginPendingChanges, type PluginsSettingsHandle } from './plugins/PluginsSettings';
 import { AboutOpenSourceAction, AboutOpenSourceRows, AboutOpenSourceStarPrompt } from './settings/AboutOpenSource';
 import BrowserWebAccessSettings from './settings/BrowserWebAccessSettings';
+import MediaProviderSettingsSection from './settings/MediaProviderSettingsSection';
 import {
   buildOpenAICompatibleChatCompletionsUrl,
   buildOpenAIConnectionTestRequestBody,
@@ -111,7 +109,7 @@ import SkinPresentationScope from './skin/SkinPresentationScope';
 import SkinSettingsSection from './skin/SkinSettingsSection';
 import ThemedSelect from './ui/ThemedSelect';
 
-type TabType = 'general' | 'appearance' | 'coworkAgentEngine' | 'model' | 'browserWebAccess' | 'coworkMemory' | 'coworkDreaming' | 'shortcuts' | 'im' | 'email' | 'plugins' | 'experimental' | 'about';
+type TabType = 'general' | 'appearance' | 'coworkAgentEngine' | 'model' | 'mediaProvider' | 'browserWebAccess' | 'coworkMemory' | 'coworkDreaming' | 'shortcuts' | 'im' | 'email' | 'plugins' | 'experimental' | 'about';
 
 const waitForNextPaint = (): Promise<void> => new Promise(resolve => {
   window.requestAnimationFrame(() => {
@@ -1625,13 +1623,11 @@ const Settings: React.FC<SettingsProps> = ({
     }
   }, []);
 
-  const authUser = useSelector((state: RootState) => state.auth.user);
-
   const handleCheckUpdate = useCallback(async () => {
     if (updateCheckStatus === 'checking' || !appVersion) return;
     setUpdateCheckStatus('checking');
     try {
-      const result = await window.electron.appUpdate.checkNow({ manual: true, userId: authUser?.yid });
+      const result = await window.electron.appUpdate.checkNow({ manual: true });
       if (!result.success) {
         throw new Error(result.error || 'Update check failed');
       }
@@ -1676,7 +1672,7 @@ const Settings: React.FC<SettingsProps> = ({
         updateCheckTimerRef.current = null;
       }, 3000);
     }
-  }, [appVersion, authUser, updateCheckStatus, onUpdateFound]);
+  }, [appVersion, updateCheckStatus, onUpdateFound]);
 
   const updateButtonLabel = (() => {
     if (
@@ -3495,11 +3491,6 @@ const Settings: React.FC<SettingsProps> = ({
         },
       });
 
-      if (!usageAnalyticsEnabled) {
-        clearPendingPublishingConversionAttribution();
-        clearPublishingSubscriptionRecoveryAnalytics();
-      }
-
       if (previousArtifactAutoPreviewEnabled !== artifactAutoPreviewEnabled) {
         console.log(
           `[Settings] artifact auto-preview preference updated: enabled=${artifactAutoPreviewEnabled}`,
@@ -4617,6 +4608,7 @@ const Settings: React.FC<SettingsProps> = ({
       { key: 'appearance' as TabType,     label: i18nService.t('appearance'),     icon: <SunIcon className="h-5 w-5" /> },
       { key: 'coworkAgentEngine' as TabType, label: i18nService.t('coworkAgentEngine'), icon: <CpuChipIcon className="h-5 w-5" /> },
       { key: 'model' as TabType,          label: i18nService.t('settingsCustomModel'), icon: <CubeIcon className="h-5 w-5" /> },
+      { key: 'mediaProvider' as TabType,  label: i18nService.t('mediaProviderConfigTitle'), icon: <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-5 w-5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg> },
       { key: 'im' as TabType,             label: i18nService.t('imBot'),          icon: <ChatBubbleLeftIcon className="h-5 w-5" /> },
       { key: 'browserWebAccess' as TabType, label: i18nService.t('browserWebAccessTab'), icon: <GlobeAltIcon className="h-5 w-5" /> },
       { key: 'email' as TabType,          label: i18nService.t('emailTab'),       icon: <EnvelopeIcon className="h-5 w-5" /> },
@@ -4890,6 +4882,8 @@ const Settings: React.FC<SettingsProps> = ({
 
   const renderTabContent = () => {
     switch(activeTab) {
+      case 'mediaProvider':
+        return <MediaProviderSettingsSection />;
       case 'experimental':
         return (
           <div className="space-y-4">

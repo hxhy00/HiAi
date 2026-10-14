@@ -15,7 +15,6 @@ import {
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import { PublishingRecoveryAnalyticsSurface } from '../../../shared/analytics/constants';
 import {
   HtmlShareAccessMode,
   type HtmlShareAccessMode as HtmlShareAccessModeValue,
@@ -46,23 +45,15 @@ import {
   normalizePublishingSubscriptionRecoveryMode,
   type PublishingQuotaErrorData,
   PublishingResourceKind,
-  PublishingSubscriptionRecoveryMode,
 } from '../../../shared/publishing/constants';
 import {
   type SiteDetail,
-  SiteErrorCode,
   SiteKind,
   SiteStatus,
 } from '../../../shared/site/constants';
 import { copyTextToClipboard } from '../../services/clipboard';
 import { getPortalPricingUrl, PortalPricingKeyfrom } from '../../services/endpoints';
 import { i18nService } from '../../services/i18n';
-import {
-  armPublishingSubscriptionRecovery,
-  PublishingSubscriptionRecoveryRefreshOutcome,
-  registerPublishingSubscriptionRecoveryTarget,
-  resolvePublishingSubscriptionRecoveryRefreshOutcome,
-} from '../../services/publishingSubscriptionRecovery';
 import { showToast } from '../../utils/localFileActions';
 import {
   ArtifactPreviewActionSource,
@@ -85,7 +76,6 @@ import {
   createPublishingAnalyticsAttempt,
   createPublishingAnalyticsDialog,
   createPublishingAnalyticsOperationId,
-  createPublishingRecoveryAnalyticsContext,
   getPublishingErrorCategory,
   PublishingAnalyticsActionType,
   type PublishingAnalyticsAttemptContext,
@@ -103,16 +93,11 @@ import {
   reportPublishingDialogExposure,
   reportPublishingEntryAction,
   reportPublishingOperationResult,
-  reportPublishingRecoveryCtaAction,
-  reportPublishingRecoveryCtaExposure,
   reportPublishingShareResult,
   updatePublishingAnalyticsAttempt,
 } from '../artifacts/publishingAnalytics';
 import PublishingQuotaLimitDialog from '../artifacts/PublishingQuotaLimitDialog';
-import PublishingSubscriptionRecoveryButton from '../artifacts/PublishingSubscriptionRecoveryButton';
-import { shouldShowPublishingSubscriptionRecovery } from '../artifacts/publishingSubscriptionRecoveryPolicy';
 import { getPublishingRemainingMinutes } from '../artifacts/PublishingTrialStatus';
-import { usePublishingRecoveryExposureLifecycle } from '../artifacts/usePublishingRecoveryExposureLifecycle';
 import CardOverflowMenu, { type CardOverflowMenuItem } from '../common/CardOverflowMenu';
 import {
   MANAGEMENT_BODY_TEXT,
@@ -168,9 +153,6 @@ interface LibraryCloudViewProps {
   loadingMore: boolean;
   error?: string;
   isAuthenticated: boolean;
-  ownerAccountKey?: string | null;
-  subscriptionStatus?: string | null;
-  showFreeShareDeleteQuotaNotice: boolean;
   category: LibraryCategory;
   status: LibraryCloudAvailabilityFilterValue;
   displayStatus: LibraryCloudAvailabilityFilterValue;
@@ -460,160 +442,6 @@ const CloudAvailabilityLabel: React.FC<{
   );
 };
 
-const LibraryCloudRecoveryActionCell: React.FC<{
-  analyticsPageViewId: string;
-  item: LibraryCloudItem;
-  now: number;
-  ownerAccountKey?: string | null;
-  subscriptionStatus?: string | null;
-  onItemUpdated: (item: LibraryCloudItem) => void;
-}> = ({
-  analyticsPageViewId,
-  item,
-  now,
-  ownerAccountKey,
-  subscriptionStatus,
-  onItemUpdated,
-}) => {
-  const [armedExposureId, setArmedExposureId] = useState<string>();
-  const recoveryItemRef = useRef(item);
-  const recoveryOnItemUpdatedRef = useRef(onItemUpdated);
-  recoveryItemRef.current = item;
-  recoveryOnItemUpdatedRef.current = onItemUpdated;
-  const recoveryMode = item.subscriptionRecoveryMode;
-  const recoveryAnalyticsContext = useMemo(() => {
-    if (
-      !ownerAccountKey
-      || (
-        recoveryMode !== PublishingSubscriptionRecoveryMode.Automatic
-        && recoveryMode !== PublishingSubscriptionRecoveryMode.RedeployRequired
-      )
-    ) {
-      return null;
-    }
-    return createPublishingRecoveryAnalyticsContext({
-      ownerAccountKey,
-      resourceKey: item.itemId,
-      feature: item.itemKind === LibraryItemKind.SharedFile
-        ? ArtifactSubscriptionFeature.Share
-        : ArtifactSubscriptionFeature.Deployment,
-      resourceKind: item.itemKind === LibraryItemKind.SharedFile
-        ? PublishingResourceKind.File
-        : PublishingResourceKind.Site,
-      source: ArtifactPreviewActionSource.LibraryList,
-      entryPoint: ArtifactPublishEntryPoint.SubscriptionRecoveryCta,
-      surface: LibraryAnalyticsSurface.MyFiles,
-      pageViewId: analyticsPageViewId,
-      recoverySurface: PublishingRecoveryAnalyticsSurface.LibraryCloudList,
-      subscriptionRecoveryMode: recoveryMode,
-    });
-  }, [analyticsPageViewId, item.itemId, item.itemKind, ownerAccountKey, recoveryMode]);
-  const isAvailable = matchesLibraryCloudAvailability(
-    item,
-    LibraryCloudAvailabilityFilter.Available,
-    now,
-  );
-  const showRecovery = Boolean(
-    recoveryAnalyticsContext
-    && shouldShowPublishingSubscriptionRecovery({
-      ownerAccountKey,
-      subscriptionStatus,
-      recoveryMode,
-      isExpired: typeof item.accessExpiresAt === 'number' && item.accessExpiresAt <= now,
-      isAvailable,
-    }),
-  );
-  usePublishingRecoveryExposureLifecycle(recoveryAnalyticsContext, showRecovery);
-
-  useEffect(() => {
-    if (
-      !recoveryAnalyticsContext
-      || armedExposureId !== recoveryAnalyticsContext.exposureId
-    ) {
-      return undefined;
-    }
-    const recoveryMode = recoveryAnalyticsContext.subscriptionRecoveryMode;
-    const exposureId = recoveryAnalyticsContext.exposureId;
-    return registerPublishingSubscriptionRecoveryTarget({
-      ownerAccountKey: recoveryAnalyticsContext.ownerAccountKey,
-      resourceKind: recoveryAnalyticsContext.resourceKind,
-      resourceKey: recoveryAnalyticsContext.resourceKey,
-      recoveryMode,
-      traceId: recoveryAnalyticsContext.attemptId,
-      refresh: async () => {
-        const current = recoveryItemRef.current;
-        let refreshed: LibraryCloudItem;
-        let outcome: PublishingSubscriptionRecoveryRefreshOutcome;
-        if (current.itemKind === LibraryItemKind.SharedFile) {
-          refreshed = await loadLatestSharedFileItem(current);
-          outcome = resolvePublishingSubscriptionRecoveryRefreshOutcome({
-            expectedMode: recoveryMode,
-            currentMode: refreshed.subscriptionRecoveryMode,
-            isRestored: refreshed.status === HtmlShareStatus.Live
-              && refreshed.accessExpiresAt === null,
-          });
-        } else {
-          const result = await window.electron.sites.get(current.shareId);
-          if (!result.success || !result.data) {
-            return result.code === SiteErrorCode.NotFound
-              ? PublishingSubscriptionRecoveryRefreshOutcome.ResourceUnavailable
-              : PublishingSubscriptionRecoveryRefreshOutcome.Pending;
-          }
-          refreshed = mergeSiteDetail(current, result.data);
-          outcome = resolvePublishingSubscriptionRecoveryRefreshOutcome({
-            expectedMode: recoveryMode,
-            currentMode: refreshed.subscriptionRecoveryMode,
-            isRestored: refreshed.siteStatus === SiteStatus.Online
-              && refreshed.shareStatus === HtmlShareStatus.Live
-              && refreshed.accessExpiresAt === null,
-          });
-        }
-        recoveryItemRef.current = refreshed;
-        recoveryOnItemUpdatedRef.current(refreshed);
-        if (outcome !== PublishingSubscriptionRecoveryRefreshOutcome.Pending) {
-          setArmedExposureId(currentExposureId => (
-            currentExposureId === exposureId ? undefined : currentExposureId
-          ));
-        }
-        return outcome;
-      },
-    });
-  }, [armedExposureId, recoveryAnalyticsContext]);
-
-  const openPricing = (): void => {
-    if (!recoveryAnalyticsContext) return;
-    setArmedExposureId(recoveryAnalyticsContext.exposureId);
-    reportPublishingRecoveryCtaAction(recoveryAnalyticsContext);
-    armPublishingSubscriptionRecovery({
-      ownerAccountKey: recoveryAnalyticsContext.ownerAccountKey,
-      resourceKind: recoveryAnalyticsContext.resourceKind,
-      resourceKey: recoveryAnalyticsContext.resourceKey,
-      recoveryMode: recoveryAnalyticsContext.subscriptionRecoveryMode,
-      traceId: recoveryAnalyticsContext.attemptId,
-    });
-    void window.electron.shell.openExternal(getPortalPricingUrl(
-      item.itemKind === LibraryItemKind.SharedFile
-        ? PortalPricingKeyfrom.HtmlShare
-        : PortalPricingKeyfrom.SiteDeployment,
-      { traceId: recoveryAnalyticsContext.attemptId },
-    ));
-  };
-
-  return (
-    <div className="flex min-w-0 -translate-x-12 items-center justify-start overflow-visible py-1">
-      {showRecovery && recoveryAnalyticsContext && (
-        <PublishingSubscriptionRecoveryButton
-          compact
-          recoveryMode={recoveryAnalyticsContext.subscriptionRecoveryMode}
-          exposureKey={recoveryAnalyticsContext.exposureId}
-          onExposure={() => reportPublishingRecoveryCtaExposure(recoveryAnalyticsContext)}
-          onClick={openPricing}
-        />
-      )}
-    </div>
-  );
-};
-
 const useLibraryServerClock = (
   serverNow: number | undefined,
   expirations: number[],
@@ -716,9 +544,6 @@ const LibraryShareSettingsView: React.FC<{
   analyticsPageViewId: string;
   initialItem: SharedFileItem;
   now: number;
-  ownerAccountKey?: string | null;
-  subscriptionStatus?: string | null;
-  showFreeShareDeleteQuotaNotice: boolean;
   onBack: () => void;
   onItemUpdated: (item: SharedFileItem) => void;
   onItemDeleted: (item: SharedFileItem) => void;
@@ -728,9 +553,6 @@ const LibraryShareSettingsView: React.FC<{
   analyticsPageViewId,
   initialItem,
   now,
-  ownerAccountKey,
-  subscriptionStatus,
-  showFreeShareDeleteQuotaNotice,
   onBack,
   onItemUpdated,
   onItemDeleted,
@@ -822,31 +644,6 @@ const LibraryShareSettingsView: React.FC<{
   }, [analyticsPageViewId, initialItem.shareId]);
 
   const item = state.item;
-  const recoveryItemRef = useRef(item);
-  const recoveryOnItemUpdatedRef = useRef(onItemUpdated);
-  recoveryItemRef.current = item;
-  recoveryOnItemUpdatedRef.current = onItemUpdated;
-  const recoveryMode = item.subscriptionRecoveryMode;
-  const recoveryAnalyticsContext = useMemo(() => {
-    if (
-      !ownerAccountKey
-      || recoveryMode !== PublishingSubscriptionRecoveryMode.Automatic
-    ) {
-      return null;
-    }
-    return createPublishingRecoveryAnalyticsContext({
-      ownerAccountKey,
-      resourceKey: item.shareId,
-      feature: ArtifactSubscriptionFeature.Share,
-      resourceKind: PublishingResourceKind.File,
-      source: ArtifactPreviewActionSource.LibraryPreview,
-      entryPoint: ArtifactPublishEntryPoint.LibrarySettings,
-      surface: LibraryAnalyticsSurface.MyFiles,
-      pageViewId: analyticsPageViewId,
-      recoverySurface: PublishingRecoveryAnalyticsSurface.LibraryFileDetail,
-      subscriptionRecoveryMode: recoveryMode,
-    });
-  }, [analyticsPageViewId, item.shareId, ownerAccountKey, recoveryMode]);
   const contentUpdatedAt = readDateMillis(item.contentUpdatedAt)
     ?? (Number.isFinite(item.createdAt) ? item.createdAt : item.sortTime);
   const committedPermission = deriveArtifactFileSharePermission(item);
@@ -875,56 +672,6 @@ const LibraryShareSettingsView: React.FC<{
   )
     && !hasPendingChanges;
   const canCopyShareInformation = canUseShare && !state.saving && copyResult.copyable;
-  const showRecovery = Boolean(
-    recoveryAnalyticsContext
-    && shouldShowPublishingSubscriptionRecovery({
-      ownerAccountKey,
-      subscriptionStatus,
-      recoveryMode,
-      isExpired: typeof item.accessExpiresAt === 'number' && item.accessExpiresAt <= now,
-      isAvailable: canUseShare,
-    }),
-  );
-  usePublishingRecoveryExposureLifecycle(recoveryAnalyticsContext, showRecovery);
-
-  useEffect(() => {
-    if (!recoveryAnalyticsContext) return undefined;
-    return registerPublishingSubscriptionRecoveryTarget({
-      ownerAccountKey: recoveryAnalyticsContext.ownerAccountKey,
-      resourceKind: PublishingResourceKind.File,
-      resourceKey: recoveryAnalyticsContext.resourceKey,
-      recoveryMode: recoveryAnalyticsContext.subscriptionRecoveryMode,
-      traceId: recoveryAnalyticsContext.attemptId,
-      refresh: async () => {
-        const refreshed = await loadLatestSharedFileItem(recoveryItemRef.current);
-        setState(current => ({ ...current, item: refreshed, error: undefined }));
-        setSelectedPermission(deriveArtifactFileSharePermission(refreshed));
-        recoveryOnItemUpdatedRef.current(refreshed);
-        return resolvePublishingSubscriptionRecoveryRefreshOutcome({
-          expectedMode: recoveryAnalyticsContext.subscriptionRecoveryMode,
-          currentMode: refreshed.subscriptionRecoveryMode,
-          isRestored: refreshed.status === HtmlShareStatus.Live
-            && refreshed.accessExpiresAt === null,
-        });
-      },
-    });
-  }, [recoveryAnalyticsContext]);
-
-  const openRecoveryPricing = (): void => {
-    if (!recoveryAnalyticsContext) return;
-    reportPublishingRecoveryCtaAction(recoveryAnalyticsContext);
-    armPublishingSubscriptionRecovery({
-      ownerAccountKey: recoveryAnalyticsContext.ownerAccountKey,
-      resourceKind: PublishingResourceKind.File,
-      resourceKey: recoveryAnalyticsContext.resourceKey,
-      recoveryMode: recoveryAnalyticsContext.subscriptionRecoveryMode,
-      traceId: recoveryAnalyticsContext.attemptId,
-    });
-    void window.electron.shell.openExternal(getPortalPricingUrl(
-      PortalPricingKeyfrom.HtmlShare,
-      { traceId: recoveryAnalyticsContext.attemptId },
-    ));
-  };
 
   const openLink = (): void => {
     if (!canUseShare) return;
@@ -1303,17 +1050,6 @@ const LibraryShareSettingsView: React.FC<{
                 textClassName={MANAGEMENT_META_TEXT}
                 now={now}
               />
-              {showRecovery && recoveryAnalyticsContext && (
-                <PublishingSubscriptionRecoveryButton
-                  compact
-                  recoveryMode={recoveryAnalyticsContext.subscriptionRecoveryMode}
-                  exposureKey={recoveryAnalyticsContext.exposureId}
-                  onExposure={() => reportPublishingRecoveryCtaExposure(
-                    recoveryAnalyticsContext,
-                  )}
-                  onClick={openRecoveryPricing}
-                />
-              )}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -1461,16 +1197,7 @@ const LibraryShareSettingsView: React.FC<{
                   {i18nService.t('libraryShareCopyUnavailableWhileStopped')}
                 </p>
               )}
-              {showRecovery && (
-                <p className="mt-3 text-xs text-secondary">
-                  {i18nService.t(
-                    recoveryMode === PublishingSubscriptionRecoveryMode.RedeployRequired
-                      ? 'publishingSubscriptionRedeployDescription'
-                      : 'publishingSubscriptionRecoveryDescription',
-                  )}
-                </p>
-              )}
-              {resumeLocked && !showRecovery && (
+              {resumeLocked && (
                 <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
                   {i18nService.t('libraryShareResumeLocked')}
                 </p>
@@ -1608,7 +1335,7 @@ const LibraryShareSettingsView: React.FC<{
           <LibraryShareDeleteDialog
             fileName={getLibraryDisplayFileName(item)}
             busy={deleting}
-            showFreeQuotaNotice={showFreeShareDeleteQuotaNotice}
+            showFreeQuotaNotice={false}
             error={deleteError}
             onCancel={() => {
               setDeleteConfirmOpen(false);
@@ -1630,9 +1357,6 @@ const LibraryCloudView: React.FC<LibraryCloudViewProps> = ({
   loadingMore,
   error,
   isAuthenticated,
-  ownerAccountKey,
-  subscriptionStatus,
-  showFreeShareDeleteQuotaNotice,
   category,
   status,
   displayStatus,
@@ -1685,9 +1409,6 @@ const LibraryCloudView: React.FC<LibraryCloudViewProps> = ({
         analyticsPageViewId={analyticsPageViewId}
         initialItem={activeItem}
         now={effectiveNow}
-        ownerAccountKey={ownerAccountKey}
-        subscriptionStatus={subscriptionStatus}
-        showFreeShareDeleteQuotaNotice={showFreeShareDeleteQuotaNotice}
         onBack={() => setActiveItem(undefined)}
         onItemUpdated={onItemUpdated}
         onItemDeleted={handleSharedItemDeleted}
@@ -1711,7 +1432,6 @@ const LibraryCloudView: React.FC<LibraryCloudViewProps> = ({
         onToggleSidebar={() => undefined}
         readOnly={sitesReadOnly}
         embedded
-        analyticsPageViewId={analyticsPageViewId}
         initialShareId={activeSite.shareId}
         initialAccessExpired={isLibraryCloudAccessExpired(activeSite, effectiveNow)}
         initialDetailTab="settings"
@@ -2046,14 +1766,6 @@ const LibraryCloudView: React.FC<LibraryCloudViewProps> = ({
                 </div>
               </div>
               <CloudAvailabilityLabel item={item} now={effectiveNow} centered />
-              <LibraryCloudRecoveryActionCell
-                analyticsPageViewId={analyticsPageViewId}
-                item={item}
-                now={effectiveNow}
-                ownerAccountKey={ownerAccountKey}
-                subscriptionStatus={subscriptionStatus}
-                onItemUpdated={onItemUpdated}
-              />
               <span className="text-xs text-secondary">{getLibraryAccessModeLabel(item)}</span>
               <CardOverflowMenu
                 items={buildMenuItems(item)}

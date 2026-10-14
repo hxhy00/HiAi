@@ -104,7 +104,7 @@ test('clears account-scoped media models and selections together', () => {
   const withModels = coworkReducer(undefined, setMediaModels({
     image: [imageModel],
     video: [],
-    ownerAccountKey: 'enterprise:6:1001',
+    scopeKey: 'enterprise:6:1001',
   }));
   const withSelection = coworkReducer(withModels, setMediaSelection({
     draftKey: '__home__',
@@ -133,7 +133,7 @@ test('clears account-scoped media models and selections together', () => {
   const cleared = coworkReducer(withQueuedTurn, clearMediaAccountState());
 
   expect(cleared.mediaModels).toEqual({ image: [], video: [] });
-  expect(cleared.mediaModelsOwnerAccountKey).toBeNull();
+  expect(cleared.mediaModelsScopeKey).toBeNull();
   expect(cleared.mediaSelection).toEqual({});
   expect(cleared.pendingMediaStatusUpdates).toEqual({});
   expect(cleared.pendingSteers).toEqual({});

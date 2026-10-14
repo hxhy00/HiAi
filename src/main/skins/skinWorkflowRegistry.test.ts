@@ -32,7 +32,6 @@ describe('skin workflow registry', () => {
     expect(registry.prepareTurn({
       sessionId: 'untrusted',
       kitIds: ['another-kit'],
-      mediaGenerationEntitled: true,
       mediaSelection: { mode: MediaSelectionMode.Auto },
     })).toEqual({
       mediaSelection: { mode: MediaSelectionMode.Auto },
@@ -41,7 +40,6 @@ describe('skin workflow registry', () => {
     expect(registry.prepareTurn({
       sessionId: 'trusted',
       kitIds: [SkinPackKitId.BuiltIn],
-      mediaGenerationEntitled: true,
       mediaSelection: {
         mode: MediaSelectionMode.Auto,
         imageModelId: 'image-model',
@@ -57,16 +55,19 @@ describe('skin workflow registry', () => {
     });
   });
 
-  test('uses the native image route when subscription generation is unavailable', () => {
+  test('routes a trusted skin turn to the image selection and promotes the image model id', () => {
     const registry = createRegistry();
 
     expect(registry.prepareTurn({
-      sessionId: 'native-route',
+      sessionId: 'implicit-image-route',
       kitIds: [SkinPackKitId.BuiltIn],
-      mediaGenerationEntitled: false,
-      mediaSelection: { mode: MediaSelectionMode.Image, modelId: 'ignored' },
+      mediaSelection: { mode: MediaSelectionMode.Image, modelId: 'image-model' },
     })).toEqual({
       workflowKind: SkinWorkflowKind.SkinPack,
+      mediaSelection: {
+        mode: MediaSelectionMode.Image,
+        imageModelId: 'image-model',
+      },
     });
   });
 
@@ -75,7 +76,6 @@ describe('skin workflow registry', () => {
     registry.prepareTurn({
       sessionId: 'parent',
       kitIds: [SkinPackKitId.BuiltIn],
-      mediaGenerationEntitled: false,
     });
     registry.recordDraft('child', 'skin-one');
 
@@ -97,7 +97,6 @@ describe('skin workflow registry', () => {
     const input = {
       sessionId: 'continued-kit-session',
       kitIds: [SkinPackKitId.BuiltIn],
-      mediaGenerationEntitled: true,
       mediaSelection: { mode: MediaSelectionMode.Image },
     };
 
@@ -105,7 +104,6 @@ describe('skin workflow registry', () => {
     registry.recordDraft(input.sessionId, 'skin-one');
     registry.prepareTurn({
       sessionId: input.sessionId,
-      mediaGenerationEntitled: true,
       mediaSelection: { mode: MediaSelectionMode.Auto },
     });
 
@@ -117,13 +115,11 @@ describe('skin workflow registry', () => {
     registry.prepareTurn({
       sessionId: 'clarification-session',
       kitIds: [SkinPackKitId.BuiltIn],
-      mediaGenerationEntitled: true,
       mediaSelection: { mode: MediaSelectionMode.Auto },
     });
 
     expect(registry.prepareTurn({
       sessionId: 'clarification-session',
-      mediaGenerationEntitled: true,
       mediaSelection: { mode: MediaSelectionMode.Auto },
     })).toEqual({
       workflowKind: SkinWorkflowKind.SkinPack,
@@ -135,7 +131,6 @@ describe('skin workflow registry', () => {
     registry.finishWorkflow('clarification-session');
     expect(registry.prepareTurn({
       sessionId: 'clarification-session',
-      mediaGenerationEntitled: false,
     })).toEqual({ mediaSelection: undefined });
   });
 
@@ -144,7 +139,6 @@ describe('skin workflow registry', () => {
     const prepare = (sessionId: string) => registry.prepareTurn({
       sessionId,
       kitIds: [SkinPackKitId.BuiltIn],
-      mediaGenerationEntitled: false,
     });
 
     prepare('error-session');

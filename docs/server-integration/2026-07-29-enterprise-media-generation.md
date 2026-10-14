@@ -2,6 +2,10 @@
 
 日期：2026-07-29
 
+> **已废弃**：本文描述的服务端媒体生成链路（含 `mediaGenerationEntitled` 权益门控、服务端模型目录、任务接口）已被本地 provider 方案取代，见
+> `specs/refactors/de-server-dependency/2026-10-13-de-server-dependency-design.md` 的 FR-2。
+> 客户端不再读取 `mediaGenerationEntitled`，媒体模型改由用户在设置页手填本地配置。仅作历史留档。
+
 ## Change Summary
 
 `lobsterai-server` 的图片、视频生成链路现在识别 JWT 中绑定的企业账号上下文。有效企业的普通成员和超级管理员都拥有媒体生成权益；任务提交前预占成员月度额度和企业积分池，成功后按实际消耗结算，明确失败后释放预占。

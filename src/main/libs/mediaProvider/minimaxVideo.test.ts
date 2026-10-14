@@ -79,7 +79,11 @@ describe('MiniMax video adapter', () => {
     expect(result.status).toBe(MediaTaskStatus.Queued);
     expect(result.taskId).toBe('task-1');
     // main.ts needs the target back later to poll this task.
-    expect(resolveMediaTaskTarget(store, 'task-1')?.providerKey).toBe('minimax');
+    const persisted = resolveMediaTaskTarget(store, 'task-1');
+    expect(persisted?.providerKey).toBe('minimax');
+    // The api key must never be mirrored into the persisted registry.
+    expect(persisted).not.toHaveProperty('apiKey');
+    expect(JSON.stringify(store.get(MEDIA_TASK_TARGETS_STORE_KEY))).not.toContain('mm-key');
   });
 
   test('treats a non-zero base_resp as an error even on HTTP 200', async () => {

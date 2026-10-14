@@ -1,4 +1,4 @@
-import type { PublishingSubscriptionRecoveryMode } from '@shared/publishing/constants';
+
 import type { RefObject } from 'react';
 
 import { i18nService } from '@/services/i18n';
@@ -16,15 +16,11 @@ import {
   type ArtifactFileSharePermission as ArtifactFileSharePermissionValue,
 } from './artifactFileSharePermission';
 import ArtifactPreviewIdentity from './ArtifactPreviewIdentity';
-import type { PublishingRecoveryAnalyticsContext } from './publishingAnalytics';
 import { getPublishingRecoveryFooterActions } from './publishingRecoveryFooterModel';
-import PublishingSubscriptionRecoveryButton from './PublishingSubscriptionRecoveryButton';
-import { shouldShowPublishingSubscriptionRecovery } from './publishingSubscriptionRecoveryPolicy';
 import {
   PublishingTrialStatus,
   usePublishingTrialStatus,
 } from './PublishingTrialStatus';
-import { usePublishingRecoveryExposureLifecycle } from './usePublishingRecoveryExposureLifecycle';
 
 const t = (key: string) => i18nService.t(key);
 
@@ -77,11 +73,7 @@ interface ArtifactFileShareDialogProps {
   error?: string;
   shareCodeUnavailable?: boolean;
   accessExpiresAt?: string | null;
-  ownerAccountKey?: string | null;
-  subscriptionStatus?: string | null;
-  recoveryMode?: PublishingSubscriptionRecoveryMode;
-  recoveryAnalyticsContext?: PublishingRecoveryAnalyticsContext | null;
-  recoveryExposureKey?: string;
+
   canRetry: boolean;
   canCreate: boolean;
   canSubmitPermission: boolean;
@@ -157,11 +149,6 @@ const ArtifactFileShareDialog = ({
   error,
   shareCodeUnavailable = false,
   accessExpiresAt,
-  ownerAccountKey,
-  subscriptionStatus,
-  recoveryMode,
-  recoveryAnalyticsContext,
-  recoveryExposureKey,
   canRetry,
   canCreate,
   canSubmitPermission,
@@ -178,8 +165,6 @@ const ArtifactFileShareDialog = ({
   onSubmitPermission,
   onUpdateFile,
   onCopy,
-  onRecoveryExposure,
-  onRecoveryClick,
 }: ArtifactFileShareDialogProps) => {
   const trialStatus = usePublishingTrialStatus(accessExpiresAt);
   const isPreparing = phase === ArtifactFileSharePhase.Preparing;
@@ -208,34 +193,14 @@ const ArtifactFileShareDialog = ({
     : updateStatus === ArtifactFileShareUpdateStatus.Updated
       ? t('htmlShareUpdateComplete')
       : t('htmlShareUpdateFile');
-  const showSubscriptionRecovery = Boolean(
-    isReady
-    && intent === ArtifactFileShareIntent.Manage
-    && recoveryMode
-    && onRecoveryClick
-    && shouldShowPublishingSubscriptionRecovery({
-      ownerAccountKey,
-      subscriptionStatus,
-      recoveryMode,
-      isExpired: trialStatus.isExpired,
-      isAvailable: !trialStatus.isExpired
-        && committedPermission !== ArtifactFileSharePermission.Stopped,
-    }),
-  );
-  usePublishingRecoveryExposureLifecycle(
-    recoveryAnalyticsContext,
-    showSubscriptionRecovery,
-  );
   const footerActions = getPublishingRecoveryFooterActions({
-    showRecovery: showSubscriptionRecovery,
+    showRecovery: false,
     canCopy: canCopy && !operation,
     showCopyInStandardFooter: primaryAction === ArtifactFileSharePrimaryAction.Copy,
   });
-  const copyActionClassName = footerActions.showRecovery
-    ? 'border border-border bg-background text-secondary hover:bg-surface hover:text-foreground'
-    : copyStatus === ArtifactFileShareCopyStatus.Failed
-      ? 'bg-red-500 text-white hover:bg-red-500/90'
-      : 'bg-primary text-primary-foreground hover:bg-primary-hover';
+  const copyActionClassName = copyStatus === ArtifactFileShareCopyStatus.Failed
+    ? 'bg-red-500 text-white hover:bg-red-500/90'
+    : 'bg-primary text-primary-foreground hover:bg-primary-hover';
 
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/35 px-4">
@@ -414,14 +379,6 @@ const ArtifactFileShareDialog = ({
             >
               {copyButtonLabel}
             </button>
-          )}
-          {footerActions.showRecovery && recoveryMode && onRecoveryClick && (
-            <PublishingSubscriptionRecoveryButton
-              recoveryMode={recoveryMode}
-              exposureKey={recoveryExposureKey}
-              onExposure={onRecoveryExposure}
-              onClick={onRecoveryClick}
-            />
           )}
         </div>
       </div>

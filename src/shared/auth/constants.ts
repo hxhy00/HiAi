@@ -115,11 +115,3 @@ export type AuthSessionChangedEvent = {
   status: AuthSessionStatus;
   reason: AuthSessionChangeReason;
 };
-
-export const AuthSubscriptionStatus = {
-  Active: 'active',
-  Enterprise: 'enterprise',
-  Free: 'free',
-} as const;
-
-export type AuthSubscriptionStatus = typeof AuthSubscriptionStatus[keyof typeof AuthSubscriptionStatus];

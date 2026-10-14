@@ -8,7 +8,6 @@ const renderButton = (overrides: Partial<React.ComponentProps<typeof VoiceInputB
   React.createElement(VoiceInputButton, {
     buttonClassName: 'button',
     iconClassName: 'icon',
-    isLoggedIn: true,
     disabled: false,
     isQuotaExhausted: false,
     isRecording: false,

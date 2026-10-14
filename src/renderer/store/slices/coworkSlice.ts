@@ -113,10 +113,13 @@ interface CoworkState {
   isRepairingOpenClaw: boolean;
   pendingPermissions: CoworkPermissionRequest[];
   config: CoworkConfig;
-  /** Media generation models fetched from server */
+  /** Media generation models resolved from the user's local providers */
   mediaModels: { image: MediaModel[]; video: MediaModel[] };
-  /** Account that owns the current media model cache */
-  mediaModelsOwnerAccountKey: string | null;
+  /**
+   * Scope that owns the current media model cache: the account owner key when
+   * logged in, or the local scope key when media runs without an account.
+   */
+  mediaModelsScopeKey: string | null;
   /** Media generation mode selection per draft key */
   mediaSelection: Record<string, MediaGenerationSelection>;
   pendingMediaStatusUpdates: Record<string, Array<{ toolCallId: string; details: Record<string, unknown> }>>;
@@ -184,7 +187,7 @@ const initialState: CoworkState = {
     },
   },
   mediaModels: { image: [], video: [] },
-  mediaModelsOwnerAccountKey: null,
+  mediaModelsScopeKey: null,
   mediaSelection: {},
   pendingMediaStatusUpdates: {},
 };
@@ -1523,13 +1526,13 @@ const coworkSlice = createSlice({
     setMediaModels(state, action: PayloadAction<{
       image: MediaModel[];
       video: MediaModel[];
-      ownerAccountKey: string;
+      scopeKey: string;
     }>) {
       state.mediaModels = {
         image: action.payload.image,
         video: action.payload.video,
       };
-      state.mediaModelsOwnerAccountKey = action.payload.ownerAccountKey;
+      state.mediaModelsScopeKey = action.payload.scopeKey;
     },
 
     setMediaSelection(state, action: PayloadAction<{ draftKey: string; selection: MediaGenerationSelection }>) {
@@ -1543,7 +1546,7 @@ const coworkSlice = createSlice({
 
     clearMediaAccountState(state) {
       state.mediaModels = { image: [], video: [] };
-      state.mediaModelsOwnerAccountKey = null;
+      state.mediaModelsScopeKey = null;
       state.mediaSelection = {};
       state.pendingMediaStatusUpdates = {};
       state.pendingSteers = {};

@@ -6,10 +6,8 @@ import {
   FolderIcon as DataFolderIcon,
   PlusIcon as AddIcon,
 } from '@heroicons/react/24/outline';
-import { PublishingRecoveryAnalyticsSurface } from '@shared/analytics/constants';
 import { ArtifactBrowserPartition } from '@shared/artifactPreview/constants';
 import { isWorkspaceDiffArtifact } from '@shared/artifactPreview/workspaceChanges';
-import { AuthSubscriptionStatus } from '@shared/auth/constants';
 import {
   BrowserAnnotationGuestChannel,
   BrowserAnnotationGuestCommandType,
@@ -65,7 +63,6 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { authService } from '@/services/auth';
 import { copyTextToClipboard } from '@/services/clipboard';
 import { getPortalPricingUrl, PortalPricingKeyfrom } from '@/services/endpoints';
 import { i18nService } from '@/services/i18n';
@@ -76,12 +73,6 @@ import {
 } from '@/services/localServiceProjectDirectoryCache';
 import { getMarkdownDocumentContent } from '@/services/markdownDocument';
 import { refreshOpenOfficeEditor } from '@/services/office/officeFormats';
-import {
-  armPublishingSubscriptionRecovery,
-  PublishingSubscriptionRecoveryRefreshOutcome,
-  registerPublishingSubscriptionRecoveryTarget,
-  resolvePublishingSubscriptionRecoveryRefreshOutcome,
-} from '@/services/publishingSubscriptionRecovery';
 import { normalizeShellFilePath } from '@/services/shellAppsCache';
 import type { RootState } from '@/store';
 import {
@@ -127,14 +118,9 @@ import {
 import { ArtifactPreviewGlobeIcon } from './ArtifactPreviewIdentity';
 import ArtifactRenderer from './ArtifactRenderer';
 import {
-  ArtifactSubscriptionBlockReason,
   ArtifactSubscriptionFeature,
   type ArtifactSubscriptionFeature as ArtifactSubscriptionFeatureValue,
-  type ArtifactSubscriptionPromptState,
-  getArtifactSubscriptionDecision,
-  resolveArtifactSubscriptionDecision,
 } from './artifactSubscriptionGate';
-import ArtifactSubscriptionPromptDialog from './ArtifactSubscriptionPromptDialog';
 import {
   ArtifactToolbarPublishActionKind,
   type ArtifactToolbarPublishActionKind as ArtifactToolbarPublishActionKindValue,
@@ -183,7 +169,6 @@ import {
   createPublishingAnalyticsAttempt,
   createPublishingAnalyticsDialog,
   createPublishingAnalyticsOperationId,
-  createPublishingRecoveryAnalyticsContextFromAttempt,
   getPublishingErrorCategory,
   PublishingAnalyticsActionType,
   type PublishingAnalyticsAttemptContext,
@@ -199,16 +184,10 @@ import {
   reportPublishingCopyDeployLink,
   reportPublishingEntryAction,
   reportPublishingOperationResult,
-  reportPublishingRecoveryCtaAction,
-  reportPublishingRecoveryCtaExposure,
   updatePublishingAnalyticsAttempt,
 } from './publishingAnalytics';
 import PublishingQuotaLimitDialog from './PublishingQuotaLimitDialog';
 import { getPublishingRecoveryFooterActions } from './publishingRecoveryFooterModel';
-import PublishingSubscriptionRecoveryButton from './PublishingSubscriptionRecoveryButton';
-import { shouldShowPublishingSubscriptionRecovery } from './publishingSubscriptionRecoveryPolicy';
-import PublishingTrialNoticeDialog from './PublishingTrialNoticeDialog';
-import { shouldShowPublishingTrialNotice } from './publishingTrialNoticePolicy';
 import {
   PublishingTrialStatus,
   usePublishingTrialStatus,
@@ -218,7 +197,6 @@ import {
   type OfficePreviewZoomControlsConfig,
 } from './renderers/office/common/OfficePreviewActionsContext';
 import { OfficeZoomControls } from './renderers/office/common/OfficeZoomControls';
-import { usePublishingRecoveryExposureLifecycle } from './usePublishingRecoveryExposureLifecycle';
 
 const t = (key: string) => i18nService.t(key);
 
@@ -399,25 +377,6 @@ interface NodeDeploymentLaunchContext {
   entryPoint?: ArtifactPublishEntryPoint;
 }
 
-interface NodeDeploymentTrialNoticeState {
-  localService: LocalWebService;
-  projectDirectory: string;
-  quota: PublishingQuotaErrorData;
-}
-
-function getSiteDeploymentQuotaErrorData(
-  quota: SiteDeploymentQuota,
-): PublishingQuotaErrorData {
-  return {
-    resourceKind: quota.resourceKind,
-    identityType: quota.identityType,
-    countMode: quota.countMode,
-    used: quota.usage.used,
-    limit: quota.usage.limit,
-    canReleaseByClosing: quota.canReleaseByClosing,
-  };
-}
-
 function isNodeDeploymentDialogForLocalService(
   dialog: NodeDeploymentDialogState | null,
   localService: LocalWebService | null,
@@ -465,23 +424,6 @@ function resolveAccessExpiresAt(
   return value && Object.prototype.hasOwnProperty.call(value, 'accessExpiresAt')
     ? value.accessExpiresAt
     : fallback;
-}
-
-function canRedeployExpiredSubscriptionDeployment(
-  deployment: ShareDeploymentRecord | null | undefined,
-  subscriptionStatus?: string | null,
-  now = Date.now(),
-): boolean {
-  if (
-    !deployment?.expiresAt
-    || deployment.subscriptionRecoveryMode
-      !== PublishingSubscriptionRecoveryMode.RedeployRequired
-    || subscriptionStatus !== AuthSubscriptionStatus.Active
-  ) {
-    return false;
-  }
-  const expiresAt = Date.parse(deployment.expiresAt);
-  return Number.isFinite(expiresAt) && expiresAt <= now;
 }
 
 function getConfigurableHtmlShareStatus(
@@ -861,7 +803,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
   const activePreviewTab = useSelector((state: RootState) =>
     selectActivePreviewTab(state, sessionId),
   );
-  const authState = useSelector((state: RootState) => state.auth);
   const browserAnnotationBatches = useSelector(
     (state: RootState) => (
       state.cowork.draftBrowserAnnotationBatches[sessionId]
@@ -881,8 +822,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
   const [localBrowserUrl, setLocalBrowserUrl] = useState('');
   const [htmlSharePhase, setHtmlSharePhase] = useState<HtmlSharePhase>(HtmlSharePhase.Idle);
   const [htmlShareDialog, setHtmlShareDialog] = useState<HtmlShareDialogState | null>(null);
-  const [subscriptionPrompt, setSubscriptionPrompt] =
-    useState<ArtifactSubscriptionPromptState | null>(null);
   const [htmlSharePendingRequest, setHtmlSharePendingRequest] =
     useState<HtmlSharePendingRequest | null>(null);
   const [, setHtmlShareLookup] = useState<HtmlShareLookupState | null>(null);
@@ -905,8 +844,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     useState<Record<string, DeploymentAnalyticsOperationContext>>({});
   const [publishingQuotaDialog, setPublishingQuotaDialog] =
     useState<PublishingQuotaErrorData | null>(null);
-  const [nodeDeploymentTrialNotice, setNodeDeploymentTrialNotice] =
-    useState<NodeDeploymentTrialNoticeState | null>(null);
   const [isHtmlShareStatusUpdating, setIsHtmlShareStatusUpdating] = useState(false);
   const [htmlShareCopyStatus, setHtmlShareCopyStatus] =
     useState<HtmlShareCopyStatus>(HtmlShareCopyStatus.Idle);
@@ -940,11 +877,11 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
   const onLocalServiceDeploymentRequestConsumedRef =
     useRef(onLocalServiceDeploymentRequestConsumed);
   const publishingAccountContextRef = useRef({
-    accountGeneration: authState.accountGeneration,
-    ownerAccountKey: authState.ownerAccountKey,
+    accountGeneration: 0,
+    ownerAccountKey: 'local',
   });
-  const publishingAccountGenerationRef = useRef(authState.accountGeneration);
-  publishingAccountGenerationRef.current = authState.accountGeneration;
+  const publishingAccountGenerationRef = useRef(0);
+  publishingAccountGenerationRef.current = 0;
   localServiceDeploymentRequestRef.current = localServiceDeploymentRequest;
   onLocalServiceDeploymentRequestConsumedRef.current =
     onLocalServiceDeploymentRequestConsumed;
@@ -1399,8 +1336,8 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
   useEffect(() => {
     const previousAccountContext = publishingAccountContextRef.current;
     const currentAccountContext = {
-      accountGeneration: authState.accountGeneration,
-      ownerAccountKey: authState.ownerAccountKey,
+      accountGeneration: 0,
+      ownerAccountKey: 'local',
     };
     const accountTransition = resolvePublishingAccountTransition(
       previousAccountContext,
@@ -1408,7 +1345,7 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
       localServiceDeploymentRequestRef.current?.requestId,
     );
     publishingAccountContextRef.current = currentAccountContext;
-    publishingAccountGenerationRef.current = authState.accountGeneration;
+    publishingAccountGenerationRef.current = 0;
     nodeDeploymentActionRunIdRef.current += 1;
     nodeDeploymentAccessRunIdRef.current += 1;
     nodeDeploymentPersistenceOperationRunIdRef.current += 1;
@@ -1432,9 +1369,7 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     setHtmlSharePendingRequest(null);
     setHtmlShareLookup(null);
     setHtmlSharePhase(HtmlSharePhase.Idle);
-    setSubscriptionPrompt(null);
     setPublishingQuotaDialog(null);
-    setNodeDeploymentTrialNotice(null);
     setNodeDeploymentLookup(null);
     setNodeDeploymentDialog(null);
     setNodeDeploymentPersistenceOperations({});
@@ -1448,7 +1383,7 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     setIsNodeDeploymentBusy(false);
     setIsNodeDeploymentAccessUpdating(false);
     setIsHtmlShareStatusUpdating(false);
-  }, [authState.accountGeneration, authState.ownerAccountKey]);
+  }, []);
 
   useEffect(() => {
     if (
@@ -1484,14 +1419,7 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
   useEffect(() => {
     if (
       !browserLocalServiceUrl ||
-      !selectedNodeDeploymentLookupKey ||
-      !getArtifactSubscriptionDecision({
-        isLoggedIn: authState.isLoggedIn,
-        subscriptionStatus: authState.quota?.subscriptionStatus,
-        accountMode: authState.quota?.accountMode ?? authState.user?.accountMode,
-        shareEntitled: authState.quota?.shareEntitled,
-        deploymentEntitled: authState.quota?.deploymentEntitled,
-      }, ArtifactSubscriptionFeature.Deployment).allowed
+      !selectedNodeDeploymentLookupKey
     ) {
       setNodeDeploymentLookup(null);
       return;
@@ -1567,9 +1495,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
       isCancelled = true;
     };
   }, [
-    authState.isLoggedIn,
-    authState.quota,
-    authState.user?.accountMode,
     browserLocalServiceUrl,
     browserLocalServiceProjectDirectory,
     selectedNodeDeploymentLookupKey,
@@ -1929,18 +1854,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     }
   }, [onOpenHtmlFileInBrowser, reportSelectedArtifactAction, selectedArtifact]);
 
-  const closeSubscriptionPrompt = useCallback(() => {
-    const feature = subscriptionPrompt?.feature;
-    setSubscriptionPrompt(null);
-    setHtmlSharePendingRequest(null);
-    if (feature === ArtifactSubscriptionFeature.Deployment) {
-      completeLocalServiceDeploymentRequest();
-    }
-  }, [
-    completeLocalServiceDeploymentRequest,
-    subscriptionPrompt?.feature,
-  ]);
-
   const closePublishingQuotaDialog = useCallback(() => {
     const shouldCompleteDeploymentRequest = publishingQuotaDialog
       ? shouldCompleteLocalServiceDeploymentRequestForQuota(
@@ -1963,15 +1876,8 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     );
     if (publishingQuotaDialog) {
       closePublishingQuotaDialog();
-    } else {
-      closeSubscriptionPrompt();
     }
-  }, [closePublishingQuotaDialog, closeSubscriptionPrompt, publishingQuotaDialog]);
-
-  const openLoginPage = useCallback(() => {
-    closeSubscriptionPrompt();
-    void authService.login();
-  }, [closeSubscriptionPrompt]);
+  }, [closePublishingQuotaDialog, publishingQuotaDialog]);
 
   const formatShareClipboardText = useCallback((url: string, shareCode?: string): string => {
     if (!shareCode) return url;
@@ -1990,37 +1896,12 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     }, 2200);
   }, []);
 
+  // Client-side entitlement gating was removed with subscriptions (remove-membership
+  // §11 D2/D3): the server enforces any remaining publishing quotas and the quota
+  // dialogs still handle those rejections.
   const ensureArtifactSubscriptionAllowed = useCallback(async (
-    feature: ArtifactSubscriptionFeatureValue,
-  ): Promise<boolean> => {
-    const requestAccountGeneration = publishingAccountGenerationRef.current;
-    const decision = await resolveArtifactSubscriptionDecision({
-      isLoggedIn: authState.isLoggedIn,
-      subscriptionStatus: authState.quota?.subscriptionStatus,
-      accountMode: authState.quota?.accountMode ?? authState.user?.accountMode,
-      shareEntitled: authState.quota?.shareEntitled,
-      deploymentEntitled: authState.quota?.deploymentEntitled,
-    }, async () => {
-      const refreshed = await authService.refreshAuthState();
-      return {
-        isLoggedIn: refreshed.isLoggedIn,
-        subscriptionStatus: refreshed.quota?.subscriptionStatus,
-        accountMode: refreshed.quota?.accountMode ?? refreshed.user?.accountMode,
-        shareEntitled: refreshed.quota?.shareEntitled,
-        deploymentEntitled: refreshed.quota?.deploymentEntitled,
-      };
-    }, feature);
-    if (publishingAccountGenerationRef.current !== requestAccountGeneration) {
-      return false;
-    }
-    if (!decision.allowed) {
-      setHtmlShareDialog(null);
-      setHtmlSharePendingRequest(null);
-      setSubscriptionPrompt({ feature, reason: decision.reason });
-      return false;
-    }
-    return true;
-  }, [authState.isLoggedIn, authState.quota, authState.user?.accountMode]);
+    _feature: ArtifactSubscriptionFeatureValue,
+  ): Promise<boolean> => true, []);
 
   const handleCopyShareLink = useCallback(
     async (
@@ -2132,10 +2013,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
         if (result?.code === HtmlShareErrorCode.SubscriptionRequired) {
           setHtmlShareDialog(null);
           setHtmlSharePendingRequest(null);
-          setSubscriptionPrompt({
-            feature: ArtifactSubscriptionFeature.Share,
-            reason: ArtifactSubscriptionBlockReason.SubscriptionRequired,
-          });
           setHtmlSharePhase(HtmlSharePhase.Failed);
           return false;
         }
@@ -2440,7 +2317,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     }
     const runId = nodeDeploymentActionRunIdRef.current + 1;
     nodeDeploymentActionRunIdRef.current = runId;
-    setNodeDeploymentTrialNotice(null);
     setIsNodeDeploymentLookupPending(true);
 
     try {
@@ -2517,22 +2393,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
         openNodeDeploymentStatusDialog(existingDeployment, {
           localService,
           projectDirectory,
-        });
-        return;
-      }
-
-      if (shouldShowPublishingTrialNotice({
-        allowed: quota.allowed,
-        identityType: quota.identityType,
-        hasExistingResource: false,
-      })) {
-        clearNodeDeploymentLookupDialogTimer();
-        setNodeDeploymentDialog(null);
-        setIsNodeDeploymentDialogOpen(false);
-        setNodeDeploymentTrialNotice({
-          localService,
-          projectDirectory,
-          quota: getSiteDeploymentQuotaErrorData(quota),
         });
         return;
       }
@@ -3127,11 +2987,7 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     }
     if (
       snapshot.deployment &&
-      isLocalServiceDeploymentPermissionLocked(snapshot.deployment.disabledSource) &&
-      !canRedeployExpiredSubscriptionDeployment(
-        snapshot.deployment,
-        authState.quota?.subscriptionStatus,
-      )
+      isLocalServiceDeploymentPermissionLocked(snapshot.deployment.disabledSource)
     ) {
       return;
     }
@@ -3161,7 +3017,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
       };
     });
   }, [
-    authState.quota?.subscriptionStatus,
     isNodeDeploymentAccessUpdating,
     isNodeDeploymentBusy,
     isNodeDeploymentLookupPending,
@@ -3548,37 +3403,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     nodeDeploymentDialog?.phase,
   ]);
 
-  const closeNodeDeploymentTrialNotice = useCallback(() => {
-    nodeDeploymentActionRunIdRef.current += 1;
-    clearNodeDeploymentLookupDialogTimer();
-    setNodeDeploymentTrialNotice(null);
-    setIsNodeDeploymentLookupPending(false);
-    completeLocalServiceDeploymentRequest();
-  }, [
-    clearNodeDeploymentLookupDialogTimer,
-    completeLocalServiceDeploymentRequest,
-  ]);
-
-  const continueNodeDeploymentTrial = useCallback(() => {
-    const pending = nodeDeploymentTrialNotice;
-    if (!pending) return;
-    setNodeDeploymentTrialNotice(null);
-    setIsNodeDeploymentDialogOpen(true);
-    openNodeDeploymentCreateDialog(
-      pending.localService,
-      pending.projectDirectory,
-    );
-  }, [nodeDeploymentTrialNotice, openNodeDeploymentCreateDialog]);
-
-  const openNodeDeploymentTrialSubscriptionPage = useCallback(() => {
-    void window.electron?.shell?.openExternal(
-      getPortalPricingUrl(PortalPricingKeyfrom.SiteDeployment, {
-        traceId: publishingAnalyticsAttemptRef.current?.attemptId,
-      }),
-    );
-    closeNodeDeploymentTrialNotice();
-  }, [closeNodeDeploymentTrialNotice]);
-
   const submitNodeDeployment = useCallback(async () => {
     const currentDialog = nodeDeploymentDialog;
     if (
@@ -3605,12 +3429,7 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
       currentDialog.accessMode,
       currentDialog.targetShareStatus,
     );
-    const permissionDeployment = canRedeployExpiredSubscriptionDeployment(
-      currentDialog.deployment,
-      authState.quota?.subscriptionStatus,
-    ) && currentDialog.deployment
-      ? { ...currentDialog.deployment, disabledSource: null }
-      : currentDialog.deployment;
+    const permissionDeployment = currentDialog.deployment;
     const permissionSubmitAction = getLocalServiceDeploymentPermissionSubmitAction(
       permissionDeployment,
       selectedPermission,
@@ -3894,7 +3713,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
       }
     }
   }, [
-    authState.quota?.subscriptionStatus,
     isNodeDeploymentBusy,
     isNodeDeploymentAccessUpdating,
     fetchSiteDeploymentQuota,
@@ -4844,106 +4662,7 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
   const isNodeDeploymentShareDisabled =
     nodeDeploymentTrialStatus.isExpired
     || isLocalServiceDeploymentStopped(nodeDeploymentShareStatus, nodeDeployment?.status);
-  const nodeDeploymentRecoveryMode = nodeDeployment?.subscriptionRecoveryMode;
-  const nodeDeploymentRecoveryResourceKey = nodeDeployment?.shareId
-    ?? nodeDeployment?.deploymentId;
-  const nodeDeploymentAnalyticsAttempt = publishingAnalyticsAttemptRef.current;
-  const nodeDeploymentRecoveryAnalyticsContext = useMemo(() => {
-    if (
-      !nodeDeploymentAnalyticsAttempt
-      || !authState.ownerAccountKey
-      || !nodeDeploymentRecoveryResourceKey
-      || (
-        nodeDeploymentRecoveryMode !== PublishingSubscriptionRecoveryMode.Automatic
-        && nodeDeploymentRecoveryMode !== PublishingSubscriptionRecoveryMode.RedeployRequired
-      )
-    ) {
-      return null;
-    }
-    return createPublishingRecoveryAnalyticsContextFromAttempt(
-      nodeDeploymentAnalyticsAttempt,
-      {
-        ownerAccountKey: authState.ownerAccountKey,
-        resourceKey: nodeDeploymentRecoveryResourceKey,
-        recoverySurface: PublishingRecoveryAnalyticsSurface.TaskSiteDeploymentDialog,
-        subscriptionRecoveryMode: nodeDeploymentRecoveryMode,
-      },
-    );
-  }, [
-    authState.ownerAccountKey,
-    nodeDeploymentAnalyticsAttempt,
-    nodeDeploymentRecoveryMode,
-    nodeDeploymentRecoveryResourceKey,
-  ]);
-  const showNodeDeploymentSubscriptionRecovery = Boolean(
-    nodeDeploymentRecoveryAnalyticsContext
-    && shouldShowPublishingSubscriptionRecovery({
-      ownerAccountKey: authState.ownerAccountKey,
-      subscriptionStatus: authState.quota?.subscriptionStatus,
-      recoveryMode: nodeDeploymentRecoveryMode,
-      isExpired: nodeDeploymentTrialStatus.isExpired,
-      isAvailable: !isNodeDeploymentShareDisabled,
-    }),
-  );
-  usePublishingRecoveryExposureLifecycle(
-    nodeDeploymentRecoveryAnalyticsContext,
-    showNodeDeploymentSubscriptionRecovery,
-  );
-  const isNodeDeploymentSubscriptionRedeployReady = Boolean(
-    nodeDeploymentTrialStatus.isExpired
-    && nodeDeploymentRecoveryMode === PublishingSubscriptionRecoveryMode.RedeployRequired
-    && authState.quota?.subscriptionStatus === AuthSubscriptionStatus.Active,
-  );
-  const nodeDeploymentPermissionModel = isNodeDeploymentSubscriptionRedeployReady
-    && nodeDeployment
-    ? { ...nodeDeployment, disabledSource: null }
-    : nodeDeployment;
-  useEffect(() => {
-    if (!nodeDeploymentRecoveryAnalyticsContext || !nodeDeployment?.deploymentId) {
-      return undefined;
-    }
-    const deploymentId = nodeDeployment.deploymentId;
-    const recoveryMode = nodeDeploymentRecoveryAnalyticsContext.subscriptionRecoveryMode;
-    return registerPublishingSubscriptionRecoveryTarget({
-      ownerAccountKey: nodeDeploymentRecoveryAnalyticsContext.ownerAccountKey,
-      resourceKind: PublishingResourceKind.Site,
-      resourceKey: nodeDeploymentRecoveryAnalyticsContext.resourceKey,
-      recoveryMode,
-      traceId: nodeDeploymentRecoveryAnalyticsContext.attemptId,
-      refresh: async () => {
-        const result = await window.electron?.shareDeployment?.get(deploymentId);
-        if (!result?.success) {
-          return PublishingSubscriptionRecoveryRefreshOutcome.Pending;
-        }
-        if (!result.deployment) {
-          return PublishingSubscriptionRecoveryRefreshOutcome.ResourceUnavailable;
-        }
-        const refreshedDeployment = result.deployment;
-        const outcome = resolvePublishingSubscriptionRecoveryRefreshOutcome({
-          expectedMode: recoveryMode,
-          currentMode: refreshedDeployment.subscriptionRecoveryMode,
-          isRestored: refreshedDeployment.status === ShareDeploymentStatus.Live
-            && refreshedDeployment.shareStatus === HtmlShareStatus.Live
-            && refreshedDeployment.expiresAt === null,
-        });
-        if (nodeDeploymentDialogRef.current?.deployment?.deploymentId === deploymentId) {
-          setNodeDeploymentDialog(previous => previous?.deployment?.deploymentId === deploymentId
-            ? {
-                ...previous,
-                deployment: { ...previous.deployment, ...refreshedDeployment },
-                ...(outcome === PublishingSubscriptionRecoveryRefreshOutcome.RedeployReady
-                  ? {
-                      accessMode: refreshedDeployment.accessMode,
-                      targetShareStatus: HtmlShareStatus.Live,
-                    }
-                  : {}),
-              }
-            : previous);
-        }
-        return outcome;
-      },
-    });
-  }, [nodeDeployment?.deploymentId, nodeDeploymentRecoveryAnalyticsContext]);
+  const nodeDeploymentPermissionModel = nodeDeployment;
   const isDynamicNodeDeployment = Boolean(
     nodeDeployment && nodeDeployment.deploymentKind !== ShareDeploymentKind.StaticSite,
   );
@@ -4985,7 +4704,7 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     isNodeDeploymentPendingOperation || !isNodeDeploymentAnalysisReady,
   );
   const isNodeDeploymentPermissionUpdateDisabled = Boolean(
-    (nodeDeploymentTrialStatus.isExpired && !isNodeDeploymentSubscriptionRedeployReady) ||
+    nodeDeploymentTrialStatus.isExpired ||
       isNodeDeploymentAccessUpdating ||
       isNodeDeploymentLookupPending ||
       isNodeDeploymentPending(nodeDeployment?.status) ||
@@ -4993,7 +4712,7 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
         (nodeDeploymentDialog?.phase !== NodeDeploymentPhase.Analyzing || !nodeDeployment)),
   );
   const isNodeDeploymentPermissionSubmitDisabled = Boolean(
-    (nodeDeploymentTrialStatus.isExpired && !isNodeDeploymentSubscriptionRedeployReady) ||
+    nodeDeploymentTrialStatus.isExpired ||
       nodeDeploymentPermissionSubmitAction !==
       LocalServiceDeploymentPermissionSubmitAction.UpdatePermission ||
       isNodeDeploymentBusy ||
@@ -5008,7 +4727,7 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
       nodeDeploymentSelectedPermission === LocalServiceDeploymentPermission.Stopped,
   );
   const isNodeDeploymentSubmitDisabled = Boolean(
-    (nodeDeploymentTrialStatus.isExpired && !isNodeDeploymentSubscriptionRedeployReady) ||
+    nodeDeploymentTrialStatus.isExpired ||
       !isNodeDeploymentEditorDialog ||
       isNodeDeploymentPendingOperation ||
       nodeDeploymentDialog?.phase === NodeDeploymentPhase.Live ||
@@ -5020,45 +4739,26 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
       !nodeDeploymentDialog?.port?.trim() ||
       nodeDeploymentAnalysis?.blockers.length,
   );
-  const isNodeDeploymentPermissionLocked = (
-    nodeDeploymentTrialStatus.isExpired && !isNodeDeploymentSubscriptionRedeployReady
-  )
+  const isNodeDeploymentPermissionLocked = nodeDeploymentTrialStatus.isExpired
     || isLocalServiceDeploymentPermissionLocked(nodeDeploymentPermissionModel?.disabledSource);
   const canCopyNodeDeploymentLink = canCopyLocalServiceDeploymentLink(
     nodeDeployment,
     isNodeDeploymentPendingOperation || isNodeDeploymentPermissionDirty,
   );
   const nodeDeploymentFooterActions = getPublishingRecoveryFooterActions({
-    showRecovery: showNodeDeploymentSubscriptionRecovery,
+    showRecovery: false,
     canCopy: canCopyNodeDeploymentLink,
     showCopyInStandardFooter: canCopyNodeDeploymentLink,
   });
-  const nodeDeploymentCopyActionClassName =
-    nodeDeploymentFooterActions.showRecovery || isNodeDeploymentRedeployRequired
-      ? 'border border-border bg-background text-secondary hover:bg-surface hover:text-foreground'
-      : 'bg-primary text-primary-foreground hover:bg-primary/90';
+  const nodeDeploymentCopyActionClassName = isNodeDeploymentRedeployRequired
+    ? 'border border-border bg-background text-secondary hover:bg-surface hover:text-foreground'
+    : 'bg-primary text-primary-foreground hover:bg-primary/90';
   const nodeDeploymentCopyButtonLabel =
     htmlShareCopyStatus === HtmlShareCopyStatus.Failed
       ? t('copyFailed')
       : htmlShareCopyStatus === HtmlShareCopyStatus.Copied
         ? t('copied')
         : t('htmlShareCopyLink');
-  const openNodeDeploymentRecoverySubscriptionPage = (): void => {
-    if (!nodeDeploymentRecoveryAnalyticsContext) return;
-    reportPublishingRecoveryCtaAction(nodeDeploymentRecoveryAnalyticsContext);
-    armPublishingSubscriptionRecovery({
-      ownerAccountKey: nodeDeploymentRecoveryAnalyticsContext.ownerAccountKey,
-      resourceKind: PublishingResourceKind.Site,
-      resourceKey: nodeDeploymentRecoveryAnalyticsContext.resourceKey,
-      recoveryMode: nodeDeploymentRecoveryAnalyticsContext.subscriptionRecoveryMode,
-      traceId: nodeDeploymentRecoveryAnalyticsContext.attemptId,
-    });
-    void window.electron?.shell?.openExternal(
-      getPortalPricingUrl(PortalPricingKeyfrom.SiteDeployment, {
-        traceId: nodeDeploymentRecoveryAnalyticsContext.attemptId,
-      }),
-    );
-  };
   const nodeDeploymentSubmitLabel = (() => {
     switch (nodeDeploymentDialog?.phase) {
       case NodeDeploymentPhase.Checking:
@@ -5690,21 +5390,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
           </div>,
           document.body,
         )}
-      {subscriptionPrompt && (
-        <ArtifactSubscriptionPromptDialog
-          feature={subscriptionPrompt.feature}
-          reason={subscriptionPrompt.reason}
-          onCancel={closeSubscriptionPrompt}
-          onLogin={openLoginPage}
-          onSubscribe={openSubscriptionPage}
-          onLearnBenefits={openSubscriptionPage}
-          analyticsAttempt={
-            publishingAnalyticsAttemptRef.current?.feature === subscriptionPrompt.feature
-              ? publishingAnalyticsAttemptRef.current
-              : null
-          }
-        />
-      )}
       {publishingQuotaDialog && (
         <PublishingQuotaLimitDialog
           quota={publishingQuotaDialog}
@@ -5721,16 +5406,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
             closePublishingQuotaDialog();
             window.dispatchEvent(new Event(LibraryNavigationEvent.OpenCloud));
           }}
-        />
-      )}
-      {nodeDeploymentTrialNotice && (
-        <PublishingTrialNoticeDialog
-          feature={ArtifactSubscriptionFeature.Deployment}
-          quota={nodeDeploymentTrialNotice.quota}
-          onCancel={closeNodeDeploymentTrialNotice}
-          onContinue={continueNodeDeploymentTrial}
-          onSubscribe={openNodeDeploymentTrialSubscriptionPage}
-          analyticsAttempt={publishingAnalyticsAttemptRef.current}
         />
       )}
       {nodeDeploymentDialog && isNodeDeploymentDialogOpen &&
@@ -5859,7 +5534,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
                                 name="node-deployment-permission"
                                 value={option.value}
                                 checked={nodeDeploymentTrialStatus.isExpired
-                                  && !isNodeDeploymentSubscriptionRedeployReady
                                   ? option.value === LocalServiceDeploymentPermission.Stopped
                                   : nodeDeploymentSelectedPermission === option.value}
                                 disabled={isDisabled}
@@ -6246,17 +5920,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
                     >
                       {nodeDeploymentCopyButtonLabel}
                     </button>
-                  )}
-                  {nodeDeploymentFooterActions.showRecovery
-                    && nodeDeploymentRecoveryAnalyticsContext && (
-                    <PublishingSubscriptionRecoveryButton
-                      recoveryMode={nodeDeploymentRecoveryAnalyticsContext.subscriptionRecoveryMode}
-                      exposureKey={nodeDeploymentRecoveryAnalyticsContext.exposureId}
-                      onExposure={() => reportPublishingRecoveryCtaExposure(
-                        nodeDeploymentRecoveryAnalyticsContext,
-                      )}
-                      onClick={openNodeDeploymentRecoverySubscriptionPage}
-                    />
                   )}
                 </div>
               )}

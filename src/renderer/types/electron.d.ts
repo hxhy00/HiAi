@@ -65,6 +65,7 @@ import type {
 } from '../../shared/cowork/constants';
 import type { CoworkGoal } from '../../shared/cowork/goal';
 import type { CoworkTurnUsage, CoworkTurnUsageAnchor } from '../../shared/cowork/llmTurnUsage';
+import type { MediaProvidersConfig } from '../../shared/cowork/mediaProviders';
 import type { CoworkMessageRailIndexItem } from '../../shared/cowork/rail';
 import type {
   CoworkSearchMessage,
@@ -2171,7 +2172,9 @@ interface IElectronAPI {
   };
   media: {
     getModels: (type: 'image' | 'video') => Promise<{ success: boolean; models?: Array<{ modelId: string; displayName: string; provider: string; mediaType: string; generationTimeout: number; pricing: Record<string, unknown> }>; error?: string }>;
-    getTaskStatus: (taskId: number, type: 'image' | 'video') => Promise<{ success: boolean; task?: Record<string, unknown>; error?: string }>;
+    getProviders: () => Promise<{ success: boolean; config?: MediaProvidersConfig; error?: string }>;
+    setProviders: (config: MediaProvidersConfig) => Promise<{ success: boolean; config?: MediaProvidersConfig; error?: string }>;
+    getTaskStatus: (taskId: string, type: 'image' | 'video') => Promise<{ success: boolean; task?: Record<string, unknown>; error?: string }>;
   };
   enterprise: {
     getConfig: () => Promise<{

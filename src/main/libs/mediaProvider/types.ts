@@ -5,11 +5,13 @@
  * `handleMediaGenerationCallback` in `main.ts` is the only caller.
  */
 
-export const MediaProviderKind = {
-  Image: 'image',
-  Video: 'video',
-} as const;
-export type MediaProviderKind = typeof MediaProviderKind[keyof typeof MediaProviderKind];
+import {
+  MediaProviderKind,
+  type MediaProviderKind as MediaProviderKindType,
+} from '../../../shared/cowork/mediaProviders';
+
+export { MediaProviderKind };
+export type { MediaProviderKindType };
 
 export const MediaTaskStatus = {
   Queued: 'queued',

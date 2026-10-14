@@ -1,32 +1,18 @@
 import { CheckIcon } from '@heroicons/react/24/outline';
-import {
-  createAccountOwnerKey,
-  isEnterpriseAccountOwnerKey,
-} from '@shared/auth/accountOwner';
-import { AuthSubscriptionStatus } from '@shared/auth/constants';
-import { EnterpriseAccountMode } from '@shared/enterpriseAccount/constants';
-import { canonicalizeMediaModelId, GPT_IMAGE_2_MODEL_ID, mediaModelDisplayName } from '@shared/mediaModelAliases';
+import { MediaProviderUiEvent } from '@shared/cowork/mediaProviders';
+import { canonicalizeMediaModelId, mediaModelDisplayName } from '@shared/mediaModelAliases';
 import { ProviderName } from '@shared/providers';
-import Lottie from 'lottie-react';
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { EnterpriseQuotaPrompt } from '../../features/enterpriseAccount/components/EnterpriseQuotaPrompt';
-import {
-  enterpriseMediaAccountSnapshotsMatch,
-  MediaGenerationAccessReason,
-  resolveMediaGenerationAccess,
-} from '../../features/enterpriseAccount/mediaAccess';
 import { getProviderIcon, ProviderIconId } from '../../providers/uiRegistry';
-import { authService } from '../../services/auth';
 import { i18nService } from '../../services/i18n';
 import { localStore } from '../../services/store';
-import { RootState, store } from '../../store';
+import { RootState } from '../../store';
 import { setMediaModels, setMediaSelection } from '../../store/slices/coworkSlice';
 import type { MediaGenerationMode, MediaModel } from '../../types/mediaGeneration';
 import MagicIcon from '../icons/MagicIcon';
-import mediaGenAnimation from '../icons/MediaGenIcon.json';
 import { resolvePopoverPlacement } from './popoverPlacement';
 
 interface SavedMediaSelection {
@@ -36,9 +22,8 @@ interface SavedMediaSelection {
 
 const MEDIA_SELECTION_KV_KEY = 'media_selection';
 // The model list needs room for the longest name next to a price such as
-// "x30-60 积分/张输出图"; the login/subscribe prompt cards keep a compact width.
+// "x30-60 积分/张输出图".
 const MEDIA_MODEL_LIST_PANEL_WIDTH = 400;
-const MEDIA_PROMPT_PANEL_WIDTH = 240;
 const MEDIA_PANEL_ESTIMATED_HEIGHT = 380;
 const EMPTY_MEDIA_MODELS: { image: MediaModel[]; video: MediaModel[] } = {
   image: [],
@@ -112,17 +97,20 @@ const pendingSavedMediaSelectionLoads = new Map<
   Promise<SavedMediaSelection | null>
 >();
 
-const getMediaSelectionStoreKey = (ownerAccountKey: string): string => (
-  `${MEDIA_SELECTION_KV_KEY}:${ownerAccountKey}`
+// Media generation runs on the user's own local providers (no account
+// scoping): the scope key is a stable "local" constant for model caching and
+// selection persistence.
+const getMediaSelectionStoreKey = (mediaScopeKey: string): string => (
+  `${MEDIA_SELECTION_KV_KEY}:${mediaScopeKey}`
 );
 
 const loadSavedMediaSelection = (
-  ownerAccountKey: string,
+  mediaScopeKey: string,
 ): Promise<SavedMediaSelection | null> => {
-  const pending = pendingSavedMediaSelectionLoads.get(ownerAccountKey);
+  const pending = pendingSavedMediaSelectionLoads.get(mediaScopeKey);
   if (pending) return pending;
 
-  const selectionStoreKey = getMediaSelectionStoreKey(ownerAccountKey);
+  const selectionStoreKey = getMediaSelectionStoreKey(mediaScopeKey);
   const load = (async () => {
     const scopedSelection = await localStore.getItem<SavedMediaSelection>(selectionStoreKey);
     if (scopedSelection !== null) return scopedSelection;
@@ -134,17 +122,17 @@ const loadSavedMediaSelection = (
     try {
       await localStore.setItem(selectionStoreKey, normalizedSelection);
       await localStore.removeItem(MEDIA_SELECTION_KV_KEY);
-      logMediaModelPickerDiagnostic('debug', 'migrated legacy media selection to the current account');
+      logMediaModelPickerDiagnostic('debug', 'migrated legacy media selection to the current scope');
     } catch (error) {
-      logMediaModelPickerDiagnostic('warn', 'failed to persist account-scoped media selection', error);
+      logMediaModelPickerDiagnostic('warn', 'failed to persist media selection for the current scope', error);
     }
     return normalizedSelection;
   })().finally(() => {
-    if (pendingSavedMediaSelectionLoads.get(ownerAccountKey) === load) {
-      pendingSavedMediaSelectionLoads.delete(ownerAccountKey);
+    if (pendingSavedMediaSelectionLoads.get(mediaScopeKey) === load) {
+      pendingSavedMediaSelectionLoads.delete(mediaScopeKey);
     }
   });
-  pendingSavedMediaSelectionLoads.set(ownerAccountKey, load);
+  pendingSavedMediaSelectionLoads.set(mediaScopeKey, load);
   return load;
 };
 
@@ -215,76 +203,8 @@ interface EstimatedTokenUsage {
 }
 
 const CREDITS_PER_CNY = 100;
+// Fallback USD→CNY rate used when a model does not declare its own `usdToCny`.
 const DEFAULT_USD_TO_CNY = 7;
-const BANANA_2_MODEL_ID = 'banana-2';
-const BANANA_PRO_MODEL_ID = 'banana-pro';
-const BANANA_2_ESTIMATE_KEYS = new Set([
-  BANANA_2_MODEL_ID,
-  'banana2',
-  'banana 2',
-  'nano banana 2',
-  'g3.1-flash-image-preview',
-  'gemini-3.1-flash-image',
-  'gemini-3.1-flash-image-preview',
-]);
-const BANANA_PRO_ESTIMATE_KEYS = new Set([
-  BANANA_PRO_MODEL_ID,
-  'banana pro',
-  'nanobanana pro',
-  'nano banana pro',
-  'gemini3proimage',
-  'g3-pro-image-preview',
-  'gemini-3-pro-image',
-  'gemini-3-pro-image-preview',
-]);
-
-interface ClientEstimateUsagePart {
-  tokens: number;
-  creditsPerMillion: number;
-  zhLabel: string;
-  enLabel: string;
-}
-
-interface ClientEstimateConfig {
-  credits: number;
-  discountLabel?: string;
-  inputImageCount: number;
-  outputImageCount: number;
-  usageParts: ClientEstimateUsagePart[];
-}
-
-const CLIENT_ESTIMATE_CONFIGS: Record<string, ClientEstimateConfig> = {
-  [GPT_IMAGE_2_MODEL_ID]: {
-    credits: 30,
-    discountLabel: '6折',
-    inputImageCount: 1,
-    outputImageCount: 1,
-    usageParts: [
-      { tokens: 83, creditsPerMillion: 2100, zhLabel: '文本 token', enLabel: 'text tokens' },
-      { tokens: 1050, creditsPerMillion: 5600, zhLabel: '图片输入 token', enLabel: 'image-input tokens' },
-      { tokens: 1900, creditsPerMillion: 12600, zhLabel: '图片输出 token', enLabel: 'image-output tokens' },
-    ],
-  },
-  [BANANA_2_MODEL_ID]: {
-    credits: 49,
-    inputImageCount: 0,
-    outputImageCount: 1,
-    usageParts: [
-      { tokens: 60, creditsPerMillion: 350, zhLabel: '文本 token', enLabel: 'text tokens' },
-      { tokens: 1120, creditsPerMillion: 42000, zhLabel: '图片输出 token', enLabel: 'image-output tokens' },
-      { tokens: 922, creditsPerMillion: 2100, zhLabel: '思考输出 token', enLabel: 'thinking-output tokens' },
-    ],
-  },
-  [BANANA_PRO_MODEL_ID]: {
-    credits: 94,
-    inputImageCount: 0,
-    outputImageCount: 1,
-    usageParts: [
-      { tokens: 60, creditsPerMillion: 1400, zhLabel: '文本 token', enLabel: 'text tokens' },
-      { tokens: 1120, creditsPerMillion: 84000, zhLabel: '图片输出 token', enLabel: 'image-output tokens' },
-    ],
-  },
-};
 
 const TOKEN_PRICING_FIELDS: Array<{ key: keyof TokenUsagePricing; labelKey: string }> = [
   { key: 'textInputUsdPerMillion', labelKey: 'mediaTokenPricingTextInput' },
@@ -318,28 +238,6 @@ const isTokenBillingModel = (model: MediaModel): boolean => {
 
 const isImageIoBillingModel = (model: MediaModel): boolean => {
   return getPricingConfig(model)?.billingUnit === 'per_image_io';
-};
-
-const getNormalizedClientEstimateKeys = (model: MediaModel): string[] => {
-  const pricing = getPricingConfig(model);
-  return [
-    model.modelId,
-    canonicalizeMediaModelId(model.modelId),
-    model.displayName,
-    pricing?.adapterType,
-    pricing?.pricingModel,
-    pricing?.upstreamModelId,
-  ]
-    .filter((value): value is string => typeof value === 'string' && value.trim() !== '')
-    .map(value => value.trim().toLowerCase());
-};
-
-const getClientEstimateConfig = (model: MediaModel): ClientEstimateConfig | undefined => {
-  const estimateKeys = getNormalizedClientEstimateKeys(model);
-  if (estimateKeys.includes(GPT_IMAGE_2_MODEL_ID)) return CLIENT_ESTIMATE_CONFIGS[GPT_IMAGE_2_MODEL_ID];
-  if (estimateKeys.some(key => BANANA_2_ESTIMATE_KEYS.has(key))) return CLIENT_ESTIMATE_CONFIGS[BANANA_2_MODEL_ID];
-  if (estimateKeys.some(key => BANANA_PRO_ESTIMATE_KEYS.has(key))) return CLIENT_ESTIMATE_CONFIGS[BANANA_PRO_MODEL_ID];
-  return undefined;
 };
 
 const getCreditsPerUsd = (pricing?: MediaPricingConfig): number => {
@@ -400,8 +298,6 @@ const calculateEstimatedTokenCredits = (model: MediaModel): number | undefined =
 };
 
 const getEstimatedRequestCredits = (model: MediaModel): number | undefined => {
-  const clientEstimate = getClientEstimateConfig(model);
-  if (clientEstimate) return clientEstimate.credits;
   if (!isTokenBillingModel(model)) return undefined;
   const unitCredits = toFiniteNumber(model.unitCredits);
   if (unitCredits && unitCredits > 0) return unitCredits;
@@ -505,10 +401,6 @@ const getModelPriceLabel = (model: MediaModel): string | null => {
   return `x${formatCreditAmount(unitCredits)} ${i18nService.t('authCreditsUnit')}/${model.unitLabel || '张'}`;
 };
 
-const getModelDiscountLabel = (model: MediaModel): string | null => {
-  return getClientEstimateConfig(model)?.discountLabel ?? null;
-};
-
 const normalizeModelDescription = (description?: string): string | undefined => {
   if (!description) return undefined;
   const normalized = description.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').trim();
@@ -576,52 +468,8 @@ const getImageIoPricingRows = (model: MediaModel): Array<{ label: string; credit
   return rows;
 };
 
-const formatChineseEstimateScope = (config: ClientEstimateConfig): string => {
-  const parts: string[] = [];
-  if (config.inputImageCount > 0) parts.push(`${config.inputImageCount} 张输入图`);
-  if (config.outputImageCount > 0) parts.push(`${config.outputImageCount} 张输出图`);
-  return parts.length > 0 ? `按 ${parts.join('和 ')}估算` : '按默认参数估算';
-};
-
-const formatEnglishImageCount = (count: number, label: string): string => {
-  return `${count} ${label} image${count === 1 ? '' : 's'}`;
-};
-
-const formatEnglishEstimateScope = (config: ClientEstimateConfig): string => {
-  const parts: string[] = [];
-  if (config.inputImageCount > 0) parts.push(formatEnglishImageCount(config.inputImageCount, 'input'));
-  if (config.outputImageCount > 0) parts.push(formatEnglishImageCount(config.outputImageCount, 'output'));
-  return parts.length > 0 ? `assumes ${parts.join(' and ')}` : 'assumes default parameters';
-};
-
-const getTokenBillingEstimateNotes = (model: MediaModel): string[] => {
-  const clientEstimate = getClientEstimateConfig(model);
-  if (!clientEstimate) {
-    return [i18nService.t('mediaTokenBillingEstimateNote')];
-  }
-
-  const creditsUnit = i18nService.t('authCreditsUnit');
-  const formula = clientEstimate.usageParts
-    .map(part => `${formatCreditAmount(part.tokens)}×${formatCreditAmount(part.creditsPerMillion)}/1M`)
-    .join(' + ');
-
-  if (i18nService.getLanguage() === 'zh') {
-    const usage = clientEstimate.usageParts
-      .map(part => `${formatCreditAmount(part.tokens)} ${part.zhLabel}`)
-      .join('、');
-    return [
-      `预估计算：${formatChineseEstimateScope(clientEstimate)}，约 ${usage}：${formula} ≈ ${formatEstimatedCredits(clientEstimate.credits)} ${creditsUnit}。`,
-      '实际扣费按本次输入和输出 token 计算，输入图片数量、尺寸、输出复杂度不同，会与预估存在差异。',
-    ];
-  }
-
-  const usage = clientEstimate.usageParts
-    .map(part => `${formatCreditAmount(part.tokens)} ${part.enLabel}`)
-    .join(', ');
-  return [
-    `Estimate: ${formatEnglishEstimateScope(clientEstimate)}, about ${usage}: ${formula} ≈ ${formatEstimatedCredits(clientEstimate.credits)} ${creditsUnit}.`,
-    'Actual billing is calculated from the request input and output tokens. Image count, size, and output complexity can make actual cost differ from the estimate.',
-  ];
+const getTokenBillingEstimateNotes = (): string[] => {
+  return [i18nService.t('mediaTokenBillingEstimateNote')];
 };
 
 const resolveMediaModelIcon = (model: MediaModel): React.ReactNode => {
@@ -646,45 +494,15 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
   const [hoverCardStyle, setHoverCardStyle] = useState<React.CSSProperties>({});
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchRequestIdRef = useRef(0);
+  // Stable per-run generation so scope guards keep their signatures; media
+  // selection state no longer resets on account changes (no accounts).
+  const accountGenerationRef = useRef(0);
 
-  const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
-  const authUser = useSelector((state: RootState) => state.auth.user);
-  const authQuota = useSelector((state: RootState) => state.auth.quota);
-  const ownerAccountKey = useSelector((state: RootState) => state.auth.ownerAccountKey);
-  const accountGeneration = useSelector((state: RootState) => state.auth.accountGeneration);
-  const enterpriseContext = useSelector((state: RootState) => state.enterpriseAccount.context);
-  const ownerMarksEnterpriseAccount = isEnterpriseAccountOwnerKey(ownerAccountKey);
-  const isEnterpriseAccount = ownerMarksEnterpriseAccount
-    || enterpriseContext !== null
-    || authQuota?.subscriptionStatus === AuthSubscriptionStatus.Enterprise
-    || authQuota?.accountMode === EnterpriseAccountMode.Enterprise;
-  const enterpriseContextOwnerAccountKey = createAccountOwnerKey({
-    user: authUser,
-    enterpriseId: enterpriseContext?.enterpriseId,
-  });
-  const enterpriseQuotaOwnerAccountKey = createAccountOwnerKey({
-    user: authUser,
-    enterpriseId: authQuota?.enterpriseId,
-  });
-  const enterpriseAccountSnapshotsMatch = enterpriseMediaAccountSnapshotsMatch({
-    isEnterpriseAccount,
-    ownerAccountKey,
-    contextOwnerAccountKey: enterpriseContextOwnerAccountKey,
-    quotaOwnerAccountKey: enterpriseQuotaOwnerAccountKey,
-    quotaAccountMode: authQuota?.accountMode,
-    quotaEnterpriseId: authQuota?.enterpriseId,
-    contextEnterpriseId: enterpriseContext?.enterpriseId,
-  });
-  const mediaAccess = resolveMediaGenerationAccess({
-    isLoggedIn,
-    quota: authQuota,
-    isEnterpriseAccount,
-    enterpriseAccountSnapshotsMatch,
-    enterpriseQuotaAvailable: enterpriseContext?.quotaStatus.available,
-  });
-  const canUseMediaGeneration = mediaAccess.allowed;
-  const showsModelList = isLoggedIn && canUseMediaGeneration;
-  const desiredPanelWidth = showsModelList ? MEDIA_MODEL_LIST_PANEL_WIDTH : MEDIA_PROMPT_PANEL_WIDTH;
+  // Media generation is backed by the user's own local providers (no account
+  // scoping); the scope key is a stable per-run constant so cache semantics
+  // keep working unchanged.
+  const mediaScopeKey = 'local';
+  const desiredPanelWidth = MEDIA_MODEL_LIST_PANEL_WIDTH;
   const containerRef = useRef<HTMLDivElement>(null);
   const [panelPlacement, setPanelPlacement] = useState(() => ({
     alignEnd: false,
@@ -692,10 +510,10 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
   }));
 
   const cachedMediaModels = useSelector((state: RootState) => state.cowork.mediaModels);
-  const mediaModelsOwnerAccountKey = useSelector(
-    (state: RootState) => state.cowork.mediaModelsOwnerAccountKey,
+  const mediaModelsScopeKey = useSelector(
+    (state: RootState) => state.cowork.mediaModelsScopeKey,
   );
-  const mediaModels = ownerAccountKey === mediaModelsOwnerAccountKey
+  const mediaModels = mediaScopeKey === mediaModelsScopeKey
     ? cachedMediaModels
     : EMPTY_MEDIA_MODELS;
   const mediaModelsRef = useRef(mediaModels);
@@ -704,23 +522,16 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
 
   const selectionRef = useRef(selection);
   selectionRef.current = selection;
-  const isAccountScopeCurrent = useCallback((
-    expectedOwnerAccountKey: string,
+  const isMediaScopeCurrent = useCallback((
+    _expectedMediaScopeKey: string,
     expectedGeneration: number,
-  ): boolean => {
-    const currentAuthState = store.getState().auth;
-    return (
-      currentAuthState.ownerAccountKey === expectedOwnerAccountKey
-      && currentAuthState.accountGeneration === expectedGeneration
-    );
-  }, []);
+  ): boolean => expectedGeneration === accountGenerationRef.current, []);
 
   const fetchModels = useCallback(async () => {
-    if (!ownerAccountKey) return;
-    const requestOwnerAccountKey = ownerAccountKey;
-    const requestGeneration = accountGeneration;
+    const requestScopeKey = mediaScopeKey;
+    const requestGeneration = accountGenerationRef.current;
     const requestId = ++fetchRequestIdRef.current;
-    const selectionStoreKey = getMediaSelectionStoreKey(requestOwnerAccountKey);
+    const selectionStoreKey = getMediaSelectionStoreKey(requestScopeKey);
     const currentMediaModels = mediaModelsRef.current;
     const hasCachedModels = currentMediaModels.image.length > 0
       || currentMediaModels.video.length > 0;
@@ -734,7 +545,7 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
       ]);
       if (
         fetchRequestIdRef.current !== requestId
-        || !isAccountScopeCurrent(requestOwnerAccountKey, requestGeneration)
+        || !isMediaScopeCurrent(requestScopeKey, requestGeneration)
       ) return;
       if (!imageResult.success) {
         logMediaModelPickerDiagnostic('warn', 'image models fetch failed', imageResult.error);
@@ -747,14 +558,14 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
       dispatch(setMediaModels({
         image: imageModels,
         video: videoModels,
-        ownerAccountKey: requestOwnerAccountKey,
+        scopeKey: requestScopeKey,
       }));
       const currentSelection = selectionRef.current;
       if (!currentSelection || currentSelection.mode === 'none') {
-        const rawSaved = await loadSavedMediaSelection(requestOwnerAccountKey);
+        const rawSaved = await loadSavedMediaSelection(requestScopeKey);
         if (
           fetchRequestIdRef.current !== requestId
-          || !isAccountScopeCurrent(requestOwnerAccountKey, requestGeneration)
+          || !isMediaScopeCurrent(requestScopeKey, requestGeneration)
         ) return;
         const saved = normalizeSavedMediaSelection(rawSaved);
         if (!isSameSavedMediaSelection(rawSaved, saved)) {
@@ -794,29 +605,28 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
     } finally {
       if (
         fetchRequestIdRef.current === requestId
-        && isAccountScopeCurrent(requestOwnerAccountKey, requestGeneration)
+        && isMediaScopeCurrent(requestScopeKey, requestGeneration)
       ) {
         setIsLoading(false);
       }
     }
   }, [
-    accountGeneration,
     dispatch,
     draftKey,
-    isAccountScopeCurrent,
-    ownerAccountKey,
+    isMediaScopeCurrent,
+    mediaScopeKey,
   ]);
 
   useEffect(() => {
     fetchRequestIdRef.current += 1;
     setIsLoading(false);
-  }, [accountGeneration, ownerAccountKey]);
+  }, [mediaScopeKey]);
 
   useEffect(() => {
-    if (isOpen && canUseMediaGeneration) {
+    if (isOpen) {
       fetchModels();
     }
-  }, [isOpen, canUseMediaGeneration, fetchModels]);
+  }, [isOpen, fetchModels]);
 
   useLayoutEffect(() => {
     if (!isOpen) return;
@@ -857,28 +667,24 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
   }, [isOpen]);
 
   useEffect(() => {
-    if (
-      !ownerAccountKey
-      || !canUseMediaGeneration
-      || (selection && selection.mode !== 'none')
-    ) {
+    if (selection && selection.mode !== 'none') {
       return;
     }
 
     let cancelled = false;
-    const restoreOwnerAccountKey = ownerAccountKey;
-    const restoreGeneration = accountGeneration;
-    const selectionStoreKey = getMediaSelectionStoreKey(restoreOwnerAccountKey);
+    const restoreScopeKey = mediaScopeKey;
+    const restoreGeneration = accountGenerationRef.current;
+    const selectionStoreKey = getMediaSelectionStoreKey(restoreScopeKey);
     void (async () => {
       try {
-        const rawSaved = await loadSavedMediaSelection(restoreOwnerAccountKey);
+        const rawSaved = await loadSavedMediaSelection(restoreScopeKey);
         const saved = normalizeSavedMediaSelection(rawSaved);
         if (!isSameSavedMediaSelection(rawSaved, saved)) {
           await localStore.setItem(selectionStoreKey, saved);
         }
         if (
           cancelled
-          || !isAccountScopeCurrent(restoreOwnerAccountKey, restoreGeneration)
+          || !isMediaScopeCurrent(restoreScopeKey, restoreGeneration)
         ) {
           return;
         }
@@ -913,30 +719,27 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
     })();
     return () => { cancelled = true; };
   }, [
-    accountGeneration,
-    canUseMediaGeneration,
     dispatch,
     draftKey,
-    isAccountScopeCurrent,
-    ownerAccountKey,
+    isMediaScopeCurrent,
+    mediaScopeKey,
     selection,
   ]);
 
   const handleSelect = async (mode: MediaGenerationMode, model?: MediaModel) => {
-    if (!ownerAccountKey) return;
-    const selectionOwnerAccountKey = ownerAccountKey;
-    const selectionGeneration = accountGeneration;
-    const selectionStoreKey = getMediaSelectionStoreKey(selectionOwnerAccountKey);
+    const selectionScopeKey = mediaScopeKey;
+    const selectionGeneration = accountGenerationRef.current;
+    const selectionStoreKey = getMediaSelectionStoreKey(selectionScopeKey);
     let saved: SavedMediaSelection;
     try {
       saved = normalizeSavedMediaSelection(
-        await loadSavedMediaSelection(selectionOwnerAccountKey),
+        await loadSavedMediaSelection(selectionScopeKey),
       );
     } catch (error) {
       logMediaModelPickerDiagnostic('warn', 'failed to load saved media selection', error);
       saved = {};
     }
-    if (!isAccountScopeCurrent(selectionOwnerAccountKey, selectionGeneration)) return;
+    if (!isMediaScopeCurrent(selectionScopeKey, selectionGeneration)) return;
     const currentModelId = mode === 'image'
       ? canonicalizeMediaModelId(selection?.imageModelId ?? (selection?.mode === 'image' ? selection?.modelId : undefined))
       : canonicalizeMediaModelId(selection?.videoModelId ?? (selection?.mode === 'video' ? selection?.modelId : undefined));
@@ -952,7 +755,7 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
     } catch (error) {
       logMediaModelPickerDiagnostic('warn', 'failed to save media selection', error);
     }
-    if (!isAccountScopeCurrent(selectionOwnerAccountKey, selectionGeneration)) return;
+    if (!isMediaScopeCurrent(selectionScopeKey, selectionGeneration)) return;
 
     const hasImage = !!saved.image;
     const hasVideo = !!saved.video;
@@ -983,19 +786,15 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
     }
   };
 
-  const handleLogin = async () => {
+  /**
+   * Jumps to the settings tab where media providers are configured. The picker
+   * is rendered deep inside the prompt input, so the app shell listens for this
+   * broadcast event instead of the callback being threaded through every
+   * intermediate component.
+   */
+  const handleOpenProviderSettings = () => {
     setIsOpen(false);
-    await authService.login();
-  };
-
-  const handleSubscribe = async () => {
-    setIsOpen(false);
-    const { getPortalPricingUrl } = await import('../../services/endpoints');
-    await window.electron.shell.openExternal(getPortalPricingUrl());
-  };
-
-  const handleEnterpriseRefresh = async () => {
-    await authService.refreshQuota();
+    window.dispatchEvent(new Event(MediaProviderUiEvent.OpenSettings));
   };
 
   const handleModelHover = (model: MediaModel, event: React.MouseEvent<HTMLButtonElement>) => {
@@ -1057,12 +856,11 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
     const desc = normalizeModelDescription(hoveredModel.description || hoveredModel.capabilities || hoveredModel.pricingDescription);
     const unitLabel = hoveredModel.unitLabel || (hoveredModel.mediaType === 'image' ? '张' : '个');
     const pricing = getPricingConfig(hoveredModel);
-    const discountLabel = getModelDiscountLabel(hoveredModel);
     const tiers = pricing?.tiers;
     const billingUnit = pricing?.billingUnit;
     const tokenPricingRows = getTokenPricingRows(hoveredModel);
     const imageIoPricingRows = getImageIoPricingRows(hoveredModel);
-    const tokenBillingEstimateNotes = getTokenBillingEstimateNotes(hoveredModel);
+    const tokenBillingEstimateNotes = getTokenBillingEstimateNotes();
 
     const formatTierLabel = (tier: MediaPricingTierConfig) => {
       if (tier.label) return tier.label;
@@ -1097,11 +895,6 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
       <div style={hoverCardStyle} className="w-[280px] rounded-xl border border-border bg-surface shadow-popover p-3 pointer-events-none">
         <div className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold text-foreground leading-5">
           <span className="min-w-0 truncate">{hoveredModel.displayName}</span>
-          {discountLabel && (
-            <span className="shrink-0 rounded bg-red-500/10 px-1 py-0.5 text-[9px] font-medium leading-3 text-red-500">
-              {discountLabel}
-            </span>
-          )}
         </div>
         {desc && (
           <div className="mt-1 whitespace-pre-line text-[11px] text-secondary leading-4">
@@ -1221,84 +1014,10 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
     <MagicIcon className="h-5 w-5" />
   );
 
-  const renderPromptPanel = (title: string, desc: string, btnLabel: string, onBtn: () => void, secondaryLabel?: string, onSecondary?: () => void) => (
-    <div className="px-4 py-5">
-      <div className="flex justify-center mb-3">
-        <Lottie
-          animationData={mediaGenAnimation}
-          loop={false}
-          autoplay={true}
-          style={{ width: 80, height: 80 }}
-          key={Date.now()}
-        />
-      </div>
-      <div className="text-[13px] font-medium text-foreground text-center">{title}</div>
-      <div className="text-[12px] text-secondary mt-1 text-center">{desc}</div>
-      <button
-        type="button"
-        onClick={onBtn}
-        className="mt-3 w-full rounded-lg bg-primary px-3 py-1.5 text-[12px] font-medium text-white hover:bg-primary/90 transition-colors"
-      >
-        {btnLabel}
-      </button>
-      {secondaryLabel && onSecondary && (
-        <div
-          onClick={onSecondary}
-          className="mt-2 text-center text-[12px] text-secondary hover:text-foreground cursor-pointer transition-colors"
-        >
-          {secondaryLabel}
-        </div>
-      )}
-    </div>
-  );
-
   const renderDropdownContent = () => {
-    if (!isLoggedIn) {
-      return renderPromptPanel(
-        i18nService.t('mediaLoginTitle'),
-        i18nService.t('mediaLoginDesc'),
-        i18nService.t('mediaLoginBtn'),
-        handleLogin,
-        i18nService.t('mediaLearnMore'),
-        handleSubscribe,
-      );
-    }
-
-    if (
-      mediaAccess.reason === MediaGenerationAccessReason.EnterpriseQuotaUnavailable
-      && enterpriseContext?.quotaStatus.reason
-    ) {
-      return (
-        <div className="px-2 pb-2">
-          <EnterpriseQuotaPrompt
-            reason={enterpriseContext.quotaStatus.reason}
-            surface="home"
-          />
-        </div>
-      );
-    }
-
-    if (isEnterpriseAccount && !canUseMediaGeneration) {
-      return renderPromptPanel(
-        i18nService.t('enterpriseMediaUnavailableTitle'),
-        i18nService.t('enterpriseMediaUnavailableDesc'),
-        i18nService.t('enterpriseMediaRetry'),
-        () => { void handleEnterpriseRefresh(); },
-      );
-    }
-
-    if (!canUseMediaGeneration) {
-      return renderPromptPanel(
-        i18nService.t('mediaSubscribeTitle'),
-        i18nService.t('mediaSubscribeDesc'),
-        i18nService.t('mediaSubscribeBtn'),
-        handleSubscribe,
-      );
-    }
-
-  const handleTabSwitch = (tab: 'image' | 'video') => {
-    setActiveTab(tab);
-  };
+    const handleTabSwitch = (tab: 'image' | 'video') => {
+      setActiveTab(tab);
+    };
 
     return (
       <>
@@ -1342,7 +1061,14 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
             </div>
           ) : currentModels.length === 0 ? (
             <div className="px-2 py-3 text-center text-xs text-secondary">
-              {i18nService.t('mediaNoModels')}
+              <div>{i18nService.t('mediaNoModels')}</div>
+              <button
+                type="button"
+                onClick={handleOpenProviderSettings}
+                className="mt-2 text-[12px] text-primary hover:underline cursor-pointer transition-colors"
+              >
+                {i18nService.t('mediaConfigureModels')}
+              </button>
             </div>
           ) : (
             currentModels.map((model) => {
@@ -1352,9 +1078,8 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
                 : (canonicalizeMediaModelId(selection?.videoModelId) === model.modelId
                   || (selection?.mode === 'video' && canonicalizeMediaModelId(selection?.modelId) === model.modelId));
               const priceLabel = activeTab === 'image' ? getModelPriceLabel(model) : null;
-              const discountLabel = activeTab === 'image' ? getModelDiscountLabel(model) : null;
-              // Name and discount tag take the remaining width; the price sits in
-              // a right-aligned column next to a fixed check slot.
+              // The model name takes the remaining width; the price sits in a
+              // right-aligned column next to a fixed check slot.
               return (
                 <button
                   key={model.modelId}
@@ -1373,11 +1098,6 @@ const MediaModelPicker: React.FC<MediaModelPickerProps> = ({ draftKey, disabled 
                     <span className={`min-w-0 truncate text-[13px] leading-5 ${isSelected ? 'font-medium' : 'font-normal'}`}>
                       {model.displayName}
                     </span>
-                    {discountLabel && (
-                      <span className="shrink-0 rounded bg-red-500/10 px-1 py-0.5 text-[10px] font-medium leading-3 text-red-500">
-                        {discountLabel}
-                      </span>
-                    )}
                   </span>
                   {priceLabel && (
                     <span className="shrink-0 whitespace-nowrap text-[11px] leading-4 text-secondary tabular-nums">

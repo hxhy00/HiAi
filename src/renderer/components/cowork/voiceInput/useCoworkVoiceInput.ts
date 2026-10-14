@@ -33,7 +33,6 @@ interface UseCoworkVoiceInputOptions {
   value: string;
   setValue: Dispatch<SetStateAction<string>>;
   textareaRef: RefObject<HTMLTextAreaElement>;
-  isLoggedIn: boolean;
   disabled: boolean;
   onQuotaExhausted?: () => void;
 }
@@ -56,7 +55,6 @@ export const useCoworkVoiceInput = ({
   value,
   setValue,
   textareaRef,
-  isLoggedIn,
   disabled,
   onQuotaExhausted,
 }: UseCoworkVoiceInputOptions) => {
@@ -213,7 +211,7 @@ export const useCoworkVoiceInput = ({
       await stopVoiceRecordingAndRecognize();
       return;
     }
-    if (!isLoggedIn || disabled) return;
+    if (disabled) return;
     if (voiceInputState === VoiceInputState.Recognizing) return;
 
     const generation = voiceInputGenerationRef.current + 1;
@@ -294,7 +292,6 @@ export const useCoworkVoiceInput = ({
     disabled,
     dispatch,
     draftKey,
-    isLoggedIn,
     markQuotaExhaustedIfNeeded,
     stopVoiceRecordingAndRecognize,
     textareaRef,

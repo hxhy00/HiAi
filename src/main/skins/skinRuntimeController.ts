@@ -15,7 +15,7 @@ export interface SkinRuntimeControllerOptions {
   getInstalledKits: () => Record<string, InstalledKitRecord>;
   getParentSessionId: (sessionId: string) => string | null;
   resolveSessionId: (sessionKey: string) => string | null;
-  resolveMediaSelection: (sessionId: string | null) => MediaSelectionState | undefined;
+  hasLocalImageModel: () => boolean;
   onChanged?: () => void;
 }
 
@@ -34,7 +34,7 @@ export class SkinRuntimeController {
       store: this.store,
       workflowRegistry: this.workflowRegistry,
       resolveSessionId: options.resolveSessionId,
-      resolveMediaSelection: options.resolveMediaSelection,
+      hasLocalImageModel: options.hasLocalImageModel,
       onChanged: options.onChanged,
     });
   }

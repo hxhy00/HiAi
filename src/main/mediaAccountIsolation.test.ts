@@ -5,10 +5,12 @@ import {
   canAccessTrackedMediaTask,
   clearMediaTaskOwnerAliasesForOwner,
   createAccountScopedFetch,
+  createLocalMediaAccountScope,
   isAuthExchangeIntentCurrent,
   isAuthStateSnapshotCurrent,
   isMediaAccountScopeCurrent,
   isMediaAccountScopeSnapshotCurrent,
+  LOCAL_MEDIA_OWNER_KEY,
   type MediaAccountScope,
   rebindMediaAccountScope,
   rememberMediaTaskOwnerAliases,
@@ -32,6 +34,19 @@ describe('createAccountScopedFetch', () => {
 
     await expect(scopedFetch('https://example.test')).rejects.toThrow('Account changed');
     expect(fetchWithAuth).not.toHaveBeenCalled();
+  });
+});
+
+describe('createLocalMediaAccountScope', () => {
+  test('shares a single local owner so logged-out media work still tracks ownership', () => {
+    const scope = createLocalMediaAccountScope(5);
+    expect(scope).toEqual({ ownerAccountKey: LOCAL_MEDIA_OWNER_KEY, accountGeneration: 5 });
+    expect(isMediaAccountScopeCurrent(scope, createLocalMediaAccountScope(5))).toBe(true);
+    // A generation bump (login/logout transition) invalidates stale local work.
+    expect(isMediaAccountScopeCurrent(scope, createLocalMediaAccountScope(6))).toBe(false);
+    // Local work is never mistaken for an account's work.
+    expect(canAccessTrackedMediaTask(enterpriseScope.ownerAccountKey, scope)).toBe(false);
+    expect(canAccessTrackedMediaTask(LOCAL_MEDIA_OWNER_KEY, scope)).toBe(true);
   });
 });
 

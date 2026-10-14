@@ -1,4 +1,3 @@
-import { PublishingRecoveryAnalyticsSurface } from '@shared/analytics/constants';
 import {
   HtmlShareAccessMode,
   type HtmlShareAccessMode as HtmlShareAccessModeValue,
@@ -14,7 +13,6 @@ import { LibraryNavigationEvent } from '@shared/library/constants';
 import {
   type PublishingQuotaErrorData,
   PublishingResourceKind,
-  PublishingSubscriptionRecoveryMode,
   type PublishingSubscriptionRecoveryMode as PublishingSubscriptionRecoveryModeValue,
 } from '@shared/publishing/constants';
 import {
@@ -28,19 +26,10 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useSelector } from 'react-redux';
 
-import { authService } from '@/services/auth';
 import { copyTextToClipboard } from '@/services/clipboard';
 import { getPortalPricingUrl, PortalPricingKeyfrom } from '@/services/endpoints';
 import { i18nService } from '@/services/i18n';
-import {
-  armPublishingSubscriptionRecovery,
-  PublishingSubscriptionRecoveryRefreshOutcome,
-  registerPublishingSubscriptionRecoveryTarget,
-  resolvePublishingSubscriptionRecoveryRefreshOutcome,
-} from '@/services/publishingSubscriptionRecovery';
-import type { RootState } from '@/store';
 import type { Artifact } from '@/types/artifact';
 
 import {
@@ -77,19 +66,12 @@ import {
   getArtifactFileShareSourceType,
   isArtifactFileShareable,
 } from './artifactFileSharePolicy';
-import {
-  ArtifactSubscriptionBlockReason,
-  ArtifactSubscriptionFeature,
-  type ArtifactSubscriptionPromptState,
-  resolveArtifactSubscriptionDecision,
-} from './artifactSubscriptionGate';
-import ArtifactSubscriptionPromptDialog from './ArtifactSubscriptionPromptDialog';
+import { ArtifactSubscriptionFeature } from './artifactSubscriptionGate';
 import { formatHtmlShareFailure } from './htmlShareErrorPresentation';
 import {
   createPublishingAnalyticsAttempt,
   createPublishingAnalyticsDialog,
   createPublishingAnalyticsOperationId,
-  createPublishingRecoveryAnalyticsContextFromAttempt,
   getPublishingErrorCategory,
   PublishingAnalyticsActionType,
   type PublishingAnalyticsAttemptContext,
@@ -100,20 +82,15 @@ import {
   PublishingAnalyticsOperationType,
   PublishingAnalyticsResult,
   PublishingAnalyticsTarget,
-  type PublishingRecoveryAnalyticsContext,
   reportPublishingCopyShareLink,
   reportPublishingDialogAction,
   reportPublishingDialogExposure,
   reportPublishingEntryAction,
   reportPublishingOperationResult,
-  reportPublishingRecoveryCtaAction,
-  reportPublishingRecoveryCtaExposure,
   reportPublishingShareResult,
   updatePublishingAnalyticsAttempt,
 } from './publishingAnalytics';
 import PublishingQuotaLimitDialog from './PublishingQuotaLimitDialog';
-import PublishingTrialNoticeDialog from './PublishingTrialNoticeDialog';
-import { shouldShowPublishingTrialNotice } from './publishingTrialNoticePolicy';
 
 const t = (key: string) => i18nService.t(key);
 
@@ -144,12 +121,6 @@ interface ArtifactFileShareDialogState {
 
 interface PreparedArtifactFileShare {
   share?: ArtifactFileShareRecord;
-}
-
-interface ArtifactFileShareTrialNoticeState {
-  artifact: Artifact;
-  request: ArtifactFileShareRequest;
-  quota: PublishingQuotaErrorData;
 }
 
 interface ArtifactFileShareControllerValue {
@@ -189,11 +160,6 @@ class ArtifactFileShareRequestError extends Error {
     this.failure = failure;
     this.quota = quota;
   }
-}
-
-function isSubscriptionRequiredError(error: unknown): boolean {
-  return error instanceof ArtifactFileShareRequestError &&
-    error.code === HtmlShareErrorCode.SubscriptionRequired;
 }
 
 function normalizeAccessMode(accessMode?: HtmlShareAccessModeValue): HtmlShareAccessModeValue {
@@ -388,14 +354,9 @@ function logShare(level: 'debug' | 'warn', message: string): void {
 }
 
 export function ArtifactFileShareProvider({ sessionId, children }: ArtifactFileShareProviderProps) {
-  const authState = useSelector((state: RootState) => state.auth);
   const [dialog, setDialog] = useState<ArtifactFileShareDialogState | null>(null);
-  const [subscriptionPrompt, setSubscriptionPrompt] =
-    useState<ArtifactSubscriptionPromptState | null>(null);
   const [publishingQuota, setPublishingQuota] =
     useState<PublishingQuotaErrorData | null>(null);
-  const [trialNotice, setTrialNotice] =
-    useState<ArtifactFileShareTrialNoticeState | null>(null);
   const [copyStatus, setCopyStatus] = useState<ArtifactFileShareCopyStatus>(
     ArtifactFileShareCopyStatus.Idle,
   );
@@ -431,15 +392,11 @@ export function ArtifactFileShareProvider({ sessionId, children }: ArtifactFileS
     mutationBarriersRef.current.clear();
     preparationPromisesRef.current.clear();
     setDialog(null);
-    setSubscriptionPrompt(null);
     setPublishingQuota(null);
-    setTrialNotice(null);
     analyticsAttemptRef.current = null;
     analyticsDialogRef.current = null;
     resetFeedback();
   }, [
-    authState.accountGeneration,
-    authState.ownerAccountKey,
     resetFeedback,
     sessionId,
   ]);
@@ -460,16 +417,6 @@ export function ArtifactFileShareProvider({ sessionId, children }: ArtifactFileS
     setDialog(null);
     resetFeedback();
   }, [resetFeedback]);
-
-  const closeSubscriptionPrompt = useCallback(() => {
-    generationRef.current += 1;
-    setSubscriptionPrompt(null);
-  }, []);
-
-  const closeTrialNotice = useCallback(() => {
-    generationRef.current += 1;
-    setTrialNotice(null);
-  }, []);
 
   const showPublishingQuota = useCallback((error: unknown): boolean => {
     if (!(error instanceof ArtifactFileShareRequestError) || !error.quota) return false;
@@ -556,25 +503,6 @@ export function ArtifactFileShareProvider({ sessionId, children }: ArtifactFileS
     }, 2200);
   }, [clearFeedbackTimer]);
 
-  const getSubscriptionDecision = useCallback(async () => {
-    return resolveArtifactSubscriptionDecision({
-      isLoggedIn: authState.isLoggedIn,
-      subscriptionStatus: authState.quota?.subscriptionStatus,
-      accountMode: authState.quota?.accountMode ?? authState.user?.accountMode,
-      shareEntitled: authState.quota?.shareEntitled,
-      deploymentEntitled: authState.quota?.deploymentEntitled,
-    }, async () => {
-      const refreshed = await authService.refreshAuthState();
-      return {
-        isLoggedIn: refreshed.isLoggedIn,
-        subscriptionStatus: refreshed.quota?.subscriptionStatus,
-        accountMode: refreshed.quota?.accountMode ?? refreshed.user?.accountMode,
-        shareEntitled: refreshed.quota?.shareEntitled,
-        deploymentEntitled: refreshed.quota?.deploymentEntitled,
-      };
-    }, ArtifactSubscriptionFeature.Share);
-  }, [authState.isLoggedIn, authState.quota, authState.user?.accountMode]);
-
   const lookupShare = useCallback(async (api: HtmlShareApi, request: ArtifactFileShareRequest) => {
     if (request.source === ArtifactFileShareRequestSource.HtmlFile) {
       return api.getByHtmlFile({ filePath: request.filePath || '' });
@@ -650,20 +578,9 @@ export function ArtifactFileShareProvider({ sessionId, children }: ArtifactFileS
       generationRef.current = runId;
       resetFeedback();
       setDialog(null);
-      setSubscriptionPrompt(null);
       setPublishingQuota(null);
-      setTrialNotice(null);
 
       try {
-        const subscriptionDecision = await getSubscriptionDecision();
-        if (generationRef.current !== runId) return;
-        if (!subscriptionDecision.allowed) {
-          setSubscriptionPrompt({
-            feature: ArtifactSubscriptionFeature.Share,
-            reason: subscriptionDecision.reason,
-          });
-          return;
-        }
         setDialog({
           artifact,
           request,
@@ -748,19 +665,6 @@ export function ArtifactFileShareProvider({ sessionId, children }: ArtifactFileS
             setPublishingQuota(quotaResult.data);
             return;
           }
-          if (shouldShowPublishingTrialNotice({
-            allowed: quotaResult.data.allowed,
-            identityType: quotaResult.data.identityType,
-            hasExistingResource: false,
-          })) {
-            setDialog(null);
-            setTrialNotice({
-              artifact,
-              request: resolvedRequest,
-              quota: quotaResult.data,
-            });
-            return;
-          }
         }
         const intent = prepared.share
           ? ArtifactFileShareIntent.Manage
@@ -778,14 +682,6 @@ export function ArtifactFileShareProvider({ sessionId, children }: ArtifactFileS
         });
       } catch (error) {
         if (generationRef.current !== runId) return;
-        if (isSubscriptionRequiredError(error)) {
-          setDialog(null);
-          setSubscriptionPrompt({
-            feature: ArtifactSubscriptionFeature.Share,
-            reason: ArtifactSubscriptionBlockReason.SubscriptionRequired,
-          });
-          return;
-        }
         if (analyticsAttemptRef.current) {
           reportPublishingOperationResult(analyticsAttemptRef.current, {
             result: PublishingAnalyticsResult.Failure,
@@ -807,21 +703,8 @@ export function ArtifactFileShareProvider({ sessionId, children }: ArtifactFileS
         });
       }
     },
-    [getSubscriptionDecision, loadShare, resetFeedback],
+    [loadShare, resetFeedback],
   );
-
-  const continueTrialShare = useCallback(() => {
-    const pending = trialNotice;
-    if (!pending) return;
-    setTrialNotice(null);
-    setDialog({
-      artifact: pending.artifact,
-      request: pending.request,
-      phase: ArtifactFileSharePhase.Ready,
-      intent: ArtifactFileShareIntent.Create,
-      selectedPermission: ArtifactFileSharePermission.Code,
-    });
-  }, [trialNotice]);
 
   const openShare = useCallback(
     async (
@@ -1023,14 +906,6 @@ export function ArtifactFileShareProvider({ sessionId, children }: ArtifactFileS
         reportPublishingShareResult(analyticsAttemptRef.current, resultOptions);
         reportPublishingOperationResult(analyticsAttemptRef.current, resultOptions);
       }
-      if (isSubscriptionRequiredError(error)) {
-        setDialog(null);
-        setSubscriptionPrompt({
-          feature: ArtifactSubscriptionFeature.Share,
-          reason: ArtifactSubscriptionBlockReason.SubscriptionRequired,
-        });
-        return;
-      }
       if (showPublishingQuota(error)) return;
       const failure = getFailureFromError(error);
       const diagnosticMessage = failure.error || 'Unknown HTML share error';
@@ -1199,14 +1074,6 @@ export function ArtifactFileShareProvider({ sessionId, children }: ArtifactFileS
         reportPublishingShareResult(analyticsAttemptRef.current, resultOptions);
         reportPublishingOperationResult(analyticsAttemptRef.current, resultOptions);
       }
-      if (isSubscriptionRequiredError(error)) {
-        setDialog(null);
-        setSubscriptionPrompt({
-          feature: ArtifactSubscriptionFeature.Share,
-          reason: ArtifactSubscriptionBlockReason.SubscriptionRequired,
-        });
-        return;
-      }
       if (showPublishingQuota(error)) return;
       const refreshedShare = await refreshShare(api, snapshot.request, lastConfirmedShare);
       if (generationRef.current !== runId) return;
@@ -1333,14 +1200,6 @@ export function ArtifactFileShareProvider({ sessionId, children }: ArtifactFileS
         reportPublishingShareResult(analyticsAttemptRef.current, resultOptions);
         reportPublishingOperationResult(analyticsAttemptRef.current, resultOptions);
       }
-      if (isSubscriptionRequiredError(error)) {
-        setDialog(null);
-        setSubscriptionPrompt({
-          feature: ArtifactSubscriptionFeature.Share,
-          reason: ArtifactSubscriptionBlockReason.SubscriptionRequired,
-        });
-        return;
-      }
       if (showPublishingQuota(error)) return;
       const failure = getFailureFromError(error);
       setDialog(previous =>
@@ -1430,128 +1289,16 @@ export function ArtifactFileShareProvider({ sessionId, children }: ArtifactFileS
       PortalPricingKeyfrom.HtmlShare,
       { traceId: analyticsAttemptRef.current?.attemptId },
     ));
-    closeSubscriptionPrompt();
-  }, [closeSubscriptionPrompt]);
-
-  const openLoginPage = useCallback(() => {
-    closeSubscriptionPrompt();
-    void authService.login();
-  }, [closeSubscriptionPrompt]);
-
-  const openTrialSubscriptionPage = useCallback(() => {
-    void window.electron?.shell?.openExternal(getPortalPricingUrl(
-      PortalPricingKeyfrom.HtmlShare,
-      { traceId: analyticsAttemptRef.current?.attemptId },
-    ));
-    closeTrialNotice();
-  }, [closeTrialNotice]);
+  }, []);
 
   const share = dialog?.share;
-  const recoveryAnalyticsContext = useMemo<PublishingRecoveryAnalyticsContext | null>(() => {
-    const analyticsAttempt = analyticsAttemptRef.current;
-    if (
-      !analyticsAttempt
-      || !authState.ownerAccountKey
-      || !share?.shareId
-      || share.subscriptionRecoveryMode !== PublishingSubscriptionRecoveryMode.Automatic
-    ) {
-      return null;
-    }
-    return createPublishingRecoveryAnalyticsContextFromAttempt(analyticsAttempt, {
-      ownerAccountKey: authState.ownerAccountKey,
-      resourceKey: share.shareId,
-      recoverySurface: PublishingRecoveryAnalyticsSurface.TaskFileShareDialog,
-      subscriptionRecoveryMode: share.subscriptionRecoveryMode,
-    });
-  }, [
-    authState.ownerAccountKey,
-    share?.shareId,
-    share?.subscriptionRecoveryMode,
-  ]);
-
-  useEffect(() => {
-    const ownerAccountKey = authState.ownerAccountKey;
-    const request = dialog?.request;
-    const recoveryMode = share?.subscriptionRecoveryMode;
-    if (
-      !ownerAccountKey
-      || !request
-      || !share?.shareId
-      || recoveryMode !== PublishingSubscriptionRecoveryMode.Automatic
-    ) {
-      return undefined;
-    }
-    return registerPublishingSubscriptionRecoveryTarget({
-      ownerAccountKey,
-      resourceKind: PublishingResourceKind.File,
-      resourceKey: share.shareId,
-      recoveryMode,
-      traceId: recoveryAnalyticsContext?.attemptId
-        ?? analyticsAttemptRef.current?.attemptId
-        ?? createPublishingAnalyticsOperationId(),
-      refresh: async () => {
-        const currentDialog = dialogRef.current;
-        const fallback = currentDialog?.share;
-        const api = window.electron?.htmlShare;
-        if (!api || !fallback || currentDialog?.request?.lookupKey !== request.lookupKey) {
-          return PublishingSubscriptionRecoveryRefreshOutcome.ResourceUnavailable;
-        }
-        const result = await lookupShare(api, request).catch(() => null);
-        if (!result?.success) return PublishingSubscriptionRecoveryRefreshOutcome.Pending;
-        const refreshedShare = getShareRecord(result.share, fallback);
-        if (!refreshedShare) {
-          return PublishingSubscriptionRecoveryRefreshOutcome.ResourceUnavailable;
-        }
-        setDialog(current => current?.request?.lookupKey === request.lookupKey
-          ? {
-              ...current,
-              share: refreshedShare,
-              selectedPermission: deriveArtifactFileSharePermission(refreshedShare),
-            }
-          : current);
-        return resolvePublishingSubscriptionRecoveryRefreshOutcome({
-          expectedMode: recoveryMode,
-          currentMode: refreshedShare.subscriptionRecoveryMode,
-          isRestored: refreshedShare.status === HtmlShareStatus.Live
-            && refreshedShare.accessExpiresAt === null,
-        });
-      },
-    });
-  }, [
-    authState.ownerAccountKey,
-    dialog?.request,
-    lookupShare,
-    recoveryAnalyticsContext?.attemptId,
-    share?.shareId,
-    share?.subscriptionRecoveryMode,
-  ]);
-
-  const openRecoverySubscriptionPage = useCallback(() => {
-    if (!recoveryAnalyticsContext) return;
-    reportPublishingRecoveryCtaAction(recoveryAnalyticsContext);
-    armPublishingSubscriptionRecovery({
-      ownerAccountKey: recoveryAnalyticsContext.ownerAccountKey,
-      resourceKind: recoveryAnalyticsContext.resourceKind,
-      resourceKey: recoveryAnalyticsContext.resourceKey,
-      recoveryMode: recoveryAnalyticsContext.subscriptionRecoveryMode,
-      traceId: recoveryAnalyticsContext.attemptId,
-    });
-    void window.electron?.shell?.openExternal(getPortalPricingUrl(
-      PortalPricingKeyfrom.HtmlShare,
-      { traceId: recoveryAnalyticsContext.attemptId },
-    ));
-  }, [recoveryAnalyticsContext]);
 
   const contextValue = useMemo<ArtifactFileShareControllerValue>(
     () => ({
-      isOverlayOpen:
-        isDialogOpen ||
-        Boolean(subscriptionPrompt) ||
-        Boolean(publishingQuota) ||
-        Boolean(trialNotice),
+      isOverlayOpen: isDialogOpen || Boolean(publishingQuota),
       openShare,
     }),
-    [isDialogOpen, openShare, publishingQuota, subscriptionPrompt, trialNotice],
+    [isDialogOpen, openShare, publishingQuota],
   );
 
   const committedPermission = share
@@ -1663,11 +1410,6 @@ export function ArtifactFileShareProvider({ sessionId, children }: ArtifactFileS
               (share.shareCodeUnavailable || !share.shareCode),
             )}
             accessExpiresAt={share?.accessExpiresAt}
-            ownerAccountKey={authState.ownerAccountKey}
-            subscriptionStatus={authState.quota?.subscriptionStatus}
-            recoveryMode={share?.subscriptionRecoveryMode}
-            recoveryAnalyticsContext={recoveryAnalyticsContext}
-            recoveryExposureKey={recoveryAnalyticsContext?.exposureId}
             canRetry={Boolean(dialog.request)}
             canCreate={canCreate}
             canSubmitPermission={canSubmitPermission}
@@ -1684,28 +1426,10 @@ export function ArtifactFileShareProvider({ sessionId, children }: ArtifactFileS
             onSubmitPermission={() => void submitPermissionChange()}
             onUpdateFile={() => void updateFile()}
             onCopy={() => void copyShare()}
-            onRecoveryExposure={recoveryAnalyticsContext
-              ? () => reportPublishingRecoveryCtaExposure(recoveryAnalyticsContext)
-              : undefined}
-            onRecoveryClick={recoveryAnalyticsContext
-              ? openRecoverySubscriptionPage
-              : undefined}
           />,
           document.body,
         )
       : null;
-
-  const subscriptionPromptPortal = subscriptionPrompt ? (
-    <ArtifactSubscriptionPromptDialog
-      feature={subscriptionPrompt.feature}
-      reason={subscriptionPrompt.reason}
-      onCancel={closeSubscriptionPrompt}
-      onLogin={openLoginPage}
-      onSubscribe={openSubscriptionPage}
-      onLearnBenefits={openSubscriptionPage}
-      analyticsAttempt={analyticsAttemptRef.current}
-    />
-  ) : null;
 
   const publishingQuotaPortal = publishingQuota ? (
     <PublishingQuotaLimitDialog
@@ -1721,24 +1445,11 @@ export function ArtifactFileShareProvider({ sessionId, children }: ArtifactFileS
     />
   ) : null;
 
-  const trialNoticePortal = trialNotice ? (
-    <PublishingTrialNoticeDialog
-      feature={ArtifactSubscriptionFeature.Share}
-      quota={trialNotice.quota}
-      onCancel={closeTrialNotice}
-      onContinue={continueTrialShare}
-      onSubscribe={openTrialSubscriptionPage}
-      analyticsAttempt={analyticsAttemptRef.current}
-    />
-  ) : null;
-
   return (
     <ArtifactFileShareContext.Provider value={contextValue}>
       {children}
       {dialogPortal}
-      {subscriptionPromptPortal}
       {publishingQuotaPortal}
-      {trialNoticePortal}
     </ArtifactFileShareContext.Provider>
   );
 }

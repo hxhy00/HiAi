@@ -11,10 +11,19 @@ import type { MediaProviderTarget } from './types';
 
 export const MEDIA_TASK_TARGETS_STORE_KEY = 'mediaTaskTargets';
 
-interface MediaTaskTargetRecord extends MediaProviderTarget {
+/**
+ * The API key is intentionally excluded: provider credentials are encrypted at
+ * rest via safeStorage, and mirroring the decrypted key into this registry
+ * would leak it as plaintext in sqlite. Polling re-resolves the key from the
+ * provider config, so only the fields needed to find that entry are persisted.
+ */
+type MediaTaskTargetRecord = Omit<MediaProviderTarget, 'apiKey'> & {
   /** Epoch ms, used to prune tasks that can no longer be relevant. */
   createdAt: number;
-}
+};
+
+/** A task target as persisted: everything except the secret api key. */
+export type PersistedMediaTaskTarget = Omit<MediaProviderTarget, 'apiKey'>;
 
 type MediaTaskTargetMap = Record<string, MediaTaskTargetRecord>;
 
@@ -60,14 +69,16 @@ export const rememberMediaTaskTarget = (
       pruned[id] = record;
     }
   }
-  pruned[taskId] = { ...target, createdAt: now };
+  // Never persist the api key; see MediaTaskTargetRecord.
+  const { apiKey: _apiKey, ...persisted } = target;
+  pruned[taskId] = { ...persisted, createdAt: now };
   writeMap(store, pruned);
 };
 
 export const resolveMediaTaskTarget = (
   store: SqliteStore,
   taskId: string,
-): MediaProviderTarget | undefined => {
+): PersistedMediaTaskTarget | undefined => {
   if (!taskId) return undefined;
 
   const record = readMap(store)[taskId];
@@ -77,7 +88,7 @@ export const resolveMediaTaskTarget = (
   }
 
   const { createdAt: _createdAt, ...target } = record;
-  return target as MediaProviderTarget;
+  return target as PersistedMediaTaskTarget;
 };
 
 export const forgetMediaTaskTarget = (store: SqliteStore, taskId: string): void => {

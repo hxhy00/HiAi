@@ -23,7 +23,6 @@ export interface PrepareSkinWorkflowTurnInput {
   sessionId: string;
   kitIds?: string[];
   mediaSelection?: MediaSelectionState;
-  mediaGenerationEntitled: boolean;
 }
 
 export interface PreparedSkinWorkflowTurn {
@@ -56,10 +55,6 @@ export class SkinWorkflowRegistry {
       if (!existing || existing.workflowKind !== workflowKind) {
         this.states.set(input.sessionId, { workflowKind });
       }
-    }
-
-    if (!input.mediaGenerationEntitled) {
-      return { workflowKind };
     }
 
     const selectedImageModelId = input.mediaSelection?.imageModelId

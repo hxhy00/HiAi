@@ -1,5 +1,4 @@
 import { LogReporterStoreKey } from '../../shared/analytics/constants';
-import { store } from '../store';
 import { localStore } from './store';
 
 let cachedId: string | null = null;
@@ -45,7 +44,6 @@ export const getInstallationId = async (): Promise<string | null> => {
 /**
  * Build the query string for update-check requests.
  * - Appends `uuid=<installationId>` when available.
- * - Appends `userId=<userId>` when the user is logged in.
  * - Returns an empty string on total failure so the caller can fall back to the bare URL.
  */
 export const getUpdateQueryString = async (): Promise<string> => {
@@ -55,12 +53,6 @@ export const getUpdateQueryString = async (): Promise<string> => {
     const installationId = await getInstallationId();
     if (installationId) {
       params.append('uuid', installationId);
-    }
-
-    const authUser = store.getState().auth.user;
-    const userId = authUser?.yid;
-    if (userId && typeof userId === 'string') {
-      params.append('userId', userId);
     }
 
     return params.toString();

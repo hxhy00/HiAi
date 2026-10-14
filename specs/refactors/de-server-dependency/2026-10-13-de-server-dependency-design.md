@@ -51,10 +51,10 @@ LobsterAI 当前是一个"本地 agent 内核 + 商业服务端外壳"的结构�
 | 功能组 | 接口 | 位置 | 去服务端化处置 |
 | --- | --- | --- | --- |
 | 登录/鉴权 | `/api/auth/exchange`、`/refresh`、`/logout` | `src/main/main.ts:7606,5846,8065` | 移除 |
-| 媒体模型 | `GET /api/media/{images\|videos}/models` | `src/main/main.ts:6396,8908` | **替换为本地 provider**（工具侧已替换；IPC 侧 `:8657` 待第 4 轮） |
-| 媒体生成 | `POST /api/media/{images\|videos}/generate` | `src/main/main.ts:6602` | **已替换为本地 provider**（图片走 OpenAI 兼容生图协议；视频走 MiniMax 三步异步协议） |
-| 媒体轮询 | `GET /api/media/{images\|videos}/tasks/{id}` | `src/main/main.ts:6455,7114,8952` | **已完成**（工具侧走适配层 + `taskRegistry` 反查；IPC 侧 `:8697` 待第 4 轮） |
-| 媒体取消 | `POST /api/media/videos/tasks/{id}/cancel` | `src/main/main.ts:6580,11117` | **已完成**（工具侧 `cancel` 局部化；IPC 侧 `:10879` 待第 4 轮） |
+| 媒体模型 | `GET /api/media/{images\|videos}/models` | `src/main/main.ts` | **已完成**：工具 `action=list` 与 IPC `GetMediaModels` 均读本地 provider |
+| 媒体生成 | `POST /api/media/{images\|videos}/generate` | `src/main/main.ts` | **已完成**（图片走 OpenAI 兼容生图协议；视频走 MiniMax 三步异步协议） |
+| 媒体轮询 | `GET /api/media/{images\|videos}/tasks/{id}` | `src/main/main.ts` | **已完成**：`action=status`、`media:getTaskStatus`、后台 `pollPendingMediaTasks` 均走适配层 + `taskRegistry` 反查 |
+| 媒体取消 | `POST /api/media/videos/tasks/{id}/cancel` | `src/main/main.ts` | **已完成**：工具 `action=cancel` 与 IPC `CancelMediaTask` 均调适配层 `cancel()` |
 | ASR 实时 | `POST /api/asr/realtime/sessions` | `src/main/ipcHandlers/asr/handlers.ts:66` | **替换为 SenseVoice** |
 | 订阅/配额 | `/api/user/quota`、`/profile`、`/models/pricing-catalog` 等 | `src/main/main.ts:7786,7860,7896,8104` | 移除 |
 | 企业账号 | `/api/enterprise/context`、`/identities`、`/quota-requests` | `src/main/enterpriseAccount/context.ts:280,369,442` | 移除 |
@@ -140,10 +140,10 @@ CoworkPromptInput（语音按钮）
 - **FR-2.2（修订，方案 A1：独立 kv key）** 媒体模型配置**不复用** `app_config.providers`（该结构被 `claudeSettings`、`openclawConfigSync`、`coworkOpenAICompatProxy` 等聊天链路消费，且其 `models[]` 只有 `supportsImage`/`supportsVideo`（语义为"能读图/读视频"的多模态文本模型），**没有** `category` 字段，塞入媒体配置会污染聊天链路）。改为**新增独立 kv key `mediaProviders`**，结构为 `{ image: MediaProviderEntry[], video: MediaProviderEntry[] }`，每条含 `key / displayName / baseUrl / apiKey / modelId / capabilities?`。清单**完全由用户手填配置推导**，无网络依赖、无内置预设；老配置不迁移（旧配置中本无媒体模型）。存储实现见 `src/main/libs/mediaProvider/store.ts`。
 - **FR-2.2a（UI，顺延）** 设置页"媒体模型"分组（图片 / 视频两个 tab，各支持增删改）**本轮不做**，留下一轮。本轮落存储、适配层与完整工具链路；无 UI 时 `action=list` 返回空列表并提示用户去设置中添加。
 - **FR-2.3（修订）** 视频生成 provider 定为 **MiniMax**（已确认）：用户手填 MiniMax API（`https://api.minimax.cn/v1`，视频接口非 OpenAI 兼容，主进程适配层单独实现 MiniMax 视频协议）。图片生成 provider 适配 OpenAI 兼容生图协议（`/images/generations`、`/images/edits`）。**三步异步协议详见 10.5 D5**。两者**均已落地**，见 `openaiCompatImage.ts` / `minimaxVideo.ts`。
-- **FR-2.4** **撤销积分估算**：移除 `MediaModelPicker.tsx:310-404` 的积分单价估算与 `CLIENT_ESTIMATE_CONFIGS`（`:256-287`）。
+- **FR-2.4（已实现）** **撤销积分估算**：移除 `MediaModelPicker.tsx:310-404` 的积分单价估算与 `CLIENT_ESTIMATE_CONFIGS`（`:256-287`）。同时移除 `getModelDiscountLabel`（"6 折"标签）、`getClientEstimateConfig`、`formatChineseEstimateScope` / `formatEnglishEstimateScope`、`BANANA_*_ESTIMATE_KEYS` 等硬编码估算体系；`getTokenBillingEstimateNotes` 统一返回 `mediaTokenBillingEstimateNote`。保留 `per_token` 计费读取（`getCreditsPerUsd` / `calculateEstimatedTokenCredits` 等，读 `pricing` 配置值而非硬编码）。
 - **FR-2.5（已决，降级）** **不显示 token 消耗**：媒体生成链路无用量字段（见 10.5 D4），`details.billing` 一并移除。
-- **FR-2.6** 移除媒体生成的 entitlement 门控（`mediaGenerationEntitled` 相关判断）。
-- **FR-2.7（已决）** "AI 皮肤包"工作流保留：`buildSkinPackInstruction`（`mediaGenerationTurnInstruction.ts:8-48`）继续绑定 `lobsterai_image_generate`，因 FR-2.1 已决定保留插件且其后端改为本地 provider，皮肤包随之自动走本地生图。`preflightLobsterImageGeneration`（`src/main/skins/skinMediaBridge.ts:102-133`）的触发条件需同步修订（见 4.3 节第 6 点）。
+- **FR-2.6（已实现）** 移除媒体生成的门控：删除 `NormalizedAuthQuota.mediaGenerationEntitled`、`AuthQuotaGateState.mediaGenerationEntitled`、`hasMediaGenerationEntitlement`、`cachedMediaGenerationEntitled`、`MediaGenerationAccessReason.NotEntitled` 分支、`UserQuota.mediaGenerationEntitled` 字段与 `mediaSubscribe*` 文案；`openclawConfigSync.canUseMediaGeneration` 死代码与 `skinWorkflowRegistry` 的 entitlement 短路一并删除。因媒体链路已完全改为用户自有本地 provider，**登录门控一并移除**：`resolveMediaGenerationAccess` 不再要求登录，`MediaGenerationAccessReason.LoginRequired`、`MediaModelPicker` 的登录提示面板与 `mediaLogin*` / `mediaLearnMore` 文案全部删除；仅保留企业账号的企业上下文/企业配额校验。未登录用户以 `local` 作用域缓存模型与保存选择（`coworkSlice.mediaModelsScopeKey`）。
+- **FR-2.7（已实现）** "AI 皮肤包"工作流保留：`buildSkinPackInstruction`（`mediaGenerationTurnInstruction.ts:8-48`）继续绑定 `lobsterai_image_generate`，因 FR-2.1 已决定保留插件且其后端改为本地 provider，皮肤包随之自动走本地生图。`preflightLobsterImageGeneration`（`src/main/skins/skinMediaBridge.ts`）触发条件已改为"存在可用本地图片模型 + 生成 gate 放行"（见 4.3 节第 6 点）。
 
 
 
@@ -165,11 +165,17 @@ CoworkPromptInput（语音按钮）
 
 ### FR-5：移除商业壳（最后执行）
 
+> **已拆分为独立文档**：`specs/refactors/remove-membership/2026-10-14-remove-membership-design.md`（《去会员理念改造设计文档》）。
+> 该文档承接 FR-5 的完整边界（术语统一、三维度拆分、删除顺序、验收标准、未决项 M-1~M-4）与 FR-5.3 的重叠归属。
+> 本节仅保留 FR-5 与去服务端依赖的**依赖关系**结论与逐条索引，实现细节以子文档为准。
+
 - **FR-5.1** 移除企业账号：`main.ts:6275-6290`、`enterpriseAccount/context.ts`、`ipcHandlers/enterpriseAccount/*`、`renderer/features/enterpriseAccount/`、Redux reducer（`store/index.ts:30`）。
 - **FR-5.2** 移除请求头注入（`main.ts:5579-5583`）。
 - **FR-5.3** 移除订阅/积分 UI 与状态（`authSlice` 的 `creditsLimit/Used/Remaining`、`accountMenuState.ts` 的升级逻辑）。
 - **FR-5.4** 移除 banner 与活动（`main.ts:7956-8027`、`activityClient.ts`）。
 - **FR-5.5** `subscriptionStatus` 相关判断收敛：`enterprise` 分支删除后，`resolveMediaGenerationAccess` 整体废弃（由 FR-2.6 取代）。
+
+**FR-5 前置**：FR-1/2/3 全部完成（理由见 §4.1）。
 
 ---
 
@@ -200,21 +206,23 @@ CoworkPromptInput（语音按钮）
 
 ### 4.3 FR-2 实现要点
 
-1. **插件保留（已决）**：`lobster-media-generation` 不禁用、不改代码；`handleMediaGenerationCallback`（`main.ts:6309`）内部的服务端 HTTP **已全部替换**为本地 provider 适配层。
+1. **插件保留（已决）**：`lobster-media-generation` 不禁用、不改代码；媒体生成链路（工具回调 + 渲染进程 IPC + 后台轮询器）的服务端 HTTP **已全部清零**（`grep -c "api/media" src/main/main.ts` == 0）。
    - **已落地**：`action=list`（图片+视频）、`action=generate`（图片+视频）、`action=status`、`action=cancel`（视频）。
+   - **IPC 侧已迁移**：`CoworkIpcChannel.GetMediaModels`、`media:getTaskStatus`、`CoworkIpcChannel.CancelMediaTask` 三处改为读本地 provider（`getTaskStatus` 的 `taskId` 类型同步 `number` → `string`，与真实 task id 一致）。
+   - **后台轮询器已迁移**：`pollPendingMediaTasks` 由拉服务端改为调适配层 `status()`，凭 `taskRegistry` 反查 target。
    - **同时删除**：服务端积分确认弹窗、`HappyHorse` 服务端子模型分派（`resolveHappyHorse11Selection` 等 103 行死代码）。
-   - **仍有残留**：`CoworkIpcChannel.GetMediaModels`（`main.ts:8657`）与 `media:getTaskStatus`（`:8697`）、视频取消 IPC（`~10879`）——这些是**渲染进程直连路径**，随第 4 步"前端选择器"一并迁移。
+   - **剩余服务端调用**仅存于登录/鉴权链路（`api/auth/*`），属其余 FR 范围。
 2. **主进程媒体适配层**（`src/main/libs/mediaProvider/`，**已落地**）：
    - `types.ts`：`MediaProvider` / `MediaProviderResolver` 契约与 `MediaProviderError`。
    - `store.ts`：独立 kv key `mediaProviders` 的读写与容错（缺失/畸形配置降级为空列表，不抛错）。
-   - `taskRegistry.ts`：taskId → provider target 的持久映射（24h TTL），供 `action=status`/`cancel` 反查凭据；app 重启后仍可续查。
+   - `taskRegistry.ts`：taskId → provider target 的持久映射（24h TTL），供 `action=status`/`cancel` 反查 target 后由适配层凭 `modelId` 重新解析凭据；app 重启后仍可续查。**不落 apiKey**（凭据经 safeStorage 加密，落库会造成明文泄漏），仅持久 `providerKey / baseUrl / modelId / displayName`。
    - `openaiCompatImage.ts`：OpenAI 兼容生图适配器（有参考图走 `/images/edits`，否则 `/images/generations`；同步返回）。
    - `minimaxVideo.ts`：MiniMax 三步异步协议适配器（创建 → 轮询 → 取回下载 URL），`base_resp.status_code !== 0` 视为失败；`cancel` 仅解除本地跟踪（MiniMax 无取消端点）。
    - `index.ts`：注册表 `initMediaProviders` / `getImageMediaProvider` / `getVideoMediaProvider`。
 3. **配置落点（方案 A1）**：独立 kv key `mediaProviders`，**不碰** `app_config.providers`。原因：`ProviderConfig.models[]` 无 `category` 字段，且其 `supportsImage`/`supportsVideo` 语义是"多模态文本模型能读图/读视频"，与"能生成图片"无关；该结构另被聊天链路广泛消费。设置页 UI（图片/视频两个 tab 的手填表单）**下一轮**。
 4. **前端选择器**：`MediaModelPicker.tsx` 数据源从 `window.electron.media.getModels`（`main.ts:8895-8933`）改为读本地媒体模型；积分估算 `CLIENT_ESTIMATE_CONFIGS`（`:256-287`）与估算逻辑（`:310-404`）删除。**下一轮**。
-5. **移除媒体 entitlement 门控**（FR-2.6）后，`mediaAccess.ts` 的 fail-closed 分支一并废弃。
-6. **`preflightLobsterImageGeneration`（`skinMediaBridge.ts:102-133`）**：触发条件从"服务端图片模型"改为"存在可用本地图片模型"，避免本地生图被误拒绝。**下一轮**（本轮未改，皮肤包生图在无本地图片模型时会落到上面的"未配置"提示）。
+5. **（已实现）移除媒体门控**（FR-2.6）：`mediaAccess.ts` 的 `NotEntitled` fail-closed 分支与 `LoginRequired` 登录门控均已废弃，`resolveMediaGenerationAccess` 仅保留企业账号的企业上下文/企业配额校验；`MediaModelPicker` 无未登录提示，未登录即以 `local` 作用域读写本地模型选择。
+6. **（已实现）`preflightLobsterImageGeneration`（`skinMediaBridge.ts`）**：触发条件改为"存在可用本地图片模型"，并复用 `resolveMediaGenerationGate` 作为单一事实来源（preflight 先于 gate 执行，避免对必将被 gate 拒绝的调用返回 `draft_required`）。注入点 `SkinMediaBridgeOptions.hasLocalImageModel`，由 `main.ts` 提供 `getImageMediaProvider()?.resolver.listModels().length > 0`。
 
 ### 4.4 FR-3 实现要点（sherpa-onnx，已定）
 
@@ -321,7 +329,7 @@ CoworkPromptInput（语音按钮）
 | ~~U-2~~ | ~~SenseVoice 侧车常驻 vs 按需拉起~~ **已决**：sherpa-onnx 按需拉起进程（FR-3.2） | — |
 | ~~U-3~~ | ~~流式 ASR 改批量识别的体验~~ **已决**：接受批量模式（FR-3.5） | — |
 | ~~U-4~~ | ~~插件禁用机制~~ **已决**：插件保留，后端本地化（FR-2.1） | — |
-| U-5 | 升级场景：是否需要清理旧登录态与相关 kv | 影响边界情况处理 |
+| ~~U-5~~ | ~~升级场景：是否需要清理旧登录态与相关 kv~~ **已决**：清理；登录能力整体移除（由 `specs/refactors/remove-membership/` §11 D1 承接） | — |
 | U-6 | 更新检查与 Skill Store 的后续处置 | 本期外，需另立需求 |
 | ~~U-7~~ | ~~皮肤包迁移还是关闭~~ **已决**：保留，随插件后端本地化自动切换（FR-2.7） | — |
 | ~~U-8~~ | ~~mac 侧 Python 运行时打包~~ **已决**：sherpa-onnx 预编译二进制，无 Python 依赖（FR-3.1） | — |
@@ -354,7 +362,7 @@ CoworkPromptInput（语音按钮）
 | 第 1 轮（FR-1） | LLM provider 首启引导方式（设置页 / 首启向导 / 两者）；OpenClaw 配置中 provider 直连的字段落点 | **已关闭**（见 10.4） |
 | 第 2 轮（FR-2） | U-1、U-10 | **已关闭**（见 10.5） |
 | 第 3 轮（FR-3） | U-9（SenseVoice 模型：随包分发 vs 首次下载；int8 约 200MB 级） | 待开工确认 |
-| 第 4 轮（FR-5） | U-5（升级场景旧登录态清理策略）；`subscriptionStatus` 收敛后 `resolveMediaGenerationAccess` 的废弃方式 | 待开工确认 |
+| 第 4 轮（FR-5） | U-5（升级场景旧登录态清理策略）；`subscriptionStatus` 收敛后 `resolveMediaGenerationAccess` 的废弃方式 | **已关闭**：U-5 已决（清理旧登录态，登录能力整体移除）；`resolveMediaGenerationAccess` 整体删除（见 `specs/refactors/remove-membership/` §11 D1/D2） |
 
 ### 10.3 轮次交接记录
 

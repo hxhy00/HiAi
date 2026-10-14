@@ -21,7 +21,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useSelector } from 'react-redux';
 
 import {
   LibraryCategory,
@@ -51,11 +50,6 @@ import { copyTextToClipboard } from '../../services/clipboard';
 import { i18nService } from '../../services/i18n';
 import { startLibraryBackfill } from '../../services/libraryBackfill';
 import {
-  PublishingSubscriptionRecoveryCoordinatorEvent,
-  reconcilePublishingSubscriptionRecovery,
-} from '../../services/publishingSubscriptionRecovery';
-import type { RootState } from '../../store';
-import {
   ArtifactPreviewActionSource,
   ArtifactPublishEntryPoint,
 } from '../artifacts/artifactAnalytics';
@@ -64,7 +58,6 @@ import {
   useOptionalArtifactFileShare,
 } from '../artifacts/ArtifactFileShareController';
 import { isArtifactFileShareable } from '../artifacts/artifactFileSharePolicy';
-import { shouldShowFreePublishingDeleteQuotaNotice } from '../artifacts/publishingDeleteNoticePolicy';
 import CardOverflowMenu, { type CardOverflowMenuItem } from '../common/CardOverflowMenu';
 import {
   MANAGEMENT_BODY_TEXT,
@@ -372,14 +365,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
   navigationRequestId = 0,
 }) => {
   const artifactFileShare = useOptionalArtifactFileShare();
-  const ownerAccountKey = useSelector((state: RootState) => state.auth.ownerAccountKey);
-  const subscriptionStatus = useSelector(
-    (state: RootState) => state.auth.quota?.subscriptionStatus,
-  );
-  const showFreeShareDeleteQuotaNotice = useSelector((state: RootState) => (
-    shouldShowFreePublishingDeleteQuotaNotice(state.auth.quota?.subscriptionStatus)
-  ));
-  const favoriteOwnerScope = ownerAccountKey ?? undefined;
   const [analyticsPageViewId] = useState(createLibraryAnalyticsPageViewId);
   const [source, setSource] = useState<LibrarySourceFilter>(requestedSource);
   const [category, setCategory] = useState<LibraryCategory>(LibraryCategory.All);
@@ -485,10 +470,9 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
     favoritesOnly,
   }), [category, favoritesOnly, keyword]);
   const cloudScopeKey = useMemo(() => JSON.stringify({
-    favoriteOwnerScope,
     isAuthenticated,
     sitesHidden,
-  }), [favoriteOwnerScope, isAuthenticated, sitesHidden]);
+  }), [isAuthenticated, sitesHidden]);
   const cloudQueryKey = useMemo(() => JSON.stringify({
     category,
     keyword,
@@ -781,13 +765,12 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
     const cloudKind = sitesHidden
       ? LibraryCloudKind.SharedFile
       : LibraryCloudKind.All;
-    const cloudPromise = loadCloudPage && isAuthenticated && favoriteOwnerScope
+    const cloudPromise = loadCloudPage && isAuthenticated
       ? window.electron.library.listCloud({
           kind: cloudKind,
           category,
           keyword,
           favoritesOnly,
-          favoriteOwnerScope,
           availability: cloudAvailability,
           pageSize: LibraryLimits.DefaultPageSize,
           ...(append && visibleCloudData.nextCursor
@@ -888,7 +871,7 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
           if (!append) reportListResult(LibraryAnalyticsResult.Failure);
           setCloudError(cloudResult.error);
         } else if (!append) {
-          if (wantsCloud && (!isAuthenticated || !favoriteOwnerScope)) {
+          if (wantsCloud && !isAuthenticated) {
             reportListResult(LibraryAnalyticsResult.AuthRequired);
             setCloudData(EMPTY_CLOUD);
             setCloudResolvedQuery(undefined);
@@ -918,7 +901,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
     category,
     cloudQueryKey,
     cloudScopeKey,
-    favoriteOwnerScope,
     favoritesOnly,
     isAuthenticated,
     keyword,
@@ -1069,43 +1051,17 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
   }, [analyticsContext, loadData, refreshLocalWindow, refreshTaskGrid, wantsLocal, wantsLocalGrid]);
 
   useEffect(() => {
-    const handleRecoveryInvalidation = (event: Event): void => {
-      const ownerAccountKey = (event as CustomEvent<{ ownerAccountKey?: string }>).detail
-        ?.ownerAccountKey;
-      if (
-        !wantsCloud
-        || !isAuthenticated
-        || !favoriteOwnerScope
-        || ownerAccountKey !== favoriteOwnerScope
-      ) {
-        return;
-      }
-      void loadData(LibraryLoadIntent.Refresh, LibraryLoadCause.BackgroundRefresh);
-    };
-    window.addEventListener(
-      PublishingSubscriptionRecoveryCoordinatorEvent.LibraryInvalidated,
-      handleRecoveryInvalidation,
-    );
-    return () => {
-      window.removeEventListener(
-        PublishingSubscriptionRecoveryCoordinatorEvent.LibraryInvalidated,
-        handleRecoveryInvalidation,
-      );
-    };
-  }, [favoriteOwnerScope, isAuthenticated, loadData, wantsCloud]);
-
-  useEffect(() => {
     if (
       wantsCloud
       && isAuthenticated
-      && favoriteOwnerScope
       && hasResolvedCurrentQuery
       && visibleCloudData.recoveryPending === true
     ) {
-      reconcilePublishingSubscriptionRecovery(favoriteOwnerScope);
+      // Recovery coordination was removed with subscriptions; trigger a plain
+      // background refresh so stale rows recover on the next load.
+      void loadData(LibraryLoadIntent.Refresh, LibraryLoadCause.BackgroundRefresh);
     }
   }, [
-    favoriteOwnerScope,
     hasResolvedCurrentQuery,
     isAuthenticated,
     visibleCloudData.recoveryPending,
@@ -1357,7 +1313,7 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
     setActiveItem(current => current?.itemId === item.itemId
       && current.itemKind === item.itemKind ? { ...current, isFavorite: next } : current);
     const result = await window.electron.library.setFavorite({
-      ownerScope: favoriteOwnerScope ?? '',
+      ownerScope: 'local',
       itemKind: item.itemKind,
       itemId: item.itemId,
       favorite: next,
@@ -1744,9 +1700,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
                 ? i18nService.t('libraryResultsNotUpdated').replace('{message}', cloudError)
                 : cloudError}
               isAuthenticated={isAuthenticated}
-              ownerAccountKey={ownerAccountKey}
-              subscriptionStatus={subscriptionStatus}
-              showFreeShareDeleteQuotaNotice={showFreeShareDeleteQuotaNotice}
               category={category}
               status={cloudAvailability}
               displayStatus={cloudDisplayAvailability}

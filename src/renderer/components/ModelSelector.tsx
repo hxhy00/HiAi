@@ -19,7 +19,7 @@ import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { getProviderIcon, ProviderIconId } from '../providers/uiRegistry';
-import { authService } from '../services/auth';
+import { getPortalPricingUrl } from '../services/endpoints';
 import { i18nService } from '../services/i18n';
 import {
   readRememberedModelThinkingLevel,
@@ -33,8 +33,6 @@ import { resolvePopoverPlacement } from './cowork/popoverPlacement';
 import ModelThinkingMenu, {
   getModelThinkingLevelLabel,
 } from './modelSelector/ModelThinkingMenu';
-import { useModelPurchaseOffer } from './modelSelector/useModelPurchaseOffer';
-import PurchaseOfferCountdown from './PurchaseOfferCountdown';
 
 interface ModelSelectorProps {
   dropdownDirection?: 'up' | 'down' | 'auto';
@@ -118,21 +116,10 @@ export const countVisibleModelSelectorRows = (
 export const shouldRenderSelectedModelUnavailableFallback = (
   availableModelCount: number,
   selectedModel: Model | null | undefined,
-  isLoggedIn: boolean,
 ): selectedModel is Model & { isServerModel: true } => (
-  isLoggedIn
-  && availableModelCount === 0
+  availableModelCount === 0
   && selectedModel?.isServerModel === true
 );
-
-/**
- * Logged out with nothing to list (public catalog still loading or failed):
- * point at login, which unlocks the plan models, not at custom model setup.
- */
-export const shouldRenderPlanModelLoginPrompt = (
-  availableModelCount: number,
-  isLoggedIn: boolean,
-): boolean => !isLoggedIn && availableModelCount === 0;
 
 export interface ModelSelectorChangeMeta {
   group: ModelSelectorGroup;
@@ -141,7 +128,6 @@ export interface ModelSelectorChangeMeta {
 
 export const ModelAccessPromptKind = {
   AgenticNotReady: 'agentic_not_ready',
-  Login: 'login',
   Subscribe: 'subscribe',
 } as const;
 export type ModelAccessPromptKind = typeof ModelAccessPromptKind[keyof typeof ModelAccessPromptKind];
@@ -164,37 +150,30 @@ export const ModelAccessPromptModal: React.FC<ModelAccessPromptModalProps> = ({
   showLearnMore = true,
 }) => {
   const agenticNotReadyPrompt = promptKind === ModelAccessPromptKind.AgenticNotReady;
-  const loginPrompt = promptKind === ModelAccessPromptKind.Login;
-  const purchaseOffer = useModelPurchaseOffer(promptKind === ModelAccessPromptKind.Subscribe, onClose);
   const resolvedTitleKey = titleKey ?? (
     agenticNotReadyPrompt
       ? 'modelSelectorAgenticNotReadyTitle'
-      : loginPrompt ? 'modelSelectorLoginTitle' : 'modelSelectorSubscribeTitle'
+      : 'modelSelectorSubscribeTitle'
   );
   const resolvedDescriptionKey = descriptionKey ?? (
     agenticNotReadyPrompt
       ? 'serverModelAgenticNotReady'
-      : loginPrompt ? 'modelSelectorLoginDesc' : 'modelSelectorSubscribeDesc'
+      : 'modelSelectorSubscribeDesc'
   );
   const resolvedPrimaryButtonKey = primaryButtonKey ?? (
     agenticNotReadyPrompt
       ? 'modelSelectorAgenticNotReadyBtn'
-      : loginPrompt ? 'modelSelectorLoginBtn' : 'modelSelectorSubscribeBtn'
+      : 'modelSelectorSubscribeBtn'
   );
 
   const openSubscriptionPage = async () => {
-    const pricingUrl = purchaseOffer.getPricingUrl();
+    const pricingUrl = getPortalPricingUrl(undefined, { tab: 'subscription' });
     if (!pricingUrl) return;
     onClose();
     await window.electron.shell.openExternal(pricingUrl);
   };
 
   const handlePrimary = async () => {
-    if (promptKind === ModelAccessPromptKind.Login) {
-      onClose();
-      await authService.login();
-      return;
-    }
     if (promptKind === ModelAccessPromptKind.AgenticNotReady) {
       onClose();
       return;
@@ -214,13 +193,8 @@ export const ModelAccessPromptModal: React.FC<ModelAccessPromptModalProps> = ({
             {i18nService.t(resolvedTitleKey)}
           </div>
           <div className="mt-1.5 text-sm leading-5 text-secondary">
-            {purchaseOffer.description ?? i18nService.t(resolvedDescriptionKey)}
+            {i18nService.t(resolvedDescriptionKey)}
           </div>
-          {purchaseOffer.offer?.expiresAtEpochMs != null && (
-            <div className="mt-3">
-              <PurchaseOfferCountdown offer={purchaseOffer.offer} />
-            </div>
-          )}
         </div>
         <button
           type="button"
@@ -234,12 +208,11 @@ export const ModelAccessPromptModal: React.FC<ModelAccessPromptModalProps> = ({
       <button
         type="button"
         onClick={() => { void handlePrimary(); }}
-        disabled={purchaseOffer.isRefreshing}
         className="mt-5 w-full rounded-lg bg-primary px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-wait disabled:opacity-50"
       >
         {i18nService.t(resolvedPrimaryButtonKey)}
       </button>
-      {loginPrompt && showLearnMore && (
+      {showLearnMore && (
         <button
           type="button"
           onClick={() => { void openSubscriptionPage(); }}
@@ -474,7 +447,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   const thinkingSelectionEnabled = controlled && thinkingLevel !== undefined;
   const globalSelectedModel = useSelector((state: RootState) => state.model.defaultSelectedModel);
   const currentAgentId = useSelector((state: RootState) => state.agent.currentAgentId);
-  const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
   const selectedModel = controlled ? value ?? null : globalSelectedModel;
   const selectedModelKey = selectedModel ? getModelIdentityKey(selectedModel) : '';
   const availableModels = useSelector((state: RootState) => state.model.availableModels);
@@ -519,7 +491,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   const showSelectedModelUnavailableFallback = shouldRenderSelectedModelUnavailableFallback(
     availableModels.length,
     selectedModel,
-    isLoggedIn,
   );
   const selectedModelUnavailableFallbackLogKey = showSelectedModelUnavailableFallback
     ? `${selectedModel.providerKey ?? ''}:${selectedModel.id}`
@@ -758,7 +729,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
       return;
     }
     if (model && model.accessible === false) {
-      setRestrictedPrompt(isLoggedIn ? ModelAccessPromptKind.Subscribe : ModelAccessPromptKind.Login);
+      setRestrictedPrompt(ModelAccessPromptKind.Subscribe);
       setHoveredModel(null);
       setIsOpen(false);
       return;
@@ -895,30 +866,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
             <span className={`${triggerTextClassName} min-w-0 truncate`}>{selectedModel.name}</span>
             <ChevronDownIcon className={`${triggerIconClassName} shrink-0 dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
           </button>
-        </div>
-      );
-    }
-
-    if (shouldRenderPlanModelLoginPrompt(availableModels.length, isLoggedIn)) {
-      return (
-        <div ref={containerRef} className="relative">
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => setRestrictedPrompt(ModelAccessPromptKind.Login)}
-            className={`flex min-w-0 items-center overflow-hidden text-secondary transition-colors hover:bg-surface-raised hover:text-foreground disabled:cursor-wait disabled:opacity-70 ${triggerClassName}`}
-          >
-            <LockClosedIcon className={`${triggerIconClassName} shrink-0`} />
-            <span className={`${triggerTextClassName} min-w-0 truncate`}>
-              {i18nService.t('modelSelectorLoginForPlanModels')}
-            </span>
-          </button>
-          {restrictedPrompt && (
-            <ModelAccessPromptModal
-              promptKind={restrictedPrompt}
-              onClose={() => setRestrictedPrompt(null)}
-            />
-          )}
         </div>
       );
     }

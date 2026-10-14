@@ -1,11 +1,9 @@
 import { configureStore } from '@reduxjs/toolkit';
 
-import enterpriseAccountReducer from '../features/enterpriseAccount/enterpriseAccountSlice';
 import { libraryArtifactListener } from './libraryArtifactListener';
 import agentReducer from './slices/agentSlice';
 import artifactReducer from './slices/artifactSlice';
 import asrQuotaReducer from './slices/asrQuotaSlice';
-import authReducer from './slices/authSlice';
 import coworkReducer from './slices/coworkSlice';
 import imReducer from './slices/imSlice';
 import kitReducer from './slices/kitSlice';
@@ -26,8 +24,6 @@ export const store = configureStore({
     scheduledTask: scheduledTaskReducer,
     agent: agentReducer,
     asrQuota: asrQuotaReducer,
-    auth: authReducer,
-    enterpriseAccount: enterpriseAccountReducer,
     artifact: artifactReducer,
     kit: kitReducer,
   },

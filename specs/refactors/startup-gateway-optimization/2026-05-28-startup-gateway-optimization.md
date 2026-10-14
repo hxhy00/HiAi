@@ -81,7 +81,7 @@ OpenClaw 侧 `plugins.*` 路径一律触发 gateway restart（`config-reload-pla
 
 在 `syncOpenClawConfig('startup')` 之前，并行请求 `/api/user/quota` 和 `/api/models/available`：
 
-- 成功：填充 `cachedSubscriptionStatus`、`cachedMediaGenerationEntitled`、`serverModelMetadataCache`，使 startup sync 生成正确配置
+- 成功：填充 `cachedSubscriptionStatus`、`serverModelMetadataCache`，使 startup sync 生成正确配置
 - 失败：静默忽略，回退到当前行为（startup sync 用默认值，后续 renderer 触发补充 sync）
 
 条件：仅在 `getAuthTokens()` 存在时执行（未登录用户跳过）。
@@ -109,7 +109,7 @@ if (getAuthTokens()) {
   const serverBaseUrl = getServerApiBaseUrl();
   const warmupTimeout = 5000;
   await Promise.allSettled([
-    // Quota → cachedSubscriptionStatus + cachedMediaGenerationEntitled
+    // Quota → cachedSubscriptionStatus
     (async () => {
       const resp = await fetchWithAuth(`${serverBaseUrl}/api/user/quota`, {
         signal: AbortSignal.timeout(warmupTimeout),
@@ -120,7 +120,6 @@ if (getAuthTokens()) {
       const quota = normalizeAuthQuota(body.data, { ... });
       const gateState = authQuotaGateStateFromQuota(quota);
       cachedSubscriptionStatus = gateState.subscriptionStatus;
-      cachedMediaGenerationEntitled = gateState.mediaGenerationEntitled;
     })(),
     // Models → serverModelMetadataCache
     (async () => {

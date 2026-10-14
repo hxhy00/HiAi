@@ -103,7 +103,6 @@ const gwDiagTs = (): string => {
 import { findBundledExtensionsDir, findThirdPartyExtensionsDir, hasBundledOpenClawExtension, hasRuntimeBundledOpenClawExtension, resolveOpenClawExtensionPluginId } from './openclawLocalExtensions';
 import { buildQQAccountConfig, OpenClawQQPlugin, QQ_APPROVALS_DISABLED } from './openclawQQConfig';
 import { withRequiredOpenClawSessionStoreOwner } from './openclawSessionStoreOwner';
-import { getOpenClawTokenProxyPort } from './openclawTokenProxy';
 import { getActiveSystemProxyUrl, isSystemProxyEnabled } from './systemProxy';
 
 export type AskUserCallbackConfig = {
@@ -114,19 +113,7 @@ export type AskUserCallbackConfig = {
 
 const mapExecutionModeToSandboxMode = (
   mode: CoworkExecutionMode,
-  isEnterprise: boolean,
-): 'off' | 'non-main' | 'all' => {
-  if (!isEnterprise) return 'off';
-  switch (mode) {
-    case 'sandbox':
-      return 'all';
-    case 'auto':
-      return 'non-main';
-    case 'local':
-    default:
-      return 'off';
-  }
-};
+): 'off' | 'non-main' | 'all' => 'off';
 
 /**
  * Drop `plugins` keys that OpenClaw owns through its plugin index (currently
@@ -965,13 +952,9 @@ const PROVIDER_REGISTRY: Record<string, ProviderDescriptor> = {
     providerId: OpenClawProviderId.LobsteraiServer,
     resolveApi: ({ apiType, baseURL }) => mapApiTypeToOpenClawApi(apiType, undefined, baseURL),
     normalizeBaseUrl: url => {
-      const proxyPort = getOpenClawTokenProxyPort();
-      return proxyPort ? `http://127.0.0.1:${proxyPort}/v1` : stripChatCompletionsSuffix(url);
+      return stripChatCompletionsSuffix(url);
     },
-    resolveApiKey: () => {
-      const proxyPort = getOpenClawTokenProxyPort();
-      return proxyPort ? '${LOBSTER_PROXY_TOKEN}' : `\${${providerApiKeyEnvVar('server')}}`;
-    },
+    resolveApiKey: () => `\${${providerApiKeyEnvVar('server')}}`,
     modelDefaults: {
       maxTokens: LOBSTERAI_SERVER_DEFAULT_MODEL_MAX_TOKENS,
     },
@@ -1898,7 +1881,6 @@ type OpenClawConfigSyncDeps = {
   engineManager: OpenClawEngineManager;
   getCoworkConfig: () => CoworkConfig;
   getBrowserWebAccessConfig?: () => Partial<BrowserWebAccessConfig> | null | undefined;
-  isEnterprise: () => boolean;
   getOpenClawSessionPolicy?: () => { keepAlive: OpenClawSessionKeepAlive };
   getTelegramInstances?: () => TelegramInstanceConfig[];
   getDiscordInstances?: () => DiscordInstanceConfig[];
@@ -1930,14 +1912,12 @@ type OpenClawConfigSyncDeps = {
   getSkillsList?: () => Array<{ id: string; name: string; enabled: boolean }>;
   getAgents?: () => Agent[];
   getUserPlugins?: () => Array<{ pluginId: string; enabled: boolean; config?: Record<string, unknown> }>;
-  canUseMediaGeneration?: () => boolean;
 };
 
 export class OpenClawConfigSync {
   private readonly engineManager: OpenClawEngineManager;
   private readonly getCoworkConfig: () => CoworkConfig;
   private readonly getBrowserWebAccessConfig: () => Partial<BrowserWebAccessConfig> | null | undefined;
-  private readonly isEnterprise: () => boolean;
   private readonly getOpenClawSessionPolicy?: () => { keepAlive: OpenClawSessionKeepAlive };
   private readonly getTelegramInstances: () => TelegramInstanceConfig[];
   private readonly getDiscordInstances: () => DiscordInstanceConfig[];
@@ -1966,7 +1946,6 @@ export class OpenClawConfigSync {
   private readonly getSkillsList?: () => Array<{ id: string; name: string; enabled: boolean }>;
   private readonly getAgents?: () => Agent[];
   private readonly getUserPlugins: () => Array<{ pluginId: string; enabled: boolean; config?: Record<string, unknown> }>;
-  private readonly canUseMediaGeneration: () => boolean;
   private previousBindingsJson?: string;
   private currentBindingsObj: { bindings?: Array<Record<string, unknown>> } = {};
 
@@ -1974,7 +1953,6 @@ export class OpenClawConfigSync {
     this.engineManager = deps.engineManager;
     this.getCoworkConfig = deps.getCoworkConfig;
     this.getBrowserWebAccessConfig = deps.getBrowserWebAccessConfig ?? (() => null);
-    this.isEnterprise = deps.isEnterprise;
     this.getOpenClawSessionPolicy = deps.getOpenClawSessionPolicy;
     this.getTelegramInstances = deps.getTelegramInstances ?? (() => []);
     this.getDiscordInstances = deps.getDiscordInstances ?? (() => []);
@@ -2003,7 +1981,6 @@ export class OpenClawConfigSync {
     this.getSkillsList = deps.getSkillsList;
     this.getAgents = deps.getAgents;
     this.getUserPlugins = deps.getUserPlugins ?? (() => []);
-    this.canUseMediaGeneration = deps.canUseMediaGeneration ?? (() => false);
   }
 
   /**
@@ -2152,26 +2129,16 @@ export class OpenClawConfigSync {
     const apiResolution = resolveRawApiConfig();
 
     if (!apiResolution.config) {
-      // Enterprise mode: proceed with full config generation even without a
-      // resolved API model. The enterprise openclaw.json merge (called after
-      // sync) will supply providers and the primary model. Writing only the
-      // minimal config would lose sandbox settings, plugins, AGENTS.md, etc.
-      if (this.isEnterprise()) {
-        console.log(
-          '[OpenClawConfigSync] enterprise mode: no API config resolved, generating full config with empty providers (enterprise merge will supply them)',
-        );
-      } else {
-        // This also happens during logout or before server models finish
-        // loading. Keep existing non-provider state so IM stays configured.
-        const result = this.writeMinimalConfig(configPath, reason, skillReviewMode, memoryFlushEnabled, persist);
-        // Still sync AGENTS.md even when API is not configured — skills/systemPrompt
-        // may already be set and should be available when the user configures a model.
-        const mainWorkspacePath = getMainAgentWorkspacePath(this.engineManager.getStateDir());
-        const agentsMdWarning = this.syncAgentsMd(mainWorkspacePath, coworkConfig);
-        this.syncPerAgentWorkspaces(mainWorkspacePath, coworkConfig);
-        if (agentsMdWarning) result.agentsMdWarning = agentsMdWarning;
-        return result;
-      }
+      // This also happens before any provider is configured. Keep existing
+      // non-provider state so IM stays configured.
+      const result = this.writeMinimalConfig(configPath, reason, skillReviewMode, memoryFlushEnabled, persist);
+      // Still sync AGENTS.md even when API is not configured — skills/systemPrompt
+      // may already be set and should be available when the user configures a model.
+      const mainWorkspacePath = getMainAgentWorkspacePath(this.engineManager.getStateDir());
+      const agentsMdWarning = this.syncAgentsMd(mainWorkspacePath, coworkConfig);
+      this.syncPerAgentWorkspaces(mainWorkspacePath, coworkConfig);
+      if (agentsMdWarning) result.agentsMdWarning = agentsMdWarning;
+      return result;
     }
 
     const allProvidersMap: Record<string, OpenClawProviderSelection['providerConfig']> = {};
@@ -2292,73 +2259,6 @@ export class OpenClawConfigSync {
           existing.models.push(...providerSelection.providerConfig.models);
         }
       }
-
-      const proxyPort = getOpenClawTokenProxyPort();
-      if (proxyPort) {
-        const providerId = OpenClawProviderId.LobsteraiServer;
-
-        if (serverModels.length > 0 || !allProvidersMap[providerId]) {
-          // Only its provider-level fields are used; models come from the catalog below.
-          const firstServerModelId = serverModels[0]?.modelId || modelId;
-          const firstServerSel = buildProviderSelection({
-            apiKey: 'proxy-managed',
-            baseURL: `http://127.0.0.1:${proxyPort}/v1`,
-            modelId: firstServerModelId,
-            apiType: normalizeServerApiType(serverModels[0]?.apiFormat),
-            providerName: ProviderName.LobsteraiServer,
-            supportsImage: serverModels[0]?.supportsImage,
-            supportsVideo: serverModels[0]?.supportsVideo,
-            supportsThinking: serverModels[0]?.supportsThinking,
-            modelName: serverModels[0]?.modelName,
-            contextWindow: serverModels[0]?.contextWindow,
-            maxTokens: serverModels[0]?.maxTokens,
-            runtimeProfile: serverModels[0]?.runtimeProfile,
-            thinkingConfig: serverModels[0]?.thinkingConfig,
-          });
-          const lobsteraiProviderConfig =
-            allProvidersMap[providerId] ?? {
-              ...firstServerSel.providerConfig,
-              models: [] as typeof firstServerSel.providerConfig.models,
-            };
-          allProvidersMap[providerId] = lobsteraiProviderConfig;
-
-          // Without a plan catalog (signed out, or the list has not loaded) the
-          // provider still routes agents and channels bound to plan models to the
-          // token proxy, but lists no model: a placeholder reused the custom
-          // primary's ID and allowlisted a plan model sharing the user's model name.
-          for (const sm of serverModels) {
-            const serverApiType = normalizeServerApiType(sm.apiFormat);
-            const serverSel = buildProviderSelection({
-              apiKey: 'proxy-managed',
-              baseURL: `http://127.0.0.1:${proxyPort}/v1`,
-              modelId: sm.modelId,
-              apiType: serverApiType,
-              providerName: ProviderName.LobsteraiServer,
-              supportsImage: sm.supportsImage,
-              supportsVideo: sm.supportsVideo,
-              supportsThinking: sm.supportsThinking,
-              modelName: sm.modelName || sm.modelId,
-              contextWindow: sm.contextWindow,
-              maxTokens: sm.maxTokens,
-              runtimeProfile: sm.runtimeProfile,
-              thinkingConfig: sm.thinkingConfig,
-            });
-            collectCompatibilityOwnerProfile(candidateModelProfiles, serverSel);
-            collectThinkingProfile(
-              candidateThinkingProfiles,
-              serverSel,
-              sm.thinkingConfig,
-              sm.requestCapabilities,
-            );
-            addExplicitContextCacheDefault(perModelCustomDefaults, serverSel, {
-              modelId: sm.modelId,
-              provider: sm.provider,
-              explicitContextCache: sm.explicitContextCache,
-            });
-            upsertProviderModel(lobsteraiProviderConfig, serverSel.providerConfig.models[0]);
-          }
-        }
-      }
     }
 
     const hasModelCompatPlugin = isBundledPluginAvailable(OPENCLAW_MODEL_COMPAT_PLUGIN_ID);
@@ -2396,14 +2296,13 @@ export class OpenClawConfigSync {
 
     const sandboxMode = mapExecutionModeToSandboxMode(
       coworkConfig.executionMode || 'local',
-      this.isEnterprise(),
     );
     const availableProviders = buildProviderModelCatalog(allProvidersMap);
     const agentModelDefaults = Object.keys(perModelCustomDefaults).length > 0
       ? buildCompleteAgentModelDefaults(allProvidersMap, perModelCustomDefaults)
       : {};
     console.log(
-      `[OpenClawConfigSync] sandbox mode: ${sandboxMode} (executionMode: ${coworkConfig.executionMode || 'local'}, enterprise: ${this.isEnterprise()})`,
+      `[OpenClawConfigSync] sandbox mode: ${sandboxMode} (executionMode: ${coworkConfig.executionMode || 'local'})`,
     );
 
     const mainWorkspacePath = getMainAgentWorkspacePath(this.engineManager.getStateDir());
@@ -2489,8 +2388,6 @@ export class OpenClawConfigSync {
     // Start with explicit bindings; configured channels receive a fallback
     // below before binding changes are compared.
     this.currentBindingsObj = this.buildBindings();
-
-    this.canUseMediaGeneration();
 
     let managedConfig: Record<string, unknown> = {
       gateway: {

@@ -19,14 +19,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSelector } from 'react-redux';
 
-import { PublishingRecoveryAnalyticsSurface } from '../../../shared/analytics/constants';
 import { HtmlShareAccessMode, HtmlShareStatus } from '../../../shared/htmlShare/constants';
-import {
-  PublishingResourceKind,
-  PublishingSubscriptionRecoveryMode,
-} from '../../../shared/publishing/constants';
 import {
   SiteAction,
   type SiteAnalytics,
@@ -42,32 +36,10 @@ import {
   type SiteStatus as SiteStatusValue,
 } from '../../../shared/site/constants';
 import { copyTextToClipboard } from '../../services/clipboard';
-import { getPortalPricingUrl, PortalPricingKeyfrom } from '../../services/endpoints';
 import { i18nService } from '../../services/i18n';
-import {
-  armPublishingSubscriptionRecovery,
-  PublishingSubscriptionRecoveryRefreshOutcome,
-  registerPublishingSubscriptionRecoveryTarget,
-  resolvePublishingSubscriptionRecoveryRefreshOutcome,
-} from '../../services/publishingSubscriptionRecovery';
-import type { RootState } from '../../store';
 import { showToast } from '../../utils/localFileActions';
-import {
-  ArtifactPreviewActionSource,
-  ArtifactPublishEntryPoint,
-} from '../artifacts/artifactAnalytics';
 import { buildArtifactFileShareCopyText } from '../artifacts/artifactFileShareCopy';
-import { ArtifactSubscriptionFeature } from '../artifacts/artifactSubscriptionGate';
-import {
-  createPublishingRecoveryAnalyticsContext,
-  reportPublishingRecoveryCtaAction,
-  reportPublishingRecoveryCtaExposure,
-} from '../artifacts/publishingAnalytics';
-import { shouldShowFreePublishingDeleteQuotaNotice } from '../artifacts/publishingDeleteNoticePolicy';
-import PublishingSubscriptionRecoveryButton from '../artifacts/PublishingSubscriptionRecoveryButton';
-import { shouldShowPublishingSubscriptionRecovery } from '../artifacts/publishingSubscriptionRecoveryPolicy';
 import { usePublishingTrialStatus } from '../artifacts/PublishingTrialStatus';
-import { usePublishingRecoveryExposureLifecycle } from '../artifacts/usePublishingRecoveryExposureLifecycle';
 import {
   MANAGEMENT_BODY_TEXT,
   MANAGEMENT_META_TEXT,
@@ -79,7 +51,6 @@ import { MessageCopyButton } from '../cowork/MessageActionButton';
 import Cog6ToothIcon from '../icons/Cog6ToothIcon';
 import EllipsisHorizontalIcon from '../icons/EllipsisHorizontalIcon';
 import SidebarToggleIcon from '../icons/SidebarToggleIcon';
-import { LibraryAnalyticsSurface } from '../library/libraryAnalytics';
 import Tooltip, { TooltipAlign, TooltipPosition } from '../ui/Tooltip';
 import SiteAnalyticsChart from './SiteAnalyticsChart';
 import SiteDefaultIcon from './SiteDefaultIcon';
@@ -108,7 +79,6 @@ interface SitesViewProps {
   updateBadge?: React.ReactNode;
   readOnly?: boolean;
   embedded?: boolean;
-  analyticsPageViewId?: string;
   initialShareId?: string;
   initialAccessExpired?: boolean;
   initialDetailTab?: DetailTab;
@@ -344,7 +314,6 @@ const SitesView: React.FC<SitesViewProps> = ({
   updateBadge,
   readOnly = false,
   embedded = false,
-  analyticsPageViewId,
   initialShareId,
   initialAccessExpired = false,
   initialDetailTab = 'analytics',
@@ -355,17 +324,9 @@ const SitesView: React.FC<SitesViewProps> = ({
   onToggleFavorite,
   onOpenRelatedTask,
 }) => {
-  const ownerAccountKey = useSelector((state: RootState) => state.auth.ownerAccountKey);
-  const accountGeneration = useSelector((state: RootState) => state.auth.accountGeneration);
-  const subscriptionStatus = useSelector(
-    (state: RootState) => state.auth.quota?.subscriptionStatus,
-  );
-  const showFreeSiteDeleteQuotaNotice = useSelector((state: RootState) => (
-    shouldShowFreePublishingDeleteQuotaNotice(state.auth.quota?.subscriptionStatus)
-  ));
-  const accountScopeKey = ownerAccountKey
-    ? `${ownerAccountKey}:${accountGeneration}`
-    : null;
+  // Publishing is entry-gated upstream; without accounts the site list cache is
+  // bound to a stable per-run scope key.
+  const accountScopeKey = 'local';
   const isEmbeddedDetail = embedded && Boolean(initialShareId);
   const detailBackLabel = embedded ? i18nService.t('back') : i18nService.t('sitesBack');
   const [keywordInput, setKeywordInput] = useState('');
@@ -428,56 +389,6 @@ const SitesView: React.FC<SitesViewProps> = ({
     && Object.prototype.hasOwnProperty.call(selectedSite, 'expiresAt')
     ? selectedSiteTrialStatus.isExpired
     : initialAccessExpired;
-  const selectedSiteRecoveryMode = selectedSite?.subscriptionRecoveryMode;
-  const selectedSiteShareId = selectedSite?.shareId;
-  const recoveryAnalyticsContext = useMemo(() => {
-    if (
-      !embedded
-      || !ownerAccountKey
-      || !selectedSiteShareId
-      || (
-        selectedSiteRecoveryMode !== PublishingSubscriptionRecoveryMode.Automatic
-        && selectedSiteRecoveryMode !== PublishingSubscriptionRecoveryMode.RedeployRequired
-      )
-    ) {
-      return null;
-    }
-    return createPublishingRecoveryAnalyticsContext({
-      ownerAccountKey,
-      resourceKey: selectedSiteShareId,
-      feature: ArtifactSubscriptionFeature.Deployment,
-      resourceKind: PublishingResourceKind.Site,
-      source: ArtifactPreviewActionSource.LibraryPreview,
-      entryPoint: ArtifactPublishEntryPoint.LibrarySettings,
-      surface: LibraryAnalyticsSurface.MyFiles,
-      pageViewId: analyticsPageViewId,
-      recoverySurface: PublishingRecoveryAnalyticsSurface.LibrarySiteDetail,
-      subscriptionRecoveryMode: selectedSiteRecoveryMode,
-    });
-  }, [
-    analyticsPageViewId,
-    embedded,
-    ownerAccountKey,
-    selectedSiteRecoveryMode,
-    selectedSiteShareId,
-  ]);
-  const showSubscriptionRecovery = Boolean(
-    recoveryAnalyticsContext
-    && selectedSite
-    && shouldShowPublishingSubscriptionRecovery({
-      ownerAccountKey,
-      subscriptionStatus,
-      recoveryMode: selectedSiteRecoveryMode,
-      isExpired: selectedSiteAccessExpired,
-      isAvailable: selectedSite.siteStatus === SiteStatus.Online
-        && selectedSite.shareStatus === HtmlShareStatus.Live
-        && !selectedSiteAccessExpired,
-    }),
-  );
-  usePublishingRecoveryExposureLifecycle(
-    recoveryAnalyticsContext,
-    showSubscriptionRecovery,
-  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -785,54 +696,6 @@ const SitesView: React.FC<SitesViewProps> = ({
     },
     [isEmbeddedDetail, loadSites, onSiteUpdated],
   );
-  const applyRecoverySiteUpdateRef = useRef(applyUpdatedSite);
-  applyRecoverySiteUpdateRef.current = applyUpdatedSite;
-
-  useEffect(() => {
-    if (!recoveryAnalyticsContext || !selectedSiteShareId) return undefined;
-    const shareId = selectedSiteShareId;
-    const recoveryMode = recoveryAnalyticsContext.subscriptionRecoveryMode;
-    return registerPublishingSubscriptionRecoveryTarget({
-      ownerAccountKey: recoveryAnalyticsContext.ownerAccountKey,
-      resourceKind: PublishingResourceKind.Site,
-      resourceKey: recoveryAnalyticsContext.resourceKey,
-      recoveryMode,
-      traceId: recoveryAnalyticsContext.attemptId,
-      refresh: async () => {
-        const result = await window.electron.sites.get(shareId);
-        if (!result.success || !result.data) {
-          return result.code === SiteErrorCode.NotFound
-            ? PublishingSubscriptionRecoveryRefreshOutcome.ResourceUnavailable
-            : PublishingSubscriptionRecoveryRefreshOutcome.Pending;
-        }
-        const updated = applyRecoverySiteUpdateRef.current(result.data);
-        return resolvePublishingSubscriptionRecoveryRefreshOutcome({
-          expectedMode: recoveryMode,
-          currentMode: updated.subscriptionRecoveryMode,
-          isRestored: updated.siteStatus === SiteStatus.Online
-            && updated.shareStatus === HtmlShareStatus.Live
-            && updated.expiresAt === null,
-        });
-      },
-    });
-  }, [recoveryAnalyticsContext, selectedSiteShareId]);
-
-  const openSubscriptionRecoveryPricing = (): void => {
-    if (!recoveryAnalyticsContext) return;
-    reportPublishingRecoveryCtaAction(recoveryAnalyticsContext);
-    armPublishingSubscriptionRecovery({
-      ownerAccountKey: recoveryAnalyticsContext.ownerAccountKey,
-      resourceKind: PublishingResourceKind.Site,
-      resourceKey: recoveryAnalyticsContext.resourceKey,
-      recoveryMode: recoveryAnalyticsContext.subscriptionRecoveryMode,
-      traceId: recoveryAnalyticsContext.attemptId,
-    });
-    void window.electron.shell.openExternal(getPortalPricingUrl(
-      PortalPricingKeyfrom.SiteDeployment,
-      { traceId: recoveryAnalyticsContext.attemptId },
-    ));
-  };
-
   const exitSiteDetail = useCallback(() => {
     setSelectedSite(null);
     setAnalytics(null);
@@ -1372,17 +1235,6 @@ const SitesView: React.FC<SitesViewProps> = ({
                         ? 'libraryCloudAvailability_available'
                         : 'libraryCloudAvailability_unavailable')}
                     </span>
-                    {showSubscriptionRecovery && recoveryAnalyticsContext && (
-                      <PublishingSubscriptionRecoveryButton
-                        compact
-                        recoveryMode={recoveryAnalyticsContext.subscriptionRecoveryMode}
-                        exposureKey={recoveryAnalyticsContext.exposureId}
-                        onExposure={() => reportPublishingRecoveryCtaExposure(
-                          recoveryAnalyticsContext,
-                        )}
-                        onClick={openSubscriptionRecoveryPricing}
-                      />
-                    )}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -2094,7 +1946,7 @@ const SitesView: React.FC<SitesViewProps> = ({
             {i18nService.t('sitesDeleteConfirmDescription')}
           </p>
           <SiteDeleteWarnings
-            showFreeQuotaNotice={showFreeSiteDeleteQuotaNotice}
+            showFreeQuotaNotice={false}
             showPersistenceWarning={Boolean(isNode && selectedSite.persistence?.enabled)}
           />
           <label

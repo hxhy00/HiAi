@@ -4,8 +4,10 @@ import {
   SkinWorkflowKind,
 } from '../../shared/skin/constants';
 import {
-  MediaSelectionMode,
+  MediaGenerationAction,
+  MediaGenerationTool,
   type MediaSelectionState,
+  resolveMediaGenerationGate,
 } from '../mediaGenerationPolicy';
 import type { SkinStore } from './skinStore';
 import {
@@ -19,7 +21,15 @@ export interface SkinMediaBridgeOptions {
   store: SkinStore;
   workflowRegistry: SkinWorkflowRegistry;
   resolveSessionId: (sessionKey: string) => string | null;
-  resolveMediaSelection: (sessionId: string | null) => MediaSelectionState | undefined;
+  /**
+   * True when at least one image model exists in the user's local media
+   * provider config. The skin workflow only preflights image generation when
+   * the user can actually generate images.
+   *
+   * Not a pure read: resolving the config may write back once to migrate
+   * legacy plaintext API keys when OS encryption is available.
+   */
+  hasLocalImageModel: () => boolean;
   onChanged?: () => void;
 }
 
@@ -104,10 +114,19 @@ export class SkinMediaBridge {
     selection: MediaSelectionState | undefined,
   ): Promise<SkinToolResult | null> {
     const resolved = this.options.workflowRegistry.resolve(sessionId);
+    // This preflight runs before the generation gate, so it must not ask the
+    // model to create a draft for a call the gate will later reject. Reusing the
+    // gate keeps both decisions on a single source of truth.
+    const gate = resolveMediaGenerationGate({
+      action: MediaGenerationAction.Generate,
+      tool: MediaGenerationTool.Image,
+      selection,
+    });
     if (
       !sessionId
       || resolved?.state.workflowKind !== SkinWorkflowKind.SkinPack
-      || selection?.mode !== MediaSelectionMode.Image
+      || gate.allowed === false
+      || !this.options.hasLocalImageModel()
     ) {
       return null;
     }

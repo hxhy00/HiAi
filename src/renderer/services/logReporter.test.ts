@@ -1,19 +1,6 @@
 import { PublishingIdentityType } from '@shared/publishing/constants';
 import { afterEach, expect, test, vi } from 'vitest';
 
-vi.mock('../store', () => ({
-  store: {
-    getState: () => ({
-      auth: {
-        isLoggedIn: true,
-        user: {
-          yid: 'stored-user',
-        },
-      },
-    }),
-  },
-}));
-
 vi.mock('./config', () => ({
   configService: {
     getConfig: vi.fn(() => ({
@@ -153,7 +140,7 @@ test('does not allow event parameters to override common parameters', () => {
   expect(result.searchParams.get('uts')).toBe('2');
 });
 
-test('uses the logged-in user and omits empty optional parameters', () => {
+test('uses the anonymous identity and omits empty optional parameters', () => {
   const result = new URL(buildLogUrl(
     {
       action: `${LogReporterActionPrefix.LobsterAI}app_started`,
@@ -165,10 +152,10 @@ test('uses the logged-in user and omits empty optional parameters', () => {
     },
   ));
 
-  expect(result.searchParams.get('log_Usid')).toBe('stored-user');
-  expect(result.searchParams.get('user_id')).toBe('stored-user');
+  expect(result.searchParams.get('log_Usid')).toBe('');
+  expect(result.searchParams.has('user_id')).toBe(false);
   expect(result.searchParams.get('language')).toBe('zh');
-  expect(result.searchParams.get('is_logged_in')).toBe('true');
+  expect(result.searchParams.get('is_logged_in')).toBe('false');
   expect(result.searchParams.has('optionalValue')).toBe(false);
   expect(result.searchParams.has('nullableValue')).toBe(false);
 });
@@ -232,7 +219,7 @@ test('reports an event through the Electron API bridge', async () => {
   expect(requestUrl.searchParams.get('firstKeyfrom')).toBe('bilibili');
   expect(requestUrl.searchParams.get('latestKeyfrom')).toBe('partner_a');
   expect(requestUrl.searchParams.get('keyfrom')).toBe('partner_a');
-  expect(requestUrl.searchParams.get('user_id')).toBe('stored-user');
+  expect(requestUrl.searchParams.get('user_id')).toBe(null);
 });
 
 test('allows only an explicit touchpoint identity override during event capture', async () => {
@@ -254,8 +241,8 @@ test('allows only an explicit touchpoint identity override during event capture'
 
   const requestUrl = new URL(fetchMock.mock.calls[0][0].url);
   expect(requestUrl.searchParams.get('identityType')).toBe(PublishingIdentityType.Subscription);
-  expect(requestUrl.searchParams.get('log_Usid')).toBe('stored-user');
-  expect(requestUrl.searchParams.get('is_logged_in')).toBe('true');
+  expect(requestUrl.searchParams.get('log_Usid')).toBe('');
+  expect(requestUrl.searchParams.get('is_logged_in')).toBe('false');
   expect(requestUrl.searchParams.get('is_subscriber')).toBe('false');
 });
 

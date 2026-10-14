@@ -14,32 +14,24 @@ import {
   resolveHoverCardTop,
   resolveNestedCascadePlacement,
   resolvePickerThinkingLevel,
-  shouldRenderPlanModelLoginPrompt,
   shouldRenderSelectedModelUnavailableFallback,
   supportsConfigurableModelThinkingProtocol,
 } from './ModelSelector';
 
-test('prompts login instead of custom model setup when logged out with nothing to list', () => {
-  expect(shouldRenderPlanModelLoginPrompt(0, false)).toBe(true);
-  expect(shouldRenderPlanModelLoginPrompt(3, false)).toBe(false);
-  expect(shouldRenderPlanModelLoginPrompt(0, true)).toBe(false);
-});
-
-test('keeps a logged-in stale server model visible only while the model list is empty', () => {
+test('keeps a stale server model visible only while the model list is empty', () => {
   const selectedModel = {
     id: 'deepseek-v4-flash',
     name: 'DeepSeek V4 Flash',
     isServerModel: true,
   };
 
-  expect(shouldRenderSelectedModelUnavailableFallback(0, selectedModel, true)).toBe(true);
-  expect(shouldRenderSelectedModelUnavailableFallback(1, selectedModel, true)).toBe(false);
-  expect(shouldRenderSelectedModelUnavailableFallback(0, selectedModel, false)).toBe(false);
+  expect(shouldRenderSelectedModelUnavailableFallback(0, selectedModel)).toBe(true);
+  expect(shouldRenderSelectedModelUnavailableFallback(1, selectedModel)).toBe(false);
   expect(shouldRenderSelectedModelUnavailableFallback(0, {
     id: 'deepseek-v4-flash',
     name: 'DeepSeek V4 Flash',
-  }, true)).toBe(false);
-  expect(shouldRenderSelectedModelUnavailableFallback(0, null, true)).toBe(false);
+  })).toBe(false);
+  expect(shouldRenderSelectedModelUnavailableFallback(0, null)).toBe(false);
 });
 
 test('keeps primary and more-model order stable while moving the folded group last', () => {

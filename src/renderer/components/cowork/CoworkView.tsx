@@ -8,13 +8,6 @@ import { buildSessionTitleFromInput } from '../../../common/sessionTitle';
 import { COWORK_TEMP_SESSION_ID_PREFIX } from '../../../shared/cowork/constants';
 import { buildCoworkImageAttachmentPreviews } from '../../../shared/cowork/imageAttachments';
 import type { CoworkSelectedTextSnippet } from '../../../shared/cowork/selectedText';
-import { EnterpriseQuotaPrompt } from '../../features/enterpriseAccount/components/EnterpriseQuotaPrompt';
-import { refreshEnterpriseAccountContext } from '../../features/enterpriseAccount/context';
-import {
-  resolveBlockingEnterpriseQuotaReason,
-  usesLobsterAIServerQuota,
-} from '../../features/enterpriseAccount/modelQuotaGate';
-import { selectEnterpriseAccountContext } from '../../features/enterpriseAccount/selectors';
 import { agentService } from '../../services/agent';
 import { coworkService } from '../../services/cowork';
 import { buildCoworkCapabilitySelection } from '../../services/coworkCapabilitySelection';
@@ -126,26 +119,14 @@ const CoworkView: React.FC<CoworkViewProps> = ({
   const promptInputRef = useRef<CoworkPromptInputRef>(null);
 
   const currentSession = useSelector(selectCurrentSession);
-  const isHomeView = !currentSession;
   const sessionNavigationTargetId = useSelector(selectSessionNavigationTargetId);
   const isStreaming = useSelector(selectIsStreaming);
-  const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
-  const enterpriseAccountContext = useSelector(selectEnterpriseAccountContext);
-  const enterpriseAccountId = enterpriseAccountContext?.enterpriseId;
-  const hasEnterpriseAccount = enterpriseAccountContext !== null;
-  const homeQuotaReason = enterpriseAccountContext?.quotaStatus.available === false
-    ? enterpriseAccountContext.quotaStatus.reason
-    : null;
   const currentSessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     currentSessionIdRef.current = currentSession?.id ?? null;
   }, [currentSession?.id]);
 
-  useEffect(() => {
-    if (!isHomeView || !hasEnterpriseAccount) return;
-    void refreshEnterpriseAccountContext();
-  }, [enterpriseAccountId, hasEnterpriseAccount, isHomeView]);
   const config = useSelector(selectCoworkConfig);
 
   const activeSkillIds = useSelector((state: RootState) => state.skill.activeSkillIds);
@@ -170,11 +151,6 @@ const CoworkView: React.FC<CoworkViewProps> = ({
     availableModels,
     selectedModel: currentAgentSelectedModel,
   }), [availableModels, currentAgent?.model, currentAgentSelectedModel]);
-  const homeModelUsesServerQuota = usesLobsterAIServerQuota(currentAgentSelectedModel);
-  const blockingHomeQuotaReason = resolveBlockingEnterpriseQuotaReason(
-    homeQuotaReason,
-    currentAgentSelectedModel,
-  );
   const currentAgentThinkingLevel = resolveModelThinkingLevel(
     currentAgentSelectedModel,
     currentAgent?.thinkingLevel,
@@ -199,32 +175,6 @@ const CoworkView: React.FC<CoworkViewProps> = ({
     currentAgentSelectedModelRef,
     homeStartModel.crossesBillingSide,
     homeStartModel.unavailableModelRef,
-  ]);
-
-  useEffect(() => {
-    if (!isHomeView || !hasEnterpriseAccount) return;
-    if (!homeQuotaReason) {
-      logCoworkViewModel('enterprise quota gate inactive; no blocking reason');
-      return;
-    }
-    if (blockingHomeQuotaReason) {
-      logCoworkViewModel(
-        homeModelUsesServerQuota
-          ? `enterprise quota gate active for ${homeQuotaReason}; model ${currentAgentSelectedModelRef || 'unresolved'} uses server quota`
-          : `enterprise quota gate active for ${homeQuotaReason}; selected model is unresolved`,
-      );
-      return;
-    }
-    logCoworkViewModel(
-      `enterprise quota gate bypassed for ${homeQuotaReason}; model ${currentAgentSelectedModelRef || 'unresolved'} does not use enterprise quota`,
-    );
-  }, [
-    blockingHomeQuotaReason,
-    currentAgentSelectedModelRef,
-    hasEnterpriseAccount,
-    homeModelUsesServerQuota,
-    homeQuotaReason,
-    isHomeView,
   ]);
 
   const buildCapabilitySelection = useCallback((skillIds: string[], kitIds: string[]) => {
@@ -346,13 +296,6 @@ const CoworkView: React.FC<CoworkViewProps> = ({
       count: imageAttachments?.length ?? 0,
       details: imageAttachments?.map(a => ({ name: a.name, mimeType: a.mimeType, base64Length: a.base64Data?.length ?? 0 })) ?? [],
     });
-    if (blockingHomeQuotaReason) {
-      logCoworkViewModel(`blocked new session submission for enterprise quota reason ${blockingHomeQuotaReason}`);
-      window.dispatchEvent(new CustomEvent('app:showToast', {
-        detail: i18nService.t('enterpriseQuotaHomeSubmitBlocked'),
-      }));
-      return false;
-    }
     if (openClawStatus && !isOpenClawReadyForSession(openClawStatus)) {
       window.dispatchEvent(new CustomEvent('app:showToast', { detail: i18nService.t('coworkErrorEngineNotReady') }));
       return false;
@@ -386,11 +329,9 @@ const CoworkView: React.FC<CoworkViewProps> = ({
       try {
         const apiConfig = await coworkService.checkApiConfig();
         if (apiConfig && !apiConfig.hasConfig) {
-          // No usable model config: steer toward plan models (login/subscribe)
-          // rather than opening the custom-model settings page uninvited.
-          setModelAccessPrompt(
-            isLoggedIn ? ModelAccessPromptKind.Subscribe : ModelAccessPromptKind.Login,
-          );
+          // No usable model config: steer toward plan models rather than
+          // opening the custom-model settings page uninvited.
+          setModelAccessPrompt(ModelAccessPromptKind.Subscribe);
           isStartingRef.current = false;
           return false;
         }
@@ -500,7 +441,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({
       // Start the actual session immediately with fallback title
       const sessionModelOverride = currentAgentSelectedModelRef;
       logCoworkViewModel(
-        `creating session with model ${sessionModelOverride || 'default'}; agent model is ${currentAgent?.model || 'empty'}; server quota model is ${homeModelUsesServerQuota}`,
+        `creating session with model ${sessionModelOverride || 'default'}; agent model is ${currentAgent?.model || 'empty'}`,
       );
       const { session: startedSession, error: startError } = await coworkService.startSession({
         prompt,
@@ -973,7 +914,6 @@ const CoworkView: React.FC<CoworkViewProps> = ({
                   onStop={handleStopSession}
                   isStreaming={isStreaming}
                   disabled={!isEngineReady}
-                  submitDisabled={Boolean(blockingHomeQuotaReason)}
                   placeholder={i18nService.t('coworkPlaceholder')}
                   size="large"
                   workingDirectory={currentAgentWorkingDirectory}
@@ -986,10 +926,6 @@ const CoworkView: React.FC<CoworkViewProps> = ({
                   onManageSkills={() => onShowSkills?.()}
                   onManageKits={() => onShowKits?.()}
                   onGoalCommand={handleStartGoalSession}
-                />
-                <EnterpriseQuotaPrompt
-                  reason={blockingHomeQuotaReason}
-                  surface="home"
                 />
               </div>
 

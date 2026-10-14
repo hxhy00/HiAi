@@ -24,7 +24,6 @@ import {
   type OpenAICompatProxyTarget,
 } from './coworkOpenAICompatProxy';
 import { readOpenAICodexAuthFile } from './openaiCodexAuth';
-import { getOpenClawTokenProxyPort } from './openclawTokenProxy';
 import { hasXaiOAuthCredential } from './xaiAuth';
 
 type LocalProviderConfig = Omit<ProviderConfig, 'apiFormat'> & { apiFormat?: ApiFormat | 'native' };
@@ -886,17 +885,6 @@ export function resolveRawApiConfig(): ApiConfigResolution {
  */
 export function resolveAllProviderApiKeys(): Record<string, string> {
   const result: Record<string, string> = {};
-
-  // lobsterai-server token is now managed by the token proxy
-  // (openclawTokenProxy.ts) — no longer injected as an env var.
-  const shouldInjectServerToken = !getOpenClawTokenProxyPort();
-  if (shouldInjectServerToken) {
-    const tokens = authTokensGetter?.();
-    const serverBaseUrl = serverBaseUrlGetter?.();
-    if (tokens?.accessToken && serverBaseUrl) {
-      result.SERVER = tokens.accessToken;
-    }
-  }
 
   // All configured custom providers
   const sqliteStore = getStore();

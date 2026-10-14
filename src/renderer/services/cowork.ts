@@ -28,6 +28,9 @@ import {
   CoworkSteerStatus,
 } from '../../shared/cowork/steer';
 import { OpenClawLoopbackRepairOutcome } from '../../shared/openclawEngine/constants';
+
+// Login has been removed; every steer belongs to the single local account scope.
+export const COWORK_LOCAL_ACCOUNT_SCOPE = { ownerAccountKey: 'local', accountGeneration: 0 } as const;
 import { store } from '../store';
 import {
   addMessage,
@@ -1202,7 +1205,7 @@ class CoworkService {
     }
 
     const now = Date.now();
-    const authStateAtStart = store.getState().auth;
+    const authStateAtStart = COWORK_LOCAL_ACCOUNT_SCOPE;
     store.dispatch(addPendingSteer({
       id: options.clientSteerId,
       sessionId: options.sessionId,
@@ -1224,17 +1227,6 @@ class CoworkService {
         ...options,
         text,
       });
-      const currentAuthState = store.getState().auth;
-      if (
-        currentAuthState.ownerAccountKey !== authStateAtStart.ownerAccountKey
-        || currentAuthState.accountGeneration !== authStateAtStart.accountGeneration
-      ) {
-        this.logDiagnostic(
-          'warn',
-          `discarded steer ${options.clientSteerId} response after the account changed`,
-        );
-        return false;
-      }
       if (result?.success && result.status === CoworkSteerStatus.Accepted) {
         store.dispatch(updateSteerStatus({
           sessionId: options.sessionId,
@@ -1264,13 +1256,6 @@ class CoworkService {
       );
       return false;
     } catch (error) {
-      const currentAuthState = store.getState().auth;
-      if (
-        currentAuthState.ownerAccountKey !== authStateAtStart.ownerAccountKey
-        || currentAuthState.accountGeneration !== authStateAtStart.accountGeneration
-      ) {
-        return false;
-      }
       const message = error instanceof Error ? error.message : 'Failed to submit steer input';
       store.dispatch(updateSteerStatus({
         sessionId: options.sessionId,
