@@ -239,7 +239,7 @@ const writeManifestFixture = (userDataPath: string): void => {
     JSON.stringify({
       format: 'lobsterai-data-migration',
       version: 1,
-      archiveRoot: 'LobsterAI',
+      archiveRoot: 'HiAi',
       sqlite: { exists: true },
       openclawState: { exists: false },
     }),
@@ -254,7 +254,7 @@ afterEach(() => {
 
 test('createMigrationArchive excludes cache and log data and writes a manifest', () => {
   const root = makeTempDir();
-  const userData = path.join(root, 'LobsterAI');
+  const userData = path.join(root, 'HiAi');
   const archivePath = path.join(root, 'backup.tar.gz');
 
   writeFile(path.join(userData, 'Cache', 'cache.bin'), 'cache');
@@ -289,10 +289,10 @@ test('createMigrationArchive excludes cache and log data and writes a manifest',
   createMigrationArchiveSync({ userDataPath: userData, outputPath: archivePath });
 
   const entries = listArchiveEntries(archivePath);
-  expect(entries).toContain('LobsterAI/.lobsterai-migration.json');
-  expect(entries).toContain(`LobsterAI/${DB_FILENAME}`);
-  expect(entries).toContain('LobsterAI/openclaw/state/openclaw.json');
-  expect(entries).toContain('LobsterAI/SKILLs/demo/SKILL.md');
+  expect(entries).toContain('HiAi/.lobsterai-migration.json');
+  expect(entries).toContain(`HiAi/${DB_FILENAME}`);
+  expect(entries).toContain('HiAi/openclaw/state/openclaw.json');
+  expect(entries).toContain('HiAi/SKILLs/demo/SKILL.md');
   expect(entries.some(entry => entry.includes('/Cache/'))).toBe(false);
   expect(entries.some(entry => entry.includes('/Code Cache/'))).toBe(false);
   expect(entries.some(entry => entry.includes('/cowork/'))).toBe(false);
@@ -320,7 +320,7 @@ test('createMigrationArchive excludes cache and log data and writes a manifest',
 
   const extractRoot = extractArchive(archivePath);
   const manifest = JSON.parse(
-    fs.readFileSync(path.join(extractRoot, 'LobsterAI', '.lobsterai-migration.json'), 'utf8'),
+    fs.readFileSync(path.join(extractRoot, 'HiAi', '.lobsterai-migration.json'), 'utf8'),
   ) as {
     format?: string;
     archiveRoot?: string;
@@ -328,7 +328,7 @@ test('createMigrationArchive excludes cache and log data and writes a manifest',
     openclawState?: { cronFileCount?: number; agentSessionFileCount?: number; openclawConfigExists?: boolean };
   };
   expect(manifest.format).toBe('lobsterai-data-migration');
-  expect(manifest.archiveRoot).toBe('LobsterAI');
+  expect(manifest.archiveRoot).toBe('HiAi');
   expect(manifest.sqlite?.rowCounts?.scheduled_task_meta).toBe(1);
   expect(manifest.sqlite?.tableContentChecksums?.im_config).toBeTruthy();
   expect(manifest.openclawState?.openclawConfigExists).toBe(true);
@@ -338,7 +338,7 @@ test('createMigrationArchive excludes cache and log data and writes a manifest',
 
 test('createMigrationArchive replaces the live sqlite database with the snapshot', () => {
   const root = makeTempDir();
-  const userData = path.join(root, 'LobsterAI');
+  const userData = path.join(root, 'HiAi');
   const archivePath = path.join(root, 'backup.tar.gz');
   const sqliteSnapshotPath = path.join(root, 'snapshot.sqlite');
 
@@ -353,12 +353,12 @@ test('createMigrationArchive replaces the live sqlite database with the snapshot
   });
 
   const extractRoot = extractArchive(archivePath);
-  expect(readSqliteString(path.join(extractRoot, 'LobsterAI', DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['app_config']))
+  expect(readSqliteString(path.join(extractRoot, 'HiAi', DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['app_config']))
     .toContain('snapshot-model');
   // RM-6：登录态 kv 不随备份迁移。
-  expect(readSqliteString(path.join(extractRoot, 'LobsterAI', DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['auth_tokens']))
+  expect(readSqliteString(path.join(extractRoot, 'HiAi', DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['auth_tokens']))
     .toBe('');
-  expect(fs.existsSync(path.join(extractRoot, 'LobsterAI', `${DB_FILENAME}-wal`))).toBe(false);
+  expect(fs.existsSync(path.join(extractRoot, 'HiAi', `${DB_FILENAME}-wal`))).toBe(false);
 });
 
 test('assertDataMigrationSqliteSnapshotMatchesLiveSync rejects stale snapshots that lost agents and provider keys', () => {
@@ -375,7 +375,7 @@ test('assertDataMigrationSqliteSnapshotMatchesLiveSync rejects stale snapshots t
 
 test('createMigrationArchive rejects a source without a sqlite database', () => {
   const root = makeTempDir();
-  const userData = path.join(root, 'LobsterAI');
+  const userData = path.join(root, 'HiAi');
   const archivePath = path.join(root, 'backup.tar.gz');
 
   writeFile(path.join(userData, 'SKILLs', 'demo', 'SKILL.md'), '# Demo');
@@ -387,7 +387,7 @@ test('createMigrationArchive rejects a source without a sqlite database', () => 
 
 test('inspectMigrationArchive rejects legacy Windows PowerShell archive root', () => {
   const root = makeTempDir();
-  const legacyRoot = path.join(root, 'AppData', 'Roaming', 'LobsterAI');
+  const legacyRoot = path.join(root, 'AppData', 'Roaming', 'HiAi');
   const archivePath = path.join(root, 'legacy.tar.gz');
   writeSqliteFixture(path.join(legacyRoot, DB_FILENAME), 'legacy');
 
@@ -398,12 +398,42 @@ test('inspectMigrationArchive rejects legacy Windows PowerShell archive root', (
     cwd: root,
   }, ['AppData']);
 
-  expect(() => inspectMigrationArchiveSync(archivePath)).toThrow(/does not contain LobsterAI user data/);
+  expect(() => inspectMigrationArchiveSync(archivePath)).toThrow(/does not contain HiAi user data/);
+});
+
+test('inspectMigrationArchive still accepts an archive written before the rename', () => {
+  const root = makeTempDir();
+  const sourceUserData = path.join(root, 'source', 'HiAi');
+  const archivePath = path.join(root, 'current-backup.tar.gz');
+  const legacyArchivePath = path.join(root, 'legacy-root-backup.tar.gz');
+  writeSqliteFixture(path.join(sourceUserData, DB_FILENAME), 'legacy');
+
+  // Build a genuine archive, then re-root it under the pre-rename directory
+  // name. Rejecting this would strand every backup taken before the update, so
+  // the read path has to keep accepting the old root.
+  createMigrationArchiveSync({ userDataPath: sourceUserData, outputPath: archivePath });
+  const extractRoot = extractArchive(archivePath);
+  const legacyRoot = path.join(extractRoot, 'LobsterAI');
+  fs.renameSync(path.join(extractRoot, 'HiAi'), legacyRoot);
+
+  const manifestPath = path.join(legacyRoot, '.lobsterai-migration.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
+  writeFile(manifestPath, JSON.stringify({ ...manifest, appName: 'LobsterAI', archiveRoot: 'LobsterAI' }));
+
+  tar.create({
+    sync: true,
+    gzip: true,
+    file: legacyArchivePath,
+    cwd: extractRoot,
+  }, ['LobsterAI']);
+
+  const info = inspectMigrationArchiveSync(legacyArchivePath);
+  expect(info.root).toBe('LobsterAI');
 });
 
 test('inspectMigrationArchive rejects archives without a migration manifest', () => {
   const root = makeTempDir();
-  const sourceUserData = path.join(root, 'LobsterAI');
+  const sourceUserData = path.join(root, 'HiAi');
   const archivePath = path.join(root, 'missing-manifest.tar.gz');
   writeSqliteFixture(path.join(sourceUserData, DB_FILENAME), 'source');
 
@@ -412,7 +442,7 @@ test('inspectMigrationArchive rejects archives without a migration manifest', ()
     gzip: true,
     file: archivePath,
     cwd: root,
-  }, ['LobsterAI']);
+  }, ['HiAi']);
 
   expect(() => inspectMigrationArchiveSync(archivePath)).toThrow(/missing \.lobsterai-migration\.json/);
 });
@@ -427,14 +457,14 @@ test('inspectMigrationArchive rejects unsupported archive extensions', () => {
 
 test('inspectMigrationArchive rejects archives whose manifest does not match sqlite content', () => {
   const root = makeTempDir();
-  const sourceUserData = path.join(root, 'source', 'LobsterAI');
+  const sourceUserData = path.join(root, 'source', 'HiAi');
   const archivePath = path.join(root, 'source-backup.tar.gz');
   const tamperedArchivePath = path.join(root, 'tampered-backup.tar.gz');
   writeSqliteFixture(path.join(sourceUserData, DB_FILENAME), 'source');
 
   createMigrationArchiveSync({ userDataPath: sourceUserData, outputPath: archivePath });
   const extractRoot = extractArchive(archivePath);
-  const manifestPath = path.join(extractRoot, 'LobsterAI', '.lobsterai-migration.json');
+  const manifestPath = path.join(extractRoot, 'HiAi', '.lobsterai-migration.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
     sqlite?: { checksumSha256?: string };
   };
@@ -445,14 +475,14 @@ test('inspectMigrationArchive rejects archives whose manifest does not match sql
     gzip: true,
     file: tamperedArchivePath,
     cwd: extractRoot,
-  }, ['LobsterAI']);
+  }, ['HiAi']);
 
   expect(() => inspectMigrationArchiveSync(tamperedArchivePath)).toThrow(/sqlite checksum mismatch/);
 });
 
 test('inspectMigrationArchive rejects unreadable sqlite database', () => {
   const root = makeTempDir();
-  const sourceUserData = path.join(root, 'LobsterAI');
+  const sourceUserData = path.join(root, 'HiAi');
   const archivePath = path.join(root, 'invalid.tar.gz');
   writeFile(path.join(sourceUserData, DB_FILENAME), 'not a sqlite database');
   writeManifestFixture(sourceUserData);
@@ -462,7 +492,7 @@ test('inspectMigrationArchive rejects unreadable sqlite database', () => {
     gzip: true,
     file: archivePath,
     cwd: root,
-  }, ['LobsterAI']);
+  }, ['HiAi']);
 
   expect(() => inspectMigrationArchiveSync(archivePath)).toThrow(`unreadable ${DB_FILENAME}`);
 });
@@ -486,8 +516,8 @@ test('inspectMigrationArchive rejects parent-directory archive paths', () => {
 
 test('performPendingDataMigrationRestoreSync creates rollback and restores backup data', () => {
   const root = makeTempDir();
-  const sourceUserData = path.join(root, 'source', 'LobsterAI');
-  const targetUserData = path.join(root, 'target', 'LobsterAI');
+  const sourceUserData = path.join(root, 'source', 'HiAi');
+  const targetUserData = path.join(root, 'target', 'HiAi');
   const rollbackRoot = path.join(root, 'rollbacks');
   const archivePath = path.join(root, 'source-backup.tar.gz');
 
@@ -529,8 +559,8 @@ test('performPendingDataMigrationRestoreSync creates rollback and restores backu
 
 test('performDataMigrationRestoreSync restores backup data without a pending marker', () => {
   const root = makeTempDir();
-  const sourceUserData = path.join(root, 'source', 'LobsterAI');
-  const targetUserData = path.join(root, 'target', 'LobsterAI');
+  const sourceUserData = path.join(root, 'source', 'HiAi');
+  const targetUserData = path.join(root, 'target', 'HiAi');
   const rollbackRoot = path.join(root, 'rollbacks');
   const archivePath = path.join(root, 'source-backup.tar.gz');
 
@@ -555,8 +585,8 @@ test('performDataMigrationRestoreSync restores backup data without a pending mar
 
 test('performDataMigrationRestoreSync preserves multiple agents, their sessions, and custom provider api keys', () => {
   const root = makeTempDir();
-  const sourceUserData = path.join(root, 'source', 'LobsterAI');
-  const targetUserData = path.join(root, 'target', 'LobsterAI');
+  const sourceUserData = path.join(root, 'source', 'HiAi');
+  const targetUserData = path.join(root, 'target', 'HiAi');
   const rollbackRoot = path.join(root, 'rollbacks');
   const archivePath = path.join(root, 'source-backup.tar.gz');
 
@@ -589,8 +619,8 @@ test('performDataMigrationRestoreSync preserves multiple agents, their sessions,
 
 test('performDataMigrationRestoreSync checkpoints archived WAL data into the restored sqlite database', () => {
   const root = makeTempDir();
-  const sourceUserData = path.join(root, 'source', 'LobsterAI');
-  const targetUserData = path.join(root, 'target', 'LobsterAI');
+  const sourceUserData = path.join(root, 'source', 'HiAi');
+  const targetUserData = path.join(root, 'target', 'HiAi');
   const rollbackRoot = path.join(root, 'rollbacks');
   const archivePath = path.join(root, 'source-backup.tar.gz');
 
@@ -621,8 +651,8 @@ test('performDataMigrationRestoreSync checkpoints archived WAL data into the res
 
 test('performDataMigrationRestoreSync restores valid backup when current sqlite is unreadable', () => {
   const root = makeTempDir();
-  const sourceUserData = path.join(root, 'source', 'LobsterAI');
-  const targetUserData = path.join(root, 'target', 'LobsterAI');
+  const sourceUserData = path.join(root, 'source', 'HiAi');
+  const targetUserData = path.join(root, 'target', 'HiAi');
   const rollbackRoot = path.join(root, 'rollbacks');
   const archivePath = path.join(root, 'source-backup.tar.gz');
 
@@ -649,8 +679,8 @@ test('performDataMigrationRestoreSync restores valid backup when current sqlite 
 
 test('performPendingDataMigrationRestoreSync replaces data in place and preserves runtime locks', () => {
   const root = makeTempDir();
-  const sourceUserData = path.join(root, 'source', 'LobsterAI');
-  const targetUserData = path.join(root, 'target', 'LobsterAI');
+  const sourceUserData = path.join(root, 'source', 'HiAi');
+  const targetUserData = path.join(root, 'target', 'HiAi');
   const rollbackRoot = path.join(root, 'rollbacks');
   const archivePath = path.join(root, 'source-backup.tar.gz');
 
@@ -702,25 +732,25 @@ test('performPendingDataMigrationRestoreSync replaces data in place and preserve
 
   createMigrationArchiveSync({ userDataPath: sourceUserData, outputPath: archivePath });
   const extractRoot = extractArchive(archivePath);
-  writeFile(path.join(extractRoot, 'LobsterAI', 'backups', 'sqlite', 'snapshots', 'lobsterai-latest.sqlite'), 'legacy-source-backup');
-  writeFile(path.join(extractRoot, 'LobsterAI', 'sqlite-backups', 'lobsterai-latest.sqlite'), 'legacy-source-legacy-backup');
-  writeFile(path.join(extractRoot, 'LobsterAI', 'cowork', 'bin', 'node.cmd'), 'legacy-source-shim');
-  writeFile(path.join(extractRoot, 'LobsterAI', 'install-timing.log'), 'legacy-source-install-log');
-  writeFile(path.join(extractRoot, 'LobsterAI', 'skill-migrate.log'), 'legacy-source-skill-migrate-log');
-  writeFile(path.join(extractRoot, 'LobsterAI', 'Dictionaries', 'source.bdic'), 'legacy-source-dictionary');
-  writeFile(path.join(extractRoot, 'LobsterAI', 'Local Storage', 'leveldb', 'source.log'), 'legacy-source-local-storage');
-  writeFile(path.join(extractRoot, 'LobsterAI', 'Preferences'), 'legacy-source-preferences');
-  writeFile(path.join(extractRoot, 'LobsterAI', 'Session Storage', 'leveldb', 'source.log'), 'legacy-source-session-storage');
-  writeFile(path.join(extractRoot, 'LobsterAI', 'openclaw', 'logs', 'gateway-2026-06-10.log'), 'legacy-source-gateway-log');
-  writeFile(path.join(extractRoot, 'LobsterAI', 'openclaw', 'mcp-packages', 'demo', 'node_modules', 'native.node'), 'legacy-source-native');
-  writeFile(path.join(extractRoot, 'LobsterAI', 'openclaw', 'state', 'logs', 'commands.log'), 'legacy-source-commands-log');
-  writeFile(path.join(extractRoot, 'LobsterAI', 'runtimes', 'python', 'python.exe'), 'legacy-source-runtime');
+  writeFile(path.join(extractRoot, 'HiAi', 'backups', 'sqlite', 'snapshots', 'lobsterai-latest.sqlite'), 'legacy-source-backup');
+  writeFile(path.join(extractRoot, 'HiAi', 'sqlite-backups', 'lobsterai-latest.sqlite'), 'legacy-source-legacy-backup');
+  writeFile(path.join(extractRoot, 'HiAi', 'cowork', 'bin', 'node.cmd'), 'legacy-source-shim');
+  writeFile(path.join(extractRoot, 'HiAi', 'install-timing.log'), 'legacy-source-install-log');
+  writeFile(path.join(extractRoot, 'HiAi', 'skill-migrate.log'), 'legacy-source-skill-migrate-log');
+  writeFile(path.join(extractRoot, 'HiAi', 'Dictionaries', 'source.bdic'), 'legacy-source-dictionary');
+  writeFile(path.join(extractRoot, 'HiAi', 'Local Storage', 'leveldb', 'source.log'), 'legacy-source-local-storage');
+  writeFile(path.join(extractRoot, 'HiAi', 'Preferences'), 'legacy-source-preferences');
+  writeFile(path.join(extractRoot, 'HiAi', 'Session Storage', 'leveldb', 'source.log'), 'legacy-source-session-storage');
+  writeFile(path.join(extractRoot, 'HiAi', 'openclaw', 'logs', 'gateway-2026-06-10.log'), 'legacy-source-gateway-log');
+  writeFile(path.join(extractRoot, 'HiAi', 'openclaw', 'mcp-packages', 'demo', 'node_modules', 'native.node'), 'legacy-source-native');
+  writeFile(path.join(extractRoot, 'HiAi', 'openclaw', 'state', 'logs', 'commands.log'), 'legacy-source-commands-log');
+  writeFile(path.join(extractRoot, 'HiAi', 'runtimes', 'python', 'python.exe'), 'legacy-source-runtime');
   tar.create({
     sync: true,
     gzip: true,
     file: archivePath,
     cwd: extractRoot,
-  }, ['LobsterAI']);
+  }, ['HiAi']);
   writePendingRestoreRequestSync(targetUserData, archivePath);
 
   const result = performPendingDataMigrationRestoreSync({
@@ -781,7 +811,7 @@ test('performPendingDataMigrationRestoreSync replaces data in place and preserve
 
 test('performPendingDataMigrationRestoreSync keeps existing data when restore fails', () => {
   const root = makeTempDir();
-  const targetUserData = path.join(root, 'target', 'LobsterAI');
+  const targetUserData = path.join(root, 'target', 'HiAi');
   const rollbackRoot = path.join(root, 'rollbacks');
   const archivePath = path.join(root, 'missing-backup.tar.gz');
 
@@ -801,8 +831,8 @@ test('performPendingDataMigrationRestoreSync keeps existing data when restore fa
 
 test('performDataMigrationRestoreSync rolls back when the backup is missing sqlite data', () => {
   const root = makeTempDir();
-  const sourceUserData = path.join(root, 'source', 'LobsterAI');
-  const targetUserData = path.join(root, 'target', 'LobsterAI');
+  const sourceUserData = path.join(root, 'source', 'HiAi');
+  const targetUserData = path.join(root, 'target', 'HiAi');
   const rollbackRoot = path.join(root, 'rollbacks');
   const archivePath = path.join(root, 'source-backup.tar.gz');
 
@@ -816,7 +846,7 @@ test('performDataMigrationRestoreSync rolls back when the backup is missing sqli
     gzip: true,
     file: archivePath,
     cwd: sourceParent,
-  }, ['LobsterAI']);
+  }, ['HiAi']);
 
   const result = performDataMigrationRestoreSync({
     userDataPath: targetUserData,
@@ -834,8 +864,8 @@ test('performDataMigrationRestoreSync rolls back when the backup is missing sqli
 
 test('performDataMigrationRestoreSync rejects unreadable backup sqlite before touching target data', () => {
   const root = makeTempDir();
-  const sourceUserData = path.join(root, 'source', 'LobsterAI');
-  const targetUserData = path.join(root, 'target', 'LobsterAI');
+  const sourceUserData = path.join(root, 'source', 'HiAi');
+  const targetUserData = path.join(root, 'target', 'HiAi');
   const rollbackRoot = path.join(root, 'rollbacks');
   const archivePath = path.join(root, 'source-backup.tar.gz');
 
@@ -851,7 +881,7 @@ test('performDataMigrationRestoreSync rejects unreadable backup sqlite before to
     gzip: true,
     file: archivePath,
     cwd: sourceParent,
-  }, ['LobsterAI']);
+  }, ['HiAi']);
 
   const result = performDataMigrationRestoreSync({
     userDataPath: targetUserData,

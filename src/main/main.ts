@@ -201,7 +201,7 @@ import {
 import type { ShellOpenFailureReason as ShellOpenFailureReasonType } from '../shared/shell/constants';
 import { type ShellGetBrowserAppsInput, ShellIpc, ShellOpenFailureReason } from '../shared/shell/constants';
 import { AgentManager } from './agentManager';
-import { APP_NAME, APP_USER_MODEL_ID, DB_FILENAME } from './appConstants';
+import { APP_NAME, APP_USER_MODEL_ID, DB_FILENAME, LEGACY_APP_DIR_NAME } from './appConstants';
 import { createLocalFileProtocolResponse } from './artifactLocalFileProtocol';
 import { type AutoLaunchStatus, getAutoLaunchStatus, isAutoLaunched, setAutoLaunchEnabled } from './autoLaunchManager';
 import { BrowserCredentialApprovalService } from './browserCredentials/browserCredentialApprovalService';
@@ -529,6 +529,7 @@ import {
   restoreOriginalProxyEnv,
   setSystemProxyEnabled,
 } from './libs/systemProxy';
+import { migrateLegacyUserDataDir } from './libs/userDataDirMigration';
 import { type LoopbackFirewallRepairResult, repairWindowsLoopbackFirewall } from './libs/windowsLoopbackFirewall';
 import { getLogFilePath, getRecentMainLogEntries, initLogger } from './logger';
 import { type AskUserResponse, McpRuntime } from './mcp/mcpRuntime';
@@ -1944,6 +1945,19 @@ const configureUserDataPath = (): void => {
     ? devUserDataPath
     : path.join(appDataPath, APP_NAME);
   const currentUserDataPath = app.getPath('userData');
+
+  // Runs before the path is switched, and only for real installs: the dev
+  // override points somewhere disposable, so it must never trigger a move.
+  if (!devUserDataPath) {
+    const outcome = migrateLegacyUserDataDir({
+      appDataPath,
+      legacyDirName: LEGACY_APP_DIR_NAME,
+      currentDirName: APP_NAME,
+    });
+    if (outcome === 'moved' || outcome === 'copied') {
+      console.log(`[Main] migrated legacy profile into "${preferredUserDataPath}" (${outcome}).`);
+    }
+  }
 
   if (currentUserDataPath !== preferredUserDataPath) {
     app.setPath('userData', preferredUserDataPath);
