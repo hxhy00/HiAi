@@ -26,7 +26,7 @@ describe('AskUserQuestion callback answers and skipped questions', () => {
       logger: { info: vi.fn() },
       registerTool,
     } as unknown as Parameters<typeof plugin.register>[0]);
-    tool = registerTool.mock.calls[0][0]({ sessionKey: 'agent:main:lobsterai:question-test' });
+    tool = registerTool.mock.calls[0][0]({ sessionKey: 'agent:main:hiai:question-test' });
   });
 
   afterAll(async () => { await server.stop(); });

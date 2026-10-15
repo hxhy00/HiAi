@@ -11,7 +11,7 @@ import { WORD_AGENT_MCP_SERVER_NAME, WORD_AGENT_TIMEOUT_MS, WORD_AGENT_TOOL_DEFI
 import { type WordFileBridge, WordFileIpc } from './word/wordFile';
 
 /**
- * The Office editors LobsterAI ships. Supporting another format means one more entry here and in
+ * The Office editors HiAi ships. Supporting another format means one more entry here and in
  * each layer's format table (main process, renderer services, editor components); the shared
  * plumbing in between (IPC, preload, MCP servers, agent routing) follows these entries.
  */

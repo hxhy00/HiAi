@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-const electronState = vi.hoisted(() => ({ isPackaged: false, name: 'LobsterAI' }));
+const electronState = vi.hoisted(() => ({ isPackaged: false, name: 'HiAi' }));
 
 vi.mock('electron', () => ({
   app: {
@@ -22,7 +22,7 @@ let appContents: string;
 beforeEach(() => {
   vi.resetModules();
   electronState.isPackaged = false;
-  electronState.name = 'LobsterAI';
+  electronState.name = 'HiAi';
   appContents = fs.mkdtempSync(path.join(os.tmpdir(), 'lobsterai electron runtime '));
   vi.stubGlobal('process', {
     ...hostProcess,

@@ -1,5 +1,5 @@
 /**
- * Per-turn LLM usage (credits, tokens, request count) for LobsterAI package
+ * Per-turn LLM usage (credits, tokens, request count) for HiAi package
  * models, and the W3C trace context that ties every model request of a turn
  * from the client logs to lobsterai-server logs and its usage ledger.
  */

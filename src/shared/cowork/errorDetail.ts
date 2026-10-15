@@ -1,6 +1,6 @@
 /**
- * Where the failing model comes from in LobsterAI terms, so users can tell at
- * a glance whether an error concerns the LobsterAI plan, a vendor coding plan
+ * Where the failing model comes from in HiAi terms, so users can tell at
+ * a glance whether an error concerns the HiAi plan, a vendor coding plan
  * they configured, or their own custom provider.
  */
 export const CoworkErrorModelSource = {
@@ -29,11 +29,11 @@ export function isCoworkErrorModelSource(value: unknown): value is CoworkErrorMo
  * provider payloads in this structure.
  */
 export interface CoworkErrorDetail {
-  /** Runtime error message before LobsterAI i18n normalization. */
+  /** Runtime error message before HiAi i18n normalization. */
   rawErrorMessage?: string;
   provider?: string;
   model?: string;
-  /** LobsterAI-side classification of where the failing model comes from. */
+  /** HiAi-side classification of where the failing model comes from. */
   modelSource?: CoworkErrorModelSource;
   /** User-visible provider name from Settings (e.g. a custom provider's displayName). */
   providerDisplayName?: string;

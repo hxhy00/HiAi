@@ -31,17 +31,17 @@ foreach ($function in $ast.FindAll({ param($node) $node -is [System.Management.A
 foreach ($name in $helpers) { Assert-Condition ([bool](Get-Command $name -ErrorAction SilentlyContinue)) ('Missing helper: ' + $name) }
 
 # Process roles come from command lines, which carry the gateway token and are never exported.
-$gatewayLine = '"C:\Program Files\LobsterAI\LobsterAI.exe" "C:\Program Files\LobsterAI\resources\cfmind\gateway-launcher.cjs" gateway --port 18790 --token secret-token'
+$gatewayLine = '"C:\Program Files\HiAi\HiAi.exe" "C:\Program Files\HiAi\resources\cfmind\gateway-launcher.cjs" gateway --port 18790 --token secret-token'
 Assert-Condition ((Get-LobsterProcessRole $gatewayLine) -eq 'gateway') 'Gateway role was not recognized.'
 Assert-Condition ((Get-GatewayPortFromCommandLine $gatewayLine) -eq 18790) 'Gateway port was not parsed.'
-Assert-Condition ((Get-LobsterProcessRole '"C:\Program Files\LobsterAI\LobsterAI.exe" --type=renderer --lang=zh-CN') -eq 'renderer') 'Renderer role was not recognized.'
+Assert-Condition ((Get-LobsterProcessRole '"C:\Program Files\HiAi\HiAi.exe" --type=renderer --lang=zh-CN') -eq 'renderer') 'Renderer role was not recognized.'
 # Seen on a customer machine (2026-10-09): no gateway-launcher in the gateway's command line.
-$cliGateway = '"C:\Program Files\LobsterAI\LobsterAI.exe" "C:\Program Files\LobsterAI\resources\cfmind\openclaw.mjs" gateway --port 18789 --token secret-token'
+$cliGateway = '"C:\Program Files\HiAi\HiAi.exe" "C:\Program Files\HiAi\resources\cfmind\openclaw.mjs" gateway --port 18789 --token secret-token'
 Assert-Condition ((Get-LobsterProcessRole $cliGateway) -eq 'gateway' -and (Get-GatewayPortFromCommandLine $cliGateway) -eq 18789) 'An openclaw.mjs gateway was not recognized.'
-Assert-Condition ((Get-LobsterProcessRole '"C:\Program Files\LobsterAI\LobsterAI.exe" "C:\Program Files\LobsterAI\resources\cfmind\openclaw.mjs" config validate --json') -eq 'openclaw-cli') 'An OpenClaw CLI call was taken for the gateway.'
-Assert-Condition ((Get-LobsterProcessRole '"C:\Program Files\LobsterAI\LobsterAI.exe" "C:\Users\a\AppData\Roaming\LobsterAI\SKILLs\web-search\server.js"') -eq 'node-helper') 'Skill server role was not recognized.'
-Assert-Condition ((Get-LobsterProcessRole '"C:\Program Files\LobsterAI\LobsterAI.exe"') -eq 'main') 'Main role was not recognized.'
-Assert-Condition ($null -eq (Get-GatewayPortFromCommandLine '"C:\Program Files\LobsterAI\LobsterAI.exe"')) 'A port was invented.'
+Assert-Condition ((Get-LobsterProcessRole '"C:\Program Files\HiAi\HiAi.exe" "C:\Program Files\HiAi\resources\cfmind\openclaw.mjs" config validate --json') -eq 'openclaw-cli') 'An OpenClaw CLI call was taken for the gateway.'
+Assert-Condition ((Get-LobsterProcessRole '"C:\Program Files\HiAi\HiAi.exe" "C:\Users\a\AppData\Roaming\HiAi\SKILLs\web-search\server.js"') -eq 'node-helper') 'Skill server role was not recognized.'
+Assert-Condition ((Get-LobsterProcessRole '"C:\Program Files\HiAi\HiAi.exe"') -eq 'main') 'Main role was not recognized.'
+Assert-Condition ($null -eq (Get-GatewayPortFromCommandLine '"C:\Program Files\HiAi\HiAi.exe"')) 'A port was invented.'
 Assert-Condition ((ConvertTo-ProcessArgument 'protocol=tcp') -eq 'protocol=tcp') 'A plain argument was quoted.'
 Assert-Condition ((ConvertTo-ProcessArgument 'HTTP_CODE=%{http_code}') -eq 'HTTP_CODE=%{http_code}') 'The curl format was quoted.'
 Assert-Condition ((ConvertTo-ProcessArgument 'C:\Program Files\x.cjs') -eq '"C:\Program Files\x.cjs"') 'A path with spaces was not quoted.'
@@ -88,13 +88,13 @@ Assert-Condition ((Resolve-SystemPath '\SystemRoot\System32\drivers\tcpip.sys') 
 Assert-Condition ((Get-ExecutableFromCommandLine '"C:\Program Files\Vendor\svc.exe" -k run') -eq 'C:\Program Files\Vendor\svc.exe') 'A quoted service binary was not found.'
 Assert-Condition ((Get-ExecutableFromCommandLine 'C:\Vendor Tools\svc.exe /service') -eq 'C:\Vendor Tools\svc.exe') 'An unquoted service binary was not found.'
 
-# Lines as LobsterAI 2026.9.23 writes them (a reboot, then two startup waits that never connect).
+# Lines as HiAi 2026.9.23 writes them (a reboot, then two startup waits that never connect).
 $mainLog = @'
-[2026-10-08 22:55:58.906] [info]  LobsterAI started (win32 x64)
+[2026-10-08 22:55:58.906] [info]  HiAi started (win32 x64)
 [2026-10-08 22:56:14.351] [info]  [OpenClaw] gateway process spawned (8545ms), pid=9696
 [2026-10-08 22:56:55.457] [info]  [OpenClaw] startup milestone (41111ms since spawn): 2026-10-08T22:56:55.447+08:00 [gateway] ready
 [2026-10-08 22:56:55.598] [info]  [OpenClaw] waitForGatewayReady: gateway startup complete after 40969ms (41 polls)
-[2026-10-08 23:15:25.741] [info]  LobsterAI started (win32 x64)
+[2026-10-08 23:15:25.741] [info]  HiAi started (win32 x64)
 [2026-10-08 23:15:37.762] [info]  [OpenClaw] gateway process spawned (10353ms), pid=12504
 [2026-10-08 23:15:43.245] [info]  [OpenClaw] startup probe details: /startupz → fetch failed
 [2026-10-08 23:15:55.546] [info]  [OpenClaw] startup milestone (17790ms since spawn): 2026-10-08T23:15:55.547+08:00 [gateway] ready
@@ -116,7 +116,7 @@ Assert-Condition ($timeline.waitTimeouts -eq 2 -and $timeline.healthFailures -eq
 Assert-Condition ($timeline.probeNotReady -eq 4) ('Probe lines: ' + $timeline.probeNotReady)
 Assert-Condition ((Format-Counts $timeline.probeDetails) -eq 'fetch failed×2、timeout×1、HTTP 503×1') ('Probe kinds: ' + (Format-Counts $timeline.probeDetails))
 
-$gatewayListener = @{ pid = 12504; name = 'LobsterAI.exe'; address = '127.0.0.1'; isGateway = $true; isLobster = $true }
+$gatewayListener = @{ pid = 12504; name = 'HiAi.exe'; address = '127.0.0.1'; isGateway = $true; isLobster = $true }
 $refused = [ordered]@{ ok = $false; code = 'ConnectionRefused' }
 $connected = [ordered]@{ ok = $true; code = 'Connected' }
 $base = @{ appRunning = $true; gatewayProcess = $true; gatewayPort = 18789; listeners = @($gatewayListener); envProxy = @() }
@@ -125,7 +125,7 @@ function New-Facts { param([hashtable]$Changes) $facts = $base.Clone(); foreach 
 $verdict = @(Get-ConnectionVerdict (New-Facts @{ psTcp = @($refused, $refused); nodeGateway = @{ tcpOk = 0; tcpTotal = 3; fetchOk = 0; fetchTotal = 4; errorCodes = @('ECONNREFUSED'); startupStatus = $null } }))
 Assert-Condition ($verdict[0] -match '系统层被拦截' -and $verdict[0] -match 'ConnectionRefused' -and $verdict[0] -match 'ECONNREFUSED') ('System-level block: ' + $verdict[0])
 $verdict = @(Get-ConnectionVerdict (New-Facts @{ psTcp = @($connected); nodeGateway = @{ tcpOk = 0; tcpTotal = 3; fetchOk = 0; fetchTotal = 4; errorCodes = @('ECONNRESET'); startupStatus = $null } }))
-Assert-Condition ($verdict[0] -match '只有 LobsterAI' -and $verdict[0] -match 'ECONNRESET') ('App-only block: ' + $verdict[0])
+Assert-Condition ($verdict[0] -match '只有 HiAi' -and $verdict[0] -match 'ECONNRESET') ('App-only block: ' + $verdict[0])
 $verdict = @(Get-ConnectionVerdict (New-Facts @{ psTcp = @($connected); nodeGateway = @{ tcpOk = 3; tcpTotal = 3; fetchOk = 0; fetchTotal = 4; errorCodes = @('UND_ERR_SOCKET'); startupStatus = $null }; envProxy = @('NODE_USE_ENV_PROXY(User)') }))
 Assert-Condition ($verdict[0] -match 'HTTP 请求失败' -and ($verdict -join ' ') -match 'NODE_USE_ENV_PROXY') ('HTTP-only failure: ' + ($verdict -join ' | '))
 $verdict = @(Get-ConnectionVerdict (New-Facts @{ psTcp = @($connected); nodeGateway = @{ tcpOk = 3; tcpTotal = 3; fetchOk = 4; fetchTotal = 4; errorCodes = @(); startupStatus = 'HTTP 200 started' }; timeline = $timeline }))

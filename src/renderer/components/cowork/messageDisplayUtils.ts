@@ -1084,7 +1084,7 @@ export const isMediaStatusPoll = (group: ToolGroupItem): boolean => {
   const toolName = group.toolUse.metadata?.toolName;
   if (!toolName) return false;
   const normalized = normalizeToolName(toolName);
-  if (normalized !== 'lobsteraivideogenerate' && normalized !== 'lobsteraiimagegenerate') return false;
+  if (normalized !== 'hiaivideogenerate' && normalized !== 'hiaiimagegenerate') return false;
   const input = group.toolUse.metadata?.toolInput as Record<string, unknown> | undefined;
   return input?.action === 'status' && typeof input?.taskId === 'string';
 };
@@ -1134,7 +1134,7 @@ export const isMediaGenerateRunning = (group: ToolGroupItem): boolean => {
   const toolName = group.toolUse.metadata?.toolName;
   if (!toolName) return false;
   const normalized = normalizeToolName(toolName);
-  if (normalized !== 'lobsteraivideogenerate') return false;
+  if (normalized !== 'hiaivideogenerate') return false;
   const input = group.toolUse.metadata?.toolInput as Record<string, unknown> | undefined;
   const action = input?.action;
   if (action !== 'generate' && action !== undefined) return false;
@@ -1698,7 +1698,7 @@ export const getActivityCurrentActionText = (item: ConsolidatedItem): string => 
       ? item.group.toolUse.metadata?.toolName
       : null;
   if (typeof mediaToolName === 'string') {
-    const isVideo = normalizeToolName(mediaToolName) === 'lobsteraivideogenerate';
+    const isVideo = normalizeToolName(mediaToolName) === 'hiaivideogenerate';
     return i18nService.t(isVideo ? 'mediaGeneratingVideo' : 'mediaGeneratingImage');
   }
   if (item.type === 'tool_group') {
@@ -1948,7 +1948,7 @@ export const getActivityLiveStatusText = (item: ConsolidatedItem): string => {
   }
   if (item.type === 'media_polling_group') {
     return i18nService.t(
-      normalizeToolName(item.group.toolName) === 'lobsteraivideogenerate' ? 'mediaGeneratingVideo' : 'mediaGeneratingImage',
+      normalizeToolName(item.group.toolName) === 'hiaivideogenerate' ? 'mediaGeneratingVideo' : 'mediaGeneratingImage',
     );
   }
   if (item.type !== 'tool_group') {
@@ -1957,10 +1957,10 @@ export const getActivityLiveStatusText = (item: ConsolidatedItem): string => {
   const rawName = item.group.toolUse.metadata?.toolName;
   const toolName = typeof rawName === 'string' ? rawName : undefined;
   const normalized = toolName ? normalizeToolName(toolName) : '';
-  if (normalized === 'lobsteraivideogenerate') {
+  if (normalized === 'hiaivideogenerate') {
     return i18nService.t('mediaGeneratingVideo');
   }
-  if (normalized === 'lobsteraiimagegenerate') {
+  if (normalized === 'hiaiimagegenerate') {
     return i18nService.t('mediaGeneratingImage');
   }
   const toolInput = item.group.toolUse.metadata?.toolInput;
@@ -1993,7 +1993,7 @@ export const getActivityLiveStatusText = (item: ConsolidatedItem): string => {
   return i18nService.t('coworkActivityStatusTool');
 };
 
-const MEDIA_GENERATE_TOOL_NAMES = new Set(['lobsteraivideogenerate', 'lobsteraiimagegenerate']);
+const MEDIA_GENERATE_TOOL_NAMES = new Set(['hiaivideogenerate', 'hiaiimagegenerate']);
 const SUBAGENT_TOOL_NAMES = new Set(['sessionsspawn', 'sessionsyield', ...SUBAGENT_IO_TOOL_NAMES]);
 
 /** Which icon a step line leads with; thinking lines carry none. */
@@ -2048,7 +2048,7 @@ export const getActivityStepDoneLabel = (item: ConsolidatedItem): string => {
   }
   if (item.type === 'media_polling_group') {
     return i18nService.t(
-      normalizeToolName(item.group.toolName) === 'lobsteraivideogenerate' ? 'coworkActivityDoneVideo' : 'coworkActivityDoneImage',
+      normalizeToolName(item.group.toolName) === 'hiaivideogenerate' ? 'coworkActivityDoneVideo' : 'coworkActivityDoneImage',
     );
   }
   if (item.type !== 'tool_group') {
@@ -2057,8 +2057,8 @@ export const getActivityStepDoneLabel = (item: ConsolidatedItem): string => {
   const rawName = item.group.toolUse.metadata?.toolName;
   const toolName = typeof rawName === 'string' ? rawName : undefined;
   const normalized = toolName ? normalizeToolName(toolName) : '';
-  if (normalized === 'lobsteraivideogenerate') return i18nService.t('coworkActivityDoneVideo');
-  if (normalized === 'lobsteraiimagegenerate') return i18nService.t('coworkActivityDoneImage');
+  if (normalized === 'hiaivideogenerate') return i18nService.t('coworkActivityDoneVideo');
+  if (normalized === 'hiaiimagegenerate') return i18nService.t('coworkActivityDoneImage');
   if (normalized === 'sessionsspawn') return i18nService.t('coworkActivityDoneSpawnSubagent');
   if (normalized === 'sessionsyield') return i18nService.t('coworkToolWaitingSubagents');
   const toolInput = item.group.toolUse.metadata?.toolInput;

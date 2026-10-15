@@ -83,7 +83,7 @@ import {
 } from './appUpdateInstaller';
 import { WINDOWS_INSTALLER_URL_POLICY_VERSION } from './appUpdateUrlPolicy';
 
-const INSTALLER_PATH = 'C:\\Users\\test\\AppData\\Roaming\\LobsterAI\\updates\\lobsterai-update-manual-1.exe';
+const INSTALLER_PATH = 'C:\\Users\\test\\AppData\\Roaming\\HiAi\\updates\\lobsterai-update-manual-1.exe';
 
 describe('Windows update install', () => {
   const originalPlatform = process.platform;
@@ -354,7 +354,7 @@ describe('Windows update download URL enforcement', () => {
 
   test('rejects an insecure input before fetching or creating a partial file', async () => {
     await expect(downloadUpdate(
-      'http://downloads.example.com/LobsterAI.exe',
+      'http://downloads.example.com/HiAi.exe',
       'manual',
       () => {},
     )).rejects.toThrow('update-url-untrusted');
@@ -382,7 +382,7 @@ describe('Windows update download URL enforcement', () => {
     });
 
     const inputUrl =
-      'https://downloads.example.com/LobsterAI.exe?inputToken=do-not-log';
+      'https://downloads.example.com/HiAi.exe?inputToken=do-not-log';
     const result = await downloadUpdate(
       inputUrl,
       'auto',
@@ -409,13 +409,13 @@ describe('Windows update download URL enforcement', () => {
     mocks.fetch.mockRejectedValue(new TypeError('Failed to fetch'));
 
     await expect(downloadUpdate(
-      'https://downloads.example.com/LobsterAI.exe',
+      'https://downloads.example.com/HiAi.exe',
       'auto',
       () => {},
     )).rejects.toThrow('Failed to fetch');
 
     expect(mocks.fetch).toHaveBeenCalledWith(
-      'https://downloads.example.com/LobsterAI.exe',
+      'https://downloads.example.com/HiAi.exe',
       expect.objectContaining({ redirect: 'error' }),
     );
     expect(fs.existsSync(path.join(tmpDir, 'updates'))).toBe(false);
@@ -444,7 +444,7 @@ describe('Windows update download URL enforcement', () => {
     });
 
     const firstDownload = downloadUpdate(
-      'https://downloads.example.com/LobsterAI.exe',
+      'https://downloads.example.com/HiAi.exe',
       'auto',
       () => {},
     );
@@ -452,7 +452,7 @@ describe('Windows update download URL enforcement', () => {
 
     expect(cancelActiveDownload()).toBe(true);
     const replacementDownload = downloadUpdate(
-      'https://downloads.example.com/LobsterAI.exe',
+      'https://downloads.example.com/HiAi.exe',
       'manual',
       () => {},
     );
@@ -471,7 +471,7 @@ describe('hdiutil plist parsing', () => {
     const json = JSON.stringify({
       'system-entities': [
         { 'content-hint': 'GUID_partition_scheme', 'dev-entry': '/dev/disk4' },
-        { 'dev-entry': '/dev/disk5s1', 'mount-point': '/Volumes/LobsterAI', 'volume-kind': 'apfs' },
+        { 'dev-entry': '/dev/disk5s1', 'mount-point': '/Volumes/HiAi', 'volume-kind': 'apfs' },
         { 'content-hint': 'EF57347C-0000-11AA-AA11-00306543ECAC', 'dev-entry': '/dev/disk5' },
         { 'content-hint': 'Apple_APFS', 'dev-entry': '/dev/disk4s1' },
       ],
@@ -479,7 +479,7 @@ describe('hdiutil plist parsing', () => {
 
     const result = parseHdiutilAttachOutput(json);
 
-    expect(result.mountPoint).toBe('/Volumes/LobsterAI');
+    expect(result.mountPoint).toBe('/Volumes/HiAi');
     expect(result.devEntries).toEqual(['/dev/disk4', '/dev/disk5s1', '/dev/disk5', '/dev/disk4s1']);
   });
 
@@ -487,13 +487,13 @@ describe('hdiutil plist parsing', () => {
     const json = JSON.stringify({
       'system-entities': [
         { 'content-hint': 'GUID_partition_scheme', 'dev-entry': '/dev/disk4' },
-        { 'content-hint': 'Apple_HFS', 'dev-entry': '/dev/disk4s1', 'mount-point': '/Volumes/LobsterAI 1' },
+        { 'content-hint': 'Apple_HFS', 'dev-entry': '/dev/disk4s1', 'mount-point': '/Volumes/HiAi 1' },
       ],
     });
 
     const result = parseHdiutilAttachOutput(json);
 
-    expect(result.mountPoint).toBe('/Volumes/LobsterAI 1');
+    expect(result.mountPoint).toBe('/Volumes/HiAi 1');
   });
 
   test('reports no mount point when the volume failed to mount', () => {
@@ -566,12 +566,12 @@ describe('mac swap builders', () => {
   });
 
   test('builds a staged-copy, guarded-backup, rollback and cleanup sequence', () => {
-    const target = '/Applications/LobsterAI.app';
+    const target = '/Applications/HiAi.app';
     const swapPaths = buildMacSwapPaths(target, 7);
 
-    const cmd = buildMacSwapInstallCommand('/Volumes/LobsterAI/LobsterAI.app', target, swapPaths);
+    const cmd = buildMacSwapInstallCommand('/Volumes/HiAi/HiAi.app', target, swapPaths);
 
-    const cpIndex = cmd.indexOf(`cp -R '/Volumes/LobsterAI/LobsterAI.app' '${swapPaths.staging}'`);
+    const cpIndex = cmd.indexOf(`cp -R '/Volumes/HiAi/HiAi.app' '${swapPaths.staging}'`);
     const backupIndex = cmd.indexOf(`mv '${target}' '${swapPaths.backup}'`);
     const swapIndex = cmd.indexOf(`mv '${swapPaths.staging}' '${target}'`);
     const rollbackIndex = cmd.indexOf(`mv '${swapPaths.backup}' '${target}'`);
@@ -597,9 +597,9 @@ describe('mac swap builders', () => {
 describe('macOS DMG install', () => {
   const originalPlatform = process.platform;
   const originalResourcesPath = (process as { resourcesPath?: string }).resourcesPath;
-  const USER_DATA = '/Users/test/Library/Application Support/LobsterAI';
+  const USER_DATA = '/Users/test/Library/Application Support/HiAi';
   const DMG_PATH = `${USER_DATA}/updates/lobsterai-update-auto-1.dmg`;
-  const TARGET_APP = '/Applications/LobsterAI.app';
+  const TARGET_APP = '/Applications/HiAi.app';
 
   const attachNoMountJson = JSON.stringify({
     'system-entities': [
@@ -628,7 +628,7 @@ describe('macOS DMG install', () => {
   let applicationsEntries: string[];
 
   const respondNoMount = () => attachNoMountJson;
-  const respondMountedAtVolumes = () => attachMountedJson('/Volumes/LobsterAI');
+  const respondMountedAtVolumes = () => attachMountedJson('/Volumes/HiAi');
   const respondMountedAtRequestedPoint = (cmd: string) => {
     const match = cmd.match(/-mountpoint '([^']+)'/);
     return attachMountedJson(match ? match[1] : '/Volumes/unexpected');
@@ -697,7 +697,7 @@ describe('macOS DMG install', () => {
     detachCommands = [];
     execCommands = [];
     execOverride = null;
-    applicationsEntries = ['LobsterAI.app'];
+    applicationsEntries = ['HiAi.app'];
 
     cpMocks.exec.mockImplementation(
       (
@@ -746,12 +746,12 @@ describe('macOS DMG install', () => {
     vi.spyOn(fs.promises, 'readdir').mockImplementation(((dir: fs.PathLike) => {
       const dirPath = String(dir);
       if (dirPath.endsWith(path.join('Contents', 'MacOS'))) {
-        return Promise.resolve(['LobsterAI']);
+        return Promise.resolve(['HiAi']);
       }
       if (dirPath === path.dirname(TARGET_APP)) {
         return Promise.resolve(applicationsEntries);
       }
-      return Promise.resolve(['LobsterAI.app']);
+      return Promise.resolve(['HiAi.app']);
     }) as never);
   });
 
@@ -794,11 +794,11 @@ describe('macOS DMG install', () => {
     );
 
     expect(detachCommands).toHaveLength(1);
-    expect(detachCommands[0]).toContain('/Volumes/LobsterAI');
+    expect(detachCommands[0]).toContain('/Volumes/HiAi');
     expect(fs.promises.unlink).toHaveBeenCalledWith(DMG_PATH);
     expect(cpMocks.execFile).not.toHaveBeenCalled();
     expect(mocks.relaunch).toHaveBeenCalledExactlyOnceWith({
-      execPath: `${TARGET_APP}/Contents/MacOS/LobsterAI`,
+      execPath: `${TARGET_APP}/Contents/MacOS/HiAi`,
     });
     expect(mocks.quit).toHaveBeenCalledOnce();
     expect(mocks.openPath).not.toHaveBeenCalled();
@@ -935,20 +935,20 @@ describe('macOS DMG install', () => {
   test('cleans up leftover staging and backup directories before installing', async () => {
     attachResponders = [respondMountedAtVolumes];
     applicationsEntries = [
-      `.LobsterAI.app${MAC_SWAP_STAGING_INFIX}1`,
-      `.LobsterAI.app${MAC_SWAP_BACKUP_INFIX}2`,
-      'LobsterAI.app',
+      `.HiAi.app${MAC_SWAP_STAGING_INFIX}1`,
+      `.HiAi.app${MAC_SWAP_BACKUP_INFIX}2`,
+      'HiAi.app',
       'Other.app',
     ];
 
     await installUpdate(DMG_PATH);
 
     expect(fs.promises.rm).toHaveBeenCalledWith(
-      `/Applications/.LobsterAI.app${MAC_SWAP_STAGING_INFIX}1`,
+      `/Applications/.HiAi.app${MAC_SWAP_STAGING_INFIX}1`,
       { recursive: true, force: true },
     );
     expect(fs.promises.rm).toHaveBeenCalledWith(
-      `/Applications/.LobsterAI.app${MAC_SWAP_BACKUP_INFIX}2`,
+      `/Applications/.HiAi.app${MAC_SWAP_BACKUP_INFIX}2`,
       { recursive: true, force: true },
     );
     expect(fs.promises.rm).not.toHaveBeenCalledWith('/Applications/Other.app', expect.anything());

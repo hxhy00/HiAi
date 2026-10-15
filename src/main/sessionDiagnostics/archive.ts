@@ -88,7 +88,7 @@ export function buildSessionDiagnosticsDefaultFileName(input: {
   const titlePart = sanitizeTitleFileNamePart(input.title) || 'session';
   const sessionPart = sanitizeSessionIdFileNamePart(input.sessionId) || 'unknown';
   const timestamp = formatTimestampForFileName(input.now ?? new Date());
-  return `lobsterai-diagnostics-${titlePart}-${sessionPart}-${timestamp}.zip`;
+  return `hiai-diagnostics-${titlePart}-${sessionPart}-${timestamp}.zip`;
 }
 
 export function buildSessionDiagnosticsStats(

@@ -10,14 +10,14 @@ import { WeixinPlugin } from '../../shared/im/weixin';
  * `credentials/openclaw-weixin[-<accountId>]-allowFrom.json`. The pinned
  * runtime imports those files into shared SQLite during gateway startup, but
  * it can only attribute an account-scoped file when the channel config
- * declares that account. LobsterAI never writes `accounts` for Weixin, so the
+ * declares that account. HiAi never writes `accounts` for Weixin, so the
  * runtime reports the file as unresolved, and any migration warning makes it
  * refuse to report the gateway ready. Doctor leaves the file in place too, so
  * the refusal repeats on every restart and Quick Repair.
  *
  * The bundled Weixin plugin only reads such a file for `pairing` policy
  * authorization; it also honors the channel config's allowFrom entries. Merge
- * the approved ids into the LobsterAI Weixin config, then move the file out
+ * the approved ids into the HiAi Weixin config, then move the file out
  * of `credentials/` into a startup recovery backup so the runtime no longer
  * sees it. Bytes are preserved verbatim; nothing is deleted.
  */
@@ -28,7 +28,7 @@ const BACKUP_KIND = 'weixin-allowfrom';
 const ALLOW_FROM_SUFFIX = '-allowFrom.json';
 const CHANNEL_ALLOW_FROM_FILE = `${WeixinPlugin.Id}${ALLOW_FROM_SUFFIX}`;
 const ACCOUNT_ALLOW_FROM_PREFIX = `${WeixinPlugin.Id}-`;
-/** A policy marker, not a sender id; LobsterAI derives it from dmPolicy. */
+/** A policy marker, not a sender id; HiAi derives it from dmPolicy. */
 const ALLOW_ALL = '*';
 
 export const WeixinPairingMigrationStatus = {

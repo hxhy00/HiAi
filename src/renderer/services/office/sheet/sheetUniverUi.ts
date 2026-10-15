@@ -173,7 +173,7 @@ export function createSheetFormulaWorker(): Worker {
 
 /**
  * The editor's Univer instance: grid, formula bar and sheet tabs, without Univer's own ribbon —
- * LobsterAI shows a compact toolbar that only offers what can be saved back.
+ * HiAi shows a compact toolbar that only offers what can be saved back.
  */
 export function createSheetUniver(options: SheetUniverOptions): { univer: Univer; api: FUniver } {
   const locale = toUniverLocale(options.language);
@@ -236,7 +236,7 @@ export function createSheetUniver(options: SheetUniverOptions): { univer: Univer
   univer.registerPlugin(UniverSheetsDrawingPlugin);
   univer.registerPlugin(UniverSheetsDrawingUIPlugin);
   const api = FUniver.newAPI(univer);
-  // Charts from the file float over the grid like pictures and are drawn by LobsterAI.
+  // Charts from the file float over the grid like pictures and are drawn by HiAi.
   api.registerComponent(SHEET_CHART_COMPONENT, SheetChart);
   api.registerComponent(VALIDATION_PROMPT_COMPONENT, SheetValidationPrompt);
   api.registerComponent(CHAT_ACTION_COMPONENT, SheetChatAction);

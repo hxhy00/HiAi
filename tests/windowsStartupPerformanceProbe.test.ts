@@ -154,7 +154,7 @@ test('picks database, disk-latency and Defender comparison targets from plain di
     installRoot, runtimeRoot: path.join(installRoot, 'resources', 'cfmind'), stateDir, userDataDir: path.join(root, 'userData'),
   });
   expect(targets.largeFiles.map((entry: { label: string }) => entry.label)).toEqual([
-    'runtime/gateway-bundle.mjs', 'state/agents/main/openclaw-agent.sqlite', 'state/openclaw.sqlite', 'userData/lobsterai.sqlite',
+    'runtime/gateway-bundle.mjs', 'state/agents/main/openclaw-agent.sqlite', 'state/openclaw.sqlite', 'userData/hiai.sqlite',
   ]);
   expect(targets.randomReads.map((entry: { label: string }) => entry.label)).toEqual([
     'install/resources/python-win/python312.dll', 'state/agents/main/openclaw-agent.sqlite',

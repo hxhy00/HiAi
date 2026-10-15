@@ -70,10 +70,15 @@ import {
 
 // Default working directory for new users
 const getDefaultWorkingDirectory = (): string => {
-  return path.join(os.homedir(), 'lobsterai', 'project');
+  return path.join(os.homedir(), 'hiai', 'project');
 };
 
-const TASK_WORKSPACE_CONTAINER_DIR = '.lobsterai-tasks';
+/**
+ * Container directory for task sessions. `listRecentCwds` strips this segment
+ * from `cwd` values stored in SQLite so the recent workspace list shows the
+ * containing workspace instead of an internal per-task path.
+ */
+const TASK_WORKSPACE_CONTAINER_DIR = '.hiai-tasks';
 
 const normalizeRecentWorkspacePath = (cwd: string): string => {
   const resolved = path.resolve(cwd);
@@ -507,7 +512,7 @@ export interface CoworkMessageMetadata {
   }>;
   /** User messages: trace carried by every model request of the turn. */
   llmTrace?: CoworkLlmTrace;
-  /** User messages: credits and tokens the turn consumed on LobsterAI models. */
+  /** User messages: credits and tokens the turn consumed on HiAi models. */
   turnUsage?: CoworkTurnUsage;
   [key: string]: unknown;
 }
@@ -2286,7 +2291,7 @@ export class CoworkStore {
       timestamp: row.created_at,
       preview: getCoworkRailPreview(
         row.preview_content,
-        row.type === 'user' ? `Turn ${index + 1}` : 'LobsterAI',
+        row.type === 'user' ? `Turn ${index + 1}` : 'HiAi',
         COWORK_RAIL_TOOLTIP_PREVIEW_MAX_LENGTH,
       ),
       contentLen: row.content_len,

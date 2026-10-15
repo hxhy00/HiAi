@@ -113,7 +113,7 @@ export interface CoworkMessageMetadata {
   agentName?: string;
   /** User messages: trace carried by every model request of the turn. */
   llmTrace?: CoworkLlmTrace;
-  /** User messages: credits and tokens the turn consumed on LobsterAI models. */
+  /** User messages: credits and tokens the turn consumed on HiAi models. */
   turnUsage?: CoworkTurnUsage;
   selectedTextSnippets?: CoworkSelectedTextSnippet[];
   browserAnnotations?: CoworkBrowserAnnotationMessageBatch[];

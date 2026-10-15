@@ -1,7 +1,7 @@
 /**
  * OpenAI-compatible image generation adapter.
  *
- * Handles the local (no LobsterAI server) image path:
+ * Handles the local (no HiAi server) image path:
  *   POST {baseUrl}/images/generations  — text-to-image
  *   POST {baseUrl}/images/edits        — image-to-image / reference images
  *

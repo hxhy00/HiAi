@@ -201,7 +201,13 @@ import {
 import type { ShellOpenFailureReason as ShellOpenFailureReasonType } from '../shared/shell/constants';
 import { type ShellGetBrowserAppsInput, ShellIpc, ShellOpenFailureReason } from '../shared/shell/constants';
 import { AgentManager } from './agentManager';
-import { APP_NAME, APP_USER_MODEL_ID, DB_FILENAME } from './appConstants';
+import {
+  APP_NAME,
+  APP_USER_MODEL_ID,
+  DB_FILENAME,
+  LEGACY_APP_DIR_NAME,
+  LEGACY_DB_FILENAME,
+} from './appConstants';
 import { createLocalFileProtocolResponse } from './artifactLocalFileProtocol';
 import { type AutoLaunchStatus, getAutoLaunchStatus, isAutoLaunched, setAutoLaunchEnabled } from './autoLaunchManager';
 import { BrowserCredentialApprovalService } from './browserCredentials/browserCredentialApprovalService';
@@ -529,6 +535,7 @@ import {
   restoreOriginalProxyEnv,
   setSystemProxyEnabled,
 } from './libs/systemProxy';
+import { migrateLegacyUserDataDir, renameLegacySqliteFiles } from './libs/userDataDirMigration';
 import { type LoopbackFirewallRepairResult, repairWindowsLoopbackFirewall } from './libs/windowsLoopbackFirewall';
 import { getLogFilePath, getRecentMainLogEntries, initLogger } from './logger';
 import { type AskUserResponse, McpRuntime } from './mcp/mcpRuntime';
@@ -1727,7 +1734,7 @@ const resolveInlineAttachmentDir = (cwd?: string): string => {
       return path.join(resolved, COWORK_TEMP_DIR_NAME, COWORK_TEMP_ATTACHMENTS_DIR_NAME, 'manual');
     }
   }
-  return path.join(app.getPath('temp'), 'lobsterai', 'attachments');
+  return path.join(app.getPath('temp'), 'hiai', 'attachments');
 };
 
 const ensurePngFileName = (value: string): string => {
@@ -1744,7 +1751,7 @@ const buildLogExportFileName = (): string => {
   const now = new Date();
   const datePart = `${now.getFullYear()}${padTwoDigits(now.getMonth() + 1)}${padTwoDigits(now.getDate())}`;
   const timePart = `${padTwoDigits(now.getHours())}${padTwoDigits(now.getMinutes())}${padTwoDigits(now.getSeconds())}`;
-  return `lobsterai-logs-${datePart}-${timePart}.zip`;
+  return `hiai-logs-${datePart}-${timePart}.zip`;
 };
 
 const truncateIpcString = (value: string, maxChars: number): string => {
@@ -1944,6 +1951,22 @@ const configureUserDataPath = (): void => {
     ? devUserDataPath
     : path.join(appDataPath, APP_NAME);
   const currentUserDataPath = app.getPath('userData');
+
+  // Runs before the path is switched, and only for real installs: the dev
+  // override points somewhere disposable, so it must never trigger a move.
+  if (!devUserDataPath) {
+    const outcome = migrateLegacyUserDataDir({
+      appDataPath,
+      legacyDirName: LEGACY_APP_DIR_NAME,
+      currentDirName: APP_NAME,
+    });
+    if (outcome === 'moved' || outcome === 'copied') {
+      console.log(`[Main] migrated legacy profile into "${preferredUserDataPath}" (${outcome}).`);
+    }
+    // The directory move keeps file names, so the database still carries its
+    // old name and has to be renamed before the store opens it.
+    renameLegacySqliteFiles(preferredUserDataPath, LEGACY_DB_FILENAME, DB_FILENAME);
+  }
 
   if (currentUserDataPath !== preferredUserDataPath) {
     app.setPath('userData', preferredUserDataPath);
@@ -4879,7 +4902,7 @@ const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
   if (isDev) {
-    console.warn('[Main] Development startup skipped: another LobsterAI instance is already running. Quit that instance and restart electron:dev to load the current source.');
+    console.warn('[Main] Development startup skipped: another HiAi instance is already running. Quit that instance and restart electron:dev to load the current source.');
   }
   app.quit();
 } else {
@@ -5102,7 +5125,9 @@ if (!gotTheLock) {
             ? [
                 {
                   archiveName: 'install-timing.log',
-                  filePath: path.join(app.getPath('appData'), 'LobsterAI', 'install-timing.log'),
+                  // Must match the path the NSIS installer writes to; it lives
+                  // beside the profile, not inside it.
+                  filePath: path.join(app.getPath('appData'), APP_NAME, 'install-timing.log'),
                 },
               ]
             : []),
@@ -6310,7 +6335,7 @@ if (!gotTheLock) {
       tracker.lastPollAt = now;
 
       try {
-        // Poll the owning local provider instead of the LobsterAI server.
+        // Poll the owning local provider instead of the HiAi server.
         const pollProvider = tracker.mediaType === 'video' ? getVideoMediaProvider() : getImageMediaProvider();
         const pollTarget = resolveHydratedMediaTaskTarget(taskId, pollProvider);
         if (!pollProvider || !pollTarget) {
@@ -7345,7 +7370,7 @@ if (!gotTheLock) {
         return { success: false, error: 'Invalid media type' };
       }
       // Models come from the user's own provider config, so this no longer
-      // depends on a LobsterAI account or the server catalog.
+      // depends on a HiAi account or the server catalog.
       const provider = type === 'image' ? getImageMediaProvider() : getVideoMediaProvider();
       const models = (provider?.resolver.listModels() ?? []).map(model => ({
         ...model,
@@ -7620,7 +7645,7 @@ if (!gotTheLock) {
       console.error('[DataMigration] backup failed:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to back up LobsterAI data',
+        error: error instanceof Error ? error.message : 'Failed to back up HiAi data',
       };
     }
   });
@@ -7679,11 +7704,11 @@ if (!gotTheLock) {
         success,
         scheduledRestart: rendererReleased,
         rollbackPath: restoreResult?.rollbackPath,
-        error: success ? undefined : restoreResult?.error || 'Failed to import LobsterAI data backup',
+        error: success ? undefined : restoreResult?.error || 'Failed to import HiAi data backup',
       };
     } catch (error) {
       isCleanupInProgress = false;
-      const message = error instanceof Error ? error.message : 'Failed to import LobsterAI data backup';
+      const message = error instanceof Error ? error.message : 'Failed to import HiAi data backup';
       console.error('[DataMigration] restore scheduling failed:', error);
       if (rendererReleased) {
         dialog.showErrorBox(t('dataMigrationRestoreDialogTitle'), message);
@@ -7743,7 +7768,7 @@ if (!gotTheLock) {
       return { success: true, state: await action() };
     } catch (error) {
       console.error('[AgentBrowserHost] In-app browser action failed:', error);
-      const message = error instanceof Error ? error.message : 'LobsterAI in-app browser action failed.';
+      const message = error instanceof Error ? error.message : 'HiAi in-app browser action failed.';
       return {
         success: false,
         state: {
@@ -7844,7 +7869,7 @@ if (!gotTheLock) {
           const host = getAgentBrowserHost();
           const currentState = host.getState();
           const currentTab = currentState.tabs.find(tab => tab.pageId === currentState.selectedPageId);
-          if (!currentTab) throw new Error('No LobsterAI browser page is open.');
+          if (!currentTab) throw new Error('No HiAi browser page is open.');
           const nextFactor = action === AgentBrowserHostMenuAction.ZoomOut
             ? currentTab.zoomFactor - AgentBrowserZoom.Step
             : action === AgentBrowserHostMenuAction.ZoomIn
@@ -13380,7 +13405,7 @@ if (!gotTheLock) {
     // We don't trigger permission dialogs at startup to avoid annoying users
 
     // Ensure default working directory exists
-    const defaultProjectDir = path.join(os.homedir(), 'lobsterai', 'project');
+    const defaultProjectDir = path.join(os.homedir(), 'hiai', 'project');
     if (!fs.existsSync(defaultProjectDir)) {
       fs.mkdirSync(defaultProjectDir, { recursive: true });
       console.log('Created default project directory:', defaultProjectDir);

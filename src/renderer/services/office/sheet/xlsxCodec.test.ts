@@ -640,7 +640,7 @@ describe('xlsx export', () => {
       }),
       resolveFormula: noFormula,
     }, bytes).bytes);
-    expect(parts['xl/comments1.xml']).toContain('<authors><author>Ann</author><author>LobsterAI</author></authors>');
+    expect(parts['xl/comments1.xml']).toContain('<authors><author>Ann</author><author>HiAi</author></authors>');
     // Rewritten whole, the text keeps the body's formatting rather than the bold author name.
     expect(parts['xl/comments1.xml']).toContain('<comment ref="B1" authorId="0"><text><r><t xml:space="preserve">Rate checked</t></r></text></comment>');
     expect(parts['xl/comments1.xml']).not.toContain('C3');

@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
   LobsterAIThinkingLevel,
   resolveOpenClawThinkingProfile,
-} from '../../../openclaw-extensions/lobsterai-model-compat/thinkingProfileMapping';
+} from '../../../openclaw-extensions/hiai-model-compat/thinkingProfileMapping';
 
 describe('lobsterai model compatibility thinking profile precedence', () => {
   test('prefers a server thinking profile when a Kimi K3 runtime profile also exists', () => {

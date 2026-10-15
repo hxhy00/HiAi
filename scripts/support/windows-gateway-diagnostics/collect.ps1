@@ -63,7 +63,7 @@ function Add-FilteredLog {
     } catch { Record-CollectionError ('log:' + $Path) $_ }
 }
 
-Write-Host 'LobsterAI 网关诊断' -ForegroundColor Cyan
+Write-Host 'HiAi 网关诊断' -ForegroundColor Cyan
 Write-Host '正在收集信息。不会修复或删除用户数据，也不会自动上传。'
 Write-Host '通常需要 1 到 3 分钟，请保持此窗口打开。'
 $summary = @{ toolVersion = 2; runId = $runId; startedAt = (Get-Date).ToString('o'); mode = 'read-only collection plus synthetic SQLite probe' }
@@ -79,7 +79,7 @@ try {
         }
     } catch { Record-CollectionError 'system' $_ }
     $processes = @()
-    try { $processes = @(Get-CimInstance Win32_Process -Filter "Name = 'LobsterAI.exe'" -OperationTimeoutSec 5) }
+    try { $processes = @(Get-CimInstance Win32_Process -Filter "Name = 'HiAi.exe'" -OperationTimeoutSec 5) }
     catch { Record-CollectionError 'process inventory' $_ }
     # Command lines can contain gateway tokens, so only identity fields are exported.
     Write-DiagnosticJson (Join-Path $reportDir 'processes.json') @($processes | Select-Object ProcessId, ParentProcessId, ExecutablePath, CreationDate)
@@ -87,30 +87,30 @@ try {
     foreach ($registry in @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
         $installed += @(Get-ItemProperty -Path $registry -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName })
     }
-    $appRecords = @($installed | Where-Object { $_.DisplayName -match 'LobsterAI' })
+    $appRecords = @($installed | Where-Object { $_.DisplayName -match 'HiAi' })
     Write-DiagnosticJson (Join-Path $reportDir 'installations.json') @($appRecords | Select-Object DisplayName, DisplayVersion, InstallLocation, InstallDate, Publisher)
     $candidates = New-Object 'System.Collections.Generic.List[string]'
     foreach ($process in $processes) { if ($process.ExecutablePath) { $candidates.Add($process.ExecutablePath) } }
     foreach ($record in $appRecords) {
-        if ($record.InstallLocation) { $candidates.Add((Join-Path $record.InstallLocation 'LobsterAI.exe')) }
+        if ($record.InstallLocation) { $candidates.Add((Join-Path $record.InstallLocation 'HiAi.exe')) }
         if ($record.DisplayIcon) { $candidates.Add(($record.DisplayIcon -replace ',\d+$', '').Trim('"')) }
     }
     foreach ($base in @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)})) {
         if ($base) {
-            $candidates.Add((Join-Path $base 'LobsterAI\LobsterAI.exe'))
-            $candidates.Add((Join-Path $base 'Programs\LobsterAI\LobsterAI.exe'))
+            $candidates.Add((Join-Path $base 'HiAi\HiAi.exe'))
+            $candidates.Add((Join-Path $base 'Programs\HiAi\HiAi.exe'))
         }
     }
-    $validCandidates = @($candidates | Select-Object -Unique | Where-Object { (Test-Path -LiteralPath $_ -PathType Leaf) -and ([IO.Path]::GetFileName($_) -ieq 'LobsterAI.exe') })
+    $validCandidates = @($candidates | Select-Object -Unique | Where-Object { (Test-Path -LiteralPath $_ -PathType Leaf) -and ([IO.Path]::GetFileName($_) -ieq 'HiAi.exe') })
     $activePaths = @($processes | ForEach-Object { $_.ExecutablePath } | Where-Object { $_ } | Select-Object -Unique)
     if (-not $AppPath -and $activePaths.Count -eq 1) { $AppPath = $activePaths[0] }
     if (-not $AppPath -and $validCandidates.Count -eq 1) { $AppPath = $validCandidates[0] }
     if (-not $AppPath -and -not $SkipProbe) {
-        Write-Host '未能唯一确定当前安装，请在弹出的窗口中选择正在使用的 LobsterAI.exe。'
+        Write-Host '未能唯一确定当前安装，请在弹出的窗口中选择正在使用的 HiAi.exe。'
         Add-Type -AssemblyName System.Windows.Forms
         $dialog = New-Object Windows.Forms.OpenFileDialog
-        $dialog.Title = '请选择当前使用的 LobsterAI.exe（取消则只收集日志）'
-        $dialog.Filter = 'LobsterAI.exe|LobsterAI.exe'
+        $dialog.Title = '请选择当前使用的 HiAi.exe（取消则只收集日志）'
+        $dialog.Filter = 'HiAi.exe|HiAi.exe'
         try { if ($dialog.ShowDialog() -eq 'OK') { $AppPath = $dialog.FileName } } finally { $dialog.Dispose() }
     }
     if ($AppPath -and (Test-Path -LiteralPath $AppPath -PathType Leaf)) {
@@ -124,7 +124,7 @@ try {
             $files += Get-FileEvidence (Join-Path $runtimeRoot $name) -Hash
         }
         Write-DiagnosticJson (Join-Path $reportDir 'runtime-files.json') $files
-    } else { Record-CollectionError 'application selection' 'No installed LobsterAI executable selected; probes will be skipped.' }
+    } else { Record-CollectionError 'application selection' 'No installed HiAi executable selected; probes will be skipped.' }
 
     Write-Host '[2/5] 安全软件和进程模块'
     $security = @{ registeredAntivirus = @(); matchingInstalledProducts = @() }
@@ -133,11 +133,11 @@ try {
     $securityPattern = '(?i)McAfee|Trellix|Symantec|CrowdStrike|SentinelOne|Sophos|Kaspersky|ESET|Trend Micro|Bitdefender|Endpoint|Antivirus|Defender|奇安信|天擎|深信服|火绒|瑞星|卡巴斯基|赛门铁克|迈克菲|防泄漏|终端安全|杀毒|360安全'
     $security.matchingInstalledProducts = @($installed | Where-Object { $_.DisplayName -match $securityPattern } | Select-Object DisplayName, DisplayVersion, Publisher)
     Write-DiagnosticJson (Join-Path $reportDir 'security-products.json') $security
-    foreach ($process in ($processes | Select-Object -First 6)) { Get-ProcessModuleEvidence ([int]$process.ProcessId) 'existing LobsterAI process' }
+    foreach ($process in ($processes | Select-Object -First 6)) { Get-ProcessModuleEvidence ([int]$process.ProcessId) 'existing HiAi process' }
 
     Write-Host '[3/5] 筛选启动及修复日志'
     [void](New-Item -ItemType Directory -Path (Join-Path $reportDir 'logs'))
-    $userData = Join-Path $env:APPDATA 'LobsterAI'
+    $userData = Join-Path $env:APPDATA 'HiAi'
     $logRoots = @($userData, (Join-Path $userData 'logs'), (Join-Path $userData 'openclaw\logs'), (Join-Path $env:TEMP 'openclaw'))
     if ($AppPath) { $logRoots += Join-Path ([IO.Path]::GetPathRoot($AppPath)) 'tmp\openclaw' }
     $logIndex = @()
@@ -251,7 +251,7 @@ try {
     $summary.partial = $errors.Count -gt 0
     Write-DiagnosticJson (Join-Path $reportDir 'summary.json') $summary
     [IO.File]::WriteAllText((Join-Path $reportDir 'READ-ME.txt'), @'
-LobsterAI Gateway diagnostic report
+HiAi Gateway diagnostic report
 Read summary.json and collection-errors.json first.
 probe/worker-probe.json contains the synthetic worker's captured stdout/stderr/exit codes and result-file protocol evidence.
 User-profile paths are replaced during export. stdoutSha256 records the capture before export redaction.
@@ -265,7 +265,7 @@ Some process/module/security information may be unavailable without additional p
     if (-not $OutputDirectory) { $OutputDirectory = [Environment]::GetFolderPath('Desktop') }
     if (-not $OutputDirectory) { $OutputDirectory = $PSScriptRoot }
     [void](New-Item -ItemType Directory -Path $OutputDirectory -Force)
-    $zipPath = Join-Path $OutputDirectory ('LobsterAI-Gateway-Diagnostics-' + $runId + '.zip')
+    $zipPath = Join-Path $OutputDirectory ('HiAi-Gateway-Diagnostics-' + $runId + '.zip')
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [IO.Compression.ZipFile]::CreateFromDirectory($reportDir, $zipPath)
     # The cleanup boundary is the private GUID directory created at the start of this run.

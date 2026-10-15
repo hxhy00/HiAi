@@ -120,7 +120,7 @@ vi.mock('./openclawLocalExtensions', () => ({
   findThirdPartyExtensionsDir: () => mockRuntimeState.thirdPartyExtensionsDir,
   hasBundledOpenClawExtension: (id: string) => (
     id !== 'qwen-portal-auth'
-    && (id !== 'lobsterai-model-compat' || mockRuntimeState.modelCompatPluginAvailable)
+    && (id !== 'hiai-model-compat' || mockRuntimeState.modelCompatPluginAvailable)
   ),
   hasRuntimeBundledOpenClawExtension: (id: string) => id === 'xai',
   resolveOpenClawExtensionPluginId: (id: string) => {
@@ -914,7 +914,7 @@ describe('OpenClawConfigSync runtime config output', () => {
     expect(config.skills.entries).not.toHaveProperty('remotion');
   });
 
-  test('writes OpenClaw config fields required by LobsterAI patches', async () => {
+  test('writes OpenClaw config fields required by HiAi patches', async () => {
     const legacyWorkingDirectory = path.join(tmpDir, 'legacy-working-directory');
     const mainAgentWorkingDirectory = path.join(tmpDir, 'main-agent-working-directory');
 
@@ -980,7 +980,7 @@ describe('OpenClawConfigSync runtime config output', () => {
     { models: 'signed in', hasApiConfig: true },
     { models: 'no model yet', hasApiConfig: false },
   ])('drops the retired meta stamp of a pre-v2026.8.1 config at startup ($models)', async ({ hasApiConfig }) => {
-    // LobsterAI 2026.9.4 (OpenClaw v2026.6.1) stamped both fields on every config write.
+    // HiAi 2026.9.4 (OpenClaw v2026.6.1) stamped both fields on every config write.
     const legacyMeta = { lastTouchedVersion: '2026.6.1', lastTouchedAt: '2026-10-10T08:14:13.654Z' };
     fs.writeFileSync(configPath, JSON.stringify({ gateway: { mode: 'local' }, meta: legacyMeta }, null, 2));
     if (!hasApiConfig) mockRuntimeState.rawApiConfig.config = null;
@@ -2049,7 +2049,7 @@ describe('OpenClawConfigSync runtime config output', () => {
     const customK3 = customProvider.models.find((model: { id: string }) =>
       model.id === 'kimi-k3');
 
-    expect(customProvider.api).toBe('lobsterai-model-compat');
+    expect(customProvider.api).toBe('hiai-model-compat');
     expect(customProvider.models).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'plain-model', api: 'openai-completions' }),
       expect.objectContaining({ id: 'kimi-k3', api: 'openai-completions' }),
@@ -2090,7 +2090,7 @@ describe('OpenClawConfigSync runtime config output', () => {
         },
       },
     });
-    expect(config.plugins.entries['lobsterai-model-compat']).toEqual({
+    expect(config.plugins.entries['hiai-model-compat']).toEqual({
       enabled: true,
       config: {
         modelProfiles: {
@@ -2098,7 +2098,7 @@ describe('OpenClawConfigSync runtime config output', () => {
         },
       },
     });
-    expect(config.plugins.allow).toContain('lobsterai-model-compat');
+    expect(config.plugins.allow).toContain('hiai-model-compat');
 
     const unchangedSync = sync.sync('kimi-k3-compat-unchanged');
     expect(unchangedSync.ok).toBe(true);
@@ -2126,14 +2126,14 @@ describe('OpenClawConfigSync runtime config output', () => {
       models: {
         providers: {
           custom_0: {
-            api: 'lobsterai-model-compat',
+            api: 'hiai-model-compat',
             models: [{ id: 'plain-model', api: 'openai-completions' }],
           },
         },
       },
       plugins: {
         entries: {
-          'lobsterai-model-compat': {
+          'hiai-model-compat': {
             enabled: true,
             config: {
               modelProfiles: {
@@ -2151,7 +2151,7 @@ describe('OpenClawConfigSync runtime config output', () => {
       ...compatConfig,
       plugins: {
         entries: {
-          'lobsterai-model-compat': {
+          'hiai-model-compat': {
             enabled: true,
             config: {
               modelProfiles: {
@@ -2167,7 +2167,7 @@ describe('OpenClawConfigSync runtime config output', () => {
       models: {
         providers: {
           custom_0: {
-            api: 'lobsterai-model-compat',
+            api: 'hiai-model-compat',
             models: [
               { id: 'another-plain-model', api: 'openai-completions' },
               { id: 'plain-model', api: 'openai-completions' },
@@ -2180,10 +2180,10 @@ describe('OpenClawConfigSync runtime config output', () => {
       ...compatConfig,
       plugins: {
         entries: {
-          'lobsterai-model-compat': {
+          'hiai-model-compat': {
             enabled: true,
             config: {
-              modelProfiles: compatConfig.plugins.entries['lobsterai-model-compat'].config.modelProfiles,
+              modelProfiles: compatConfig.plugins.entries['hiai-model-compat'].config.modelProfiles,
               thinkingProfiles: {
                 'lobsterai-server/deepseek-v4-flash': {
                   options: [
@@ -2232,7 +2232,7 @@ describe('OpenClawConfigSync runtime config output', () => {
       rejectedModelRefs: [],
     });
     for (const providers of [forward, reverse]) {
-      expect(providers.custom_0.api).toBe('lobsterai-model-compat');
+      expect(providers.custom_0.api).toBe('hiai-model-compat');
       expect(Object.fromEntries(
         providers.custom_0.models.map(model => [model.id, model.api]),
       )).toEqual({
@@ -2298,7 +2298,7 @@ describe('OpenClawConfigSync runtime config output', () => {
       ok: false,
       changed: false,
     });
-    expect(result.error).toContain('lobsterai-model-compat');
+    expect(result.error).toContain('hiai-model-compat');
     expect(fs.existsSync(configPath)).toBe(false);
   });
 
@@ -2378,7 +2378,7 @@ describe('OpenClawConfigSync runtime config output', () => {
     expect(result.ok).toBe(true);
 
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    // LobsterAI pairs no OpenClaw node; desktop control goes through the Computer Use kit.
+    // HiAi pairs no OpenClaw node; desktop control goes through the Computer Use kit.
     expect(config.tools.deny).toEqual(expect.arrayContaining(['web_search', 'computer', 'nodes', 'mobile_ui']));
   });
 
@@ -3540,7 +3540,7 @@ describe('OpenClawConfigSync runtime config output', () => {
 
     const agentsMdPath = path.join(stateDir, 'workspace-main', 'AGENTS.md');
     const agentsMd = fs.readFileSync(agentsMdPath, 'utf8');
-    expect(agentsMd).toContain('LobsterAI does not support sandbox browser execution in this version.');
+    expect(agentsMd).toContain('HiAi does not support sandbox browser execution in this version.');
     expect(agentsMd).toContain('For every `browser` tool call, set `target="host"` explicitly.');
     expect(agentsMd).toContain('never tell the user to enable Chrome remote debugging');
   });
@@ -3557,11 +3557,11 @@ describe('OpenClawConfigSync runtime config output', () => {
     });
   });
 
-  test('registers the LobsterAI Office editor tools as native MCP servers', async () => {
+  test('registers the HiAi Office editor tools as native MCP servers', async () => {
     const { OpenClawConfigSync } = await import('./openclawConfigSync');
     const { OFFICE_EDITORS } = await import('../../shared/office/editors');
     const launch = (server: string) => ({
-      command: '/Applications/LobsterAI.app/Contents/MacOS/LobsterAI',
+      command: '/Applications/HiAi.app/Contents/MacOS/HiAi',
       args: [`/state/generated/${server}-mcp/${server}-mcp-server.mjs`],
       env: { ELECTRON_RUN_AS_NODE: '1' },
     });
@@ -3661,7 +3661,7 @@ describe('OpenClawConfigSync runtime config output', () => {
           timeoutSeconds: 25,
           maxRedirects: 4,
           maxChars: 12000,
-          userAgent: 'LobsterAI Test',
+          userAgent: 'HiAi Test',
           readability: false,
           allowRfc2544BenchmarkRange: true,
         },
@@ -3717,7 +3717,7 @@ describe('OpenClawConfigSync runtime config output', () => {
       timeoutSeconds: 25,
       maxRedirects: 4,
       maxChars: 12000,
-      userAgent: 'LobsterAI Test',
+      userAgent: 'HiAi Test',
       ssrfPolicy: { allowRfc2544BenchmarkRange: true },
     });
     expect(config.tools.web.fetch.useEnvProxy).toBeUndefined();
@@ -3746,10 +3746,10 @@ describe('OpenClawConfigSync runtime config output', () => {
       }),
       getBrowserWebAccessConfig: () => ({ displayMode: browserDisplayMode }),
       getBrowserCallbackUrl: () => browserCallbackUrl,
-      getLobsterBrowserMcpCommand: () => 'C:/LobsterAI/lobster-browser-mcp.cmd',
+      getLobsterBrowserMcpCommand: () => 'C:/HiAi/lobster-browser-mcp.cmd',
       getLobsterBrowserMcpStdioLaunch: () => ({
-        command: 'C:/LobsterAI/LobsterAI.exe',
-        args: ['C:/LobsterAI/lobster-browser-mcp-server.mjs'],
+        command: 'C:/HiAi/HiAi.exe',
+        args: ['C:/HiAi/lobster-browser-mcp-server.mjs'],
         env: { ELECTRON_RUN_AS_NODE: '1' },
       }),
       isEnterprise: () => false,
@@ -3769,7 +3769,7 @@ describe('OpenClawConfigSync runtime config output', () => {
         [BrowserRuntimeProfile.InApp]: {
           driver: 'existing-session',
           attachOnly: true,
-          mcpCommand: 'C:/LobsterAI/lobster-browser-mcp.cmd',
+          mcpCommand: 'C:/HiAi/lobster-browser-mcp.cmd',
           mcpArgs: ['--lobster-bridge-url=http://127.0.0.1:3210/browser/tool'],
         },
       },
@@ -3778,9 +3778,9 @@ describe('OpenClawConfigSync runtime config output', () => {
     expect(inAppConfig.browser.extraArgs).toBeUndefined();
     expect(inAppConfig.browser.profiles[BrowserRuntimeProfile.InApp].color).toBeUndefined();
     expect(inAppConfig.mcp.servers[BrowserCredentialMcpServer.Name]).toEqual({
-      command: 'C:/LobsterAI/LobsterAI.exe',
+      command: 'C:/HiAi/HiAi.exe',
       args: [
-        'C:/LobsterAI/lobster-browser-mcp-server.mjs',
+        'C:/HiAi/lobster-browser-mcp-server.mjs',
         BrowserCredentialMcpServer.ToolSetArgument,
       ],
       env: { ELECTRON_RUN_AS_NODE: '1' },
@@ -3911,7 +3911,7 @@ describe('resolveModelSourceForOpenClawProvider', () => {
     mockRuntimeState.providerSourceEntries = [];
   });
 
-  test('classifies the LobsterAI plan without any Settings entry', async () => {
+  test('classifies the HiAi plan without any Settings entry', async () => {
     const { resolveModelSourceForOpenClawProvider } = await import('./openclawConfigSync');
     expect(resolveModelSourceForOpenClawProvider('lobsterai-server')).toEqual({
       source: 'lobsterai-plan',

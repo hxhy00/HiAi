@@ -1,6 +1,6 @@
 'use strict';
 
-// Startup performance probe, run by LobsterAI.exe with ELECTRON_RUN_AS_NODE=1.
+// Startup performance probe, run by HiAi.exe with ELECTRON_RUN_AS_NODE=1.
 // Customer files are only read as raw bytes (never opened through SQLite).
 // All writes stay in the diagnostic directories named by the request.
 const fs = require('node:fs');
@@ -318,7 +318,7 @@ function defaultTargets(request) {
     }
   }
   if (request.userDataDir) {
-    targets.largeFiles.push({ label: 'userData/lobsterai.sqlite', path: path.join(request.userDataDir, 'lobsterai.sqlite') });
+    targets.largeFiles.push({ label: 'userData/hiai.sqlite', path: path.join(request.userDataDir, 'hiai.sqlite') });
     targets.locationGroups.push({ label: 'userData/SKILLs', root: path.join(request.userDataDir, 'SKILLs') });
   }
   if (request.installRoot) {

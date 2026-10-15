@@ -84,7 +84,7 @@ describe('sessionDiagnosticsArchive', () => {
     });
 
     expect(fileName).toBe(
-      'lobsterai-diagnostics-LOFTER content safety review Prompt-session--20260703-010203.zip',
+      'hiai-diagnostics-LOFTER content safety review Prompt-session--20260703-010203.zip',
     );
   });
 
@@ -96,9 +96,9 @@ describe('sessionDiagnosticsArchive', () => {
     });
 
     expect(fileName).toBe(
-      `lobsterai-diagnostics-CON ${'会'.repeat(36)}-session--20260703-010203.zip`,
+      `hiai-diagnostics-CON ${'会'.repeat(36)}-session--20260703-010203.zip`,
     );
-    expect(Array.from(fileName)).toHaveLength(91);
+    expect(Array.from(fileName)).toHaveLength(86);
     expect(fileName).not.toMatch(/[<>:"/\\|?*\u0000-\u001F\u200B]/);
   });
 

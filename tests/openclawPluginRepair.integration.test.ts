@@ -16,11 +16,11 @@ const execFileAsync = promisify(execFile);
 
 test.skipIf(!runtimeRoot)('bundled repair reconciles a migrated Weixin ledger and boots twice with the shipped plugin', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lobster-plugin-repair-integration-'));
-  const stateDir = path.join(tempDir, 'admin', 'LobsterAI', 'openclaw', 'state');
+  const stateDir = path.join(tempDir, 'admin', 'HiAi', 'openclaw', 'state');
   const configPath = path.join(stateDir, 'openclaw.json');
   const backupDir = path.join(tempDir, 'backup');
   const pluginRoot = path.join(fs.realpathSync(runtimeRoot!), 'third-party-extensions', WeixinPlugin.Id);
-  const oldPath = path.join(tempDir, 'old-user', 'LobsterAI', 'openclaw', 'state', 'npm', 'projects',
+  const oldPath = path.join(tempDir, 'old-user', 'HiAi', 'openclaw', 'state', 'npm', 'projects',
     'tencent-weixin-openclaw-weixin-7783ac86ba', 'node_modules', '@tencent-weixin', 'openclaw-weixin');
   const token = 'isolated-plugin-repair-token';
   const env = {

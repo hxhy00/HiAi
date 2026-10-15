@@ -3,7 +3,7 @@
 const fs = require('fs');
 
 const OBSERVED_CREDENTIALS = [
-  '    // LobsterAI: observe failures before wait starts, preserving its rejection result.',
+  '    // HiAi: observe failures before wait starts, preserving its rejection result.',
   '    void credentialsPromise.catch(() => {});',
 ].join('\n');
 

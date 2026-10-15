@@ -77,7 +77,7 @@ type Context = ReturnType<typeof fixture>;
 
 async function packagedFiles(context: Context) {
   const { packager, arch } = context;
-  const resources = path.join(tempDir(), '安装目录 with spaces #', 'LobsterAI.app/Contents/Resources');
+  const resources = path.join(tempDir(), '安装目录 with spaces #', 'HiAi.app/Contents/Resources');
   const matcher = getNodeModuleFileMatcher(
     packager.info.appDir, path.join(resources, 'app'),
     (pattern: string) => pattern.replaceAll('${arch}', Arch[arch]),

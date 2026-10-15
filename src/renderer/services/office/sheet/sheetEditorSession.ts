@@ -822,7 +822,7 @@ export class SheetEditorSession extends OfficeEditorSession<SheetPackageInfo> {
     this.instanceDisposers.push(commands.beforeCommandExecuted(command => {
       if (command.type === CommandType.OPERATION && UNSUPPORTED_IMAGE_EDIT.test(command.id)) {
         this.refuse(StructureRefusal.ImageEdit);
-        throw new CustomCommandExecutionError(`LobsterAI cannot save "${command.id}" to the .xlsx file yet`);
+        throw new CustomCommandExecutionError(`HiAi cannot save "${command.id}" to the .xlsx file yet`);
       }
       if (command.type !== CommandType.COMMAND) return;
       if (command.id === SetRangeValuesCommand.id) {
@@ -832,7 +832,7 @@ export class SheetEditorSession extends OfficeEditorSession<SheetPackageInfo> {
       const reason = this.structure?.refusalFor(command);
       if (reason) {
         this.refuse(reason);
-        throw new CustomCommandExecutionError(`LobsterAI cannot save "${command.id}" to the .xlsx file (${reason})`);
+        throw new CustomCommandExecutionError(`HiAi cannot save "${command.id}" to the .xlsx file (${reason})`);
       }
     }));
     this.instanceDisposers.push(commands.onCommandExecuted((command, options) => {

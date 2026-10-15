@@ -1,6 +1,6 @@
-LobsterAI Excel editing — third-party notices
+HiAi Excel editing — third-party notices
 
-LobsterAI's own integration code, including its .xlsx reader and writer, is MIT
+HiAi's own integration code, including its .xlsx reader and writer, is MIT
 licensed. Third-party components retain their original licenses below. Only the
 Apache-2.0 open-source Univer packages are used; no @univerjs-pro package, no
 Univer preset that bundles commercial plugins, and no Univer conversion service
@@ -14,7 +14,7 @@ franc-min 6.2.0 (MIT) from its npm gitHead
 ot-json1, ot-text-unicode and unicount from the License sections of their
 published READMEs, and @univerjs/protocol from the Univer repository license.
 
-This inventory covers the Excel editor dependency graph, not unrelated LobsterAI
+This inventory covers the Excel editor dependency graph, not unrelated HiAi
 dependencies. Versions and license materials are verified at build time.
 
 ## @flatten-js/interval-tree@1.1.3 — MIT

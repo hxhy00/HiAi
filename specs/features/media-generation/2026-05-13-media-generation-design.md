@@ -629,7 +629,7 @@ Content-Type: application/json
   "clientContext": {
     "app": "lobsterai-desktop",
     "coworkSessionId": "session_xxx",
-    "openclawSessionKey": "agent:main:lobsterai:xxx"
+    "openclawSessionKey": "agent:main:hiai:xxx"
   }
 }
 ```

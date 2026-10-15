@@ -9,11 +9,11 @@
 # For an app that opens but never reaches its own engine gateway, for example
 # one that works once after a fresh install and fails after every reboot.
 # While the failure is happening it records who listens on the gateway port,
-# whether PowerShell, curl and LobsterAI's own runtime can connect to it,
+# whether PowerShell, curl and HiAi's own runtime can connect to it,
 # loopback self-tests, proxy/port/Winsock settings, security and network
 # software, boot events and the recent app and engine logs.
 # Nothing is repaired, uninstalled, uploaded or reconfigured. The one thing it
-# may do is start LobsterAI when it is not running (the user can decline),
+# may do is start HiAi when it is not running (the user can decline),
 # because the failure only shows while the app is up.
 # build-connection-collector.cjs embeds this file, the shared helpers and the
 # probe into one .cmd, like the performance collector.
@@ -33,7 +33,7 @@ $runId = (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + ([guid]::NewGuid().ToStrin
 $runRoot = Join-Path ([IO.Path]::GetTempPath()) ('lobsterai-connection-diagnostic-' + $runId)
 $reportDir = Join-Path $runRoot 'report'
 $workDir = Join-Path $runRoot 'probe-work'
-$userData = Join-Path $env:APPDATA 'LobsterAI'
+$userData = Join-Path $env:APPDATA 'HiAi'
 $openclawBase = Join-Path $userData 'openclaw'
 $stateDir = Join-Path $openclawBase 'state'
 $errors = New-Object 'System.Collections.Generic.List[object]'
@@ -103,7 +103,7 @@ function ConvertFrom-ConsoleBytes {
 }
 
 # Runs a program and returns its exit code and output without waiting forever.
-# Output is captured as bytes: LobsterAI's runtime writes UTF-8, and console
+# Output is captured as bytes: HiAi's runtime writes UTF-8, and console
 # tools write UTF-8 on some Windows 11 builds and the console code page on others.
 function Invoke-CapturedProcess {
     param(
@@ -207,7 +207,7 @@ function Get-GatewayPortFromCommandLine {
 
 function Get-LobsterProcesses {
     $items = @()
-    foreach ($process in @(Get-CimSafe Win32_Process -Filter "Name = 'LobsterAI.exe'")) {
+    foreach ($process in @(Get-CimSafe Win32_Process -Filter "Name = 'HiAi.exe'")) {
         $commandLine = [string]$process.CommandLine
         $items += [pscustomobject]@{
             pid = [int]$process.ProcessId; parentPid = [int]$process.ParentProcessId
@@ -271,7 +271,7 @@ function Read-LaunchChoice {
     param([int]$Seconds = 15)
     try { if ([Console]::IsInputRedirected) { return $true } } catch { return $true }
     for ($left = $Seconds; $left -gt 0; $left--) {
-        Write-Host -NoNewline ("`r    {0} 秒后自动打开 LobsterAI（按 N 跳过，按其他键立即打开）   " -f $left)
+        Write-Host -NoNewline ("`r    {0} 秒后自动打开 HiAi（按 N 跳过，按其他键立即打开）   " -f $left)
         $until = (Get-Date).AddSeconds(1)
         while ((Get-Date) -lt $until) {
             try {
@@ -299,7 +299,7 @@ function Wait-ForGateway {
             $listening = @(Get-TcpTable -ListenOnly | Where-Object { $_.localPort -eq $gateway.gatewayPort -and $_.pid -eq $gateway.pid })
             if ($listening.Count -gt 0) { $state.found = $true; break }
         }
-        if ($lobster.Count -eq 0) { $phase = '等待 LobsterAI 启动' } elseif (-not $gateway) { $phase = '等待引擎进程出现' } else { $phase = '等待引擎开始监听' }
+        if ($lobster.Count -eq 0) { $phase = '等待 HiAi 启动' } elseif (-not $gateway) { $phase = '等待引擎进程出现' } else { $phase = '等待引擎开始监听' }
         Write-Host -NoNewline ("`r    {0}：已等待 {1} 秒（按任意键跳过等待）   " -f $phase, [int]$watch.Elapsed.TotalSeconds)
         if (Test-KeyPressed) { $state.skipped = $true; break }
         Start-Sleep -Seconds 2
@@ -504,7 +504,7 @@ function Get-GatewayStartupTimeline {
     $lines = @($Text -split '\r?\n')
     $startIndex = 0
     for ($index = $lines.Count - 1; $index -ge 0; $index--) {
-        if ($lines[$index] -match 'LobsterAI started \(') { $startIndex = $index; break }
+        if ($lines[$index] -match 'HiAi started \(') { $startIndex = $index; break }
     }
     $timeline = [ordered]@{
         startedAt = $null; gatewaySpawns = 0; gatewaySelfReady = 0; readyConfirmed = 0; waitTimeouts = 0
@@ -514,7 +514,7 @@ function Get-GatewayStartupTimeline {
         $line = $lines[$index]
         $time = $null
         if ($line -match '^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})') { $time = $Matches[1] }
-        if ($line -match 'LobsterAI started \(') { $timeline.startedAt = $time; continue }
+        if ($line -match 'HiAi started \(') { $timeline.startedAt = $time; continue }
         if ($line -match '\[OpenClaw\] gateway process spawned') { $timeline.gatewaySpawns++ }
         elseif ($line -match 'startup milestone .*\[gateway\] ready\s*$') {
             $timeline.gatewaySelfReady++
@@ -560,34 +560,34 @@ function Get-ConnectionVerdict {
     $nodeTcpOk = $false; $nodeFetchOk = $false; $nodeCodes = @()
     if ($node) { $nodeTcpOk = [int]$node.tcpOk -gt 0; $nodeFetchOk = [int]$node.fetchOk -gt 0; $nodeCodes = @($node.errorCodes) }
     if (-not $Facts.appRunning) {
-        $lines.Add('采集时 LobsterAI 没有运行，无法检测引擎连接。请在问题出现时（LobsterAI 已打开、引擎一直启动中或启动失败）再运行一次本工具。')
+        $lines.Add('采集时 HiAi 没有运行，无法检测引擎连接。请在问题出现时（HiAi 已打开、引擎一直启动中或启动失败）再运行一次本工具。')
     } elseif ($listeners.Count -eq 0) {
         if ($Facts.gatewayProcess) { $lines.Add(('引擎进程在运行，但端口 {0} 上没有程序监听：引擎可能还在启动，或绑定端口失败（见网关日志）。' -f $port)) }
-        else { $lines.Add('没有找到正在运行的引擎进程（可能已因启动超时被 LobsterAI 停止）。请在 LobsterAI 显示“引擎启动中”时运行本工具，或查看日志里的失败原因。') }
+        else { $lines.Add('没有找到正在运行的引擎进程（可能已因启动超时被 HiAi 停止）。请在 HiAi 显示“引擎启动中”时运行本工具，或查看日志里的失败原因。') }
     } elseif ($gatewayListeners.Count -eq 0) {
         $owner = $listeners[0]
         $lines.Add(('端口 {0} 被其他程序占用：{1}（PID {2}，监听地址 {3}）。' -f $port, $owner.name, $owner.pid, $owner.address))
     } elseif (-not $node) {
-        if ($psOk) { $lines.Add(('引擎在监听端口 {0}，PowerShell 可以连上；LobsterAI 运行时测试没有完成，见 connection-probe 结果。' -f $port)) }
-        else { $lines.Add(('引擎在监听端口 {0}，但 PowerShell 连不上（{1}）；LobsterAI 运行时测试没有完成。' -f $port, (Format-ErrorCodes $psCodes))) }
+        if ($psOk) { $lines.Add(('引擎在监听端口 {0}，PowerShell 可以连上；HiAi 运行时测试没有完成，见 connection-probe 结果。' -f $port)) }
+        else { $lines.Add(('引擎在监听端口 {0}，但 PowerShell 连不上（{1}）；HiAi 运行时测试没有完成。' -f $port, (Format-ErrorCodes $psCodes))) }
     } elseif ($psOk -and $nodeTcpOk -and $nodeFetchOk) {
         $text = '采集时引擎可以正常连接（{0}），问题没有复现。' -f $node.startupStatus
         if ($Facts.timeline -and [int]$Facts.timeline.probeNotReady -gt 0 -and [int]$Facts.timeline.readyConfirmed -eq 0) { $text += '但应用日志显示本次启动一直没探测成功，请在故障出现时再运行一次。' }
         $lines.Add($text)
     } elseif ((-not $psOk) -and (-not $nodeTcpOk)) {
-        $lines.Add(('引擎在监听端口 {0}，但 PowerShell（{1}）和 LobsterAI（{2}）都连不上：本机回环连接在系统层被拦截。常见原因是安全软件的网络防护、网络过滤驱动（WFP/LSP）、VPN 或加速器。' -f $port, (Format-ErrorCodes $psCodes), (Format-ErrorCodes $nodeCodes)))
+        $lines.Add(('引擎在监听端口 {0}，但 PowerShell（{1}）和 HiAi（{2}）都连不上：本机回环连接在系统层被拦截。常见原因是安全软件的网络防护、网络过滤驱动（WFP/LSP）、VPN 或加速器。' -f $port, (Format-ErrorCodes $psCodes), (Format-ErrorCodes $nodeCodes)))
     } elseif ($psOk -and (-not $nodeTcpOk)) {
-        $lines.Add(('只有 LobsterAI 自己连不上引擎（PowerShell 能连上，LobsterAI 报 {0}）：多半是安全软件针对 LobsterAI.exe 的网络规则。' -f (Format-ErrorCodes $nodeCodes)))
+        $lines.Add(('只有 HiAi 自己连不上引擎（PowerShell 能连上，HiAi 报 {0}）：多半是安全软件针对 HiAi.exe 的网络规则。' -f (Format-ErrorCodes $nodeCodes)))
     } elseif ($nodeTcpOk -and (-not $nodeFetchOk)) {
-        $lines.Add(('LobsterAI 能建立 TCP 连接，但 HTTP 请求失败（{0}）：检查代理相关环境变量，或引擎是否拒绝了请求。' -f (Format-ErrorCodes $nodeCodes)))
+        $lines.Add(('HiAi 能建立 TCP 连接，但 HTTP 请求失败（{0}）：检查代理相关环境变量，或引擎是否拒绝了请求。' -f (Format-ErrorCodes $nodeCodes)))
     } else {
         if ($psOk) { $psText = 'PowerShell 能连上' } else { $psText = ('PowerShell 连不上（' + (Format-ErrorCodes $psCodes) + '）') }
-        $lines.Add(('连接结果不一致：{0}；LobsterAI TCP {1}/{2} 次成功，HTTP {3}/{4} 次成功（{5}）。' -f $psText, $node.tcpOk, $node.tcpTotal, $node.fetchOk, $node.fetchTotal, (Format-ErrorCodes $nodeCodes)))
+        $lines.Add(('连接结果不一致：{0}；HiAi TCP {1}/{2} 次成功，HTTP {3}/{4} 次成功（{5}）。' -f $psText, $node.tcpOk, $node.tcpTotal, $node.fetchOk, $node.fetchTotal, (Format-ErrorCodes $nodeCodes)))
     }
-    if ($Facts.gatewayLostDuringTests) { $lines.Add('注意：测试期间引擎进程退出或停止了监听（LobsterAI 的启动等待超时后会停止引擎），上面的连接结果可能不准确，请重新打开 LobsterAI 后尽快再运行一次。') }
+    if ($Facts.gatewayLostDuringTests) { $lines.Add('注意：测试期间引擎进程退出或停止了监听（HiAi 的启动等待超时后会停止引擎），上面的连接结果可能不准确，请重新打开 HiAi 后尽快再运行一次。') }
     if ($Facts.psSelf -and -not $Facts.psSelf.ok) { $lines.Add(('PowerShell 回环自测失败（{0}）：随机端口的本机连接也不通，系统回环整体异常。' -f $Facts.psSelf.code)) }
-    if ($Facts.nodeSelf -and -not $Facts.nodeSelf.ok) { $lines.Add(('LobsterAI 运行时同进程回环自测失败（{0}）。' -f (Format-ErrorCodes $Facts.nodeSelf.codes))) }
-    if ($Facts.nodeCross -and -not $Facts.nodeCross.ok) { $lines.Add(('LobsterAI 跨进程回环自测失败（{0}）：和主进程连接引擎是同一种情形。' -f (Format-ErrorCodes $Facts.nodeCross.codes))) }
+    if ($Facts.nodeSelf -and -not $Facts.nodeSelf.ok) { $lines.Add(('HiAi 运行时同进程回环自测失败（{0}）。' -f (Format-ErrorCodes $Facts.nodeSelf.codes))) }
+    if ($Facts.nodeCross -and -not $Facts.nodeCross.ok) { $lines.Add(('HiAi 跨进程回环自测失败（{0}）：和主进程连接引擎是同一种情形。' -f (Format-ErrorCodes $Facts.nodeCross.codes))) }
     if ($Facts.fixedPort) {
         if (-not $Facts.fixedPort.listenOk) { $lines.Add(('端口 {0} 无法新建监听（{1}），可能被占用或被系统保留。' -f $port, $Facts.fixedPort.code)) }
         elseif (-not $Facts.fixedPort.connectOk) { $lines.Add(('在端口 {0} 新建监听后同样连不上（{1}）：拦截只针对这个端口。' -f $port, $Facts.fixedPort.code)) }
@@ -655,8 +655,8 @@ function Get-ThirdPartyModules {
     return $modules
 }
 
-Write-Host 'LobsterAI 引擎连接诊断' -ForegroundColor Cyan
-Write-Host '会检测 LobsterAI 和它的 AI 引擎之间的本机连接，并收集日志和相关系统信息。'
+Write-Host 'HiAi 引擎连接诊断' -ForegroundColor Cyan
+Write-Host '会检测 HiAi 和它的 AI 引擎之间的本机连接，并收集日志和相关系统信息。'
 Write-Host '不会修改或删除任何数据和设置，也不会自动上传。通常需要 2～4 分钟，请保持此窗口打开。'
 Write-Host ''
 
@@ -664,7 +664,7 @@ $installed = @()
 $processTable = @{}
 try {
     # ------------------------------------------------------------------ 1
-    Write-Host '[1/7] 系统与 LobsterAI 安装'
+    Write-Host '[1/7] 系统与 HiAi 安装'
     $system = [ordered]@{}
     try {
         $os = Get-CimSafe Win32_OperatingSystem | Select-Object -First 1
@@ -706,22 +706,22 @@ try {
         $lobster = @(Get-LobsterProcesses)
         $candidates = New-Object 'System.Collections.Generic.List[string]'
         foreach ($process in $lobster) { if ($process.path) { $candidates.Add($process.path) } }
-        $appRecords = @($installed | Where-Object { $_.DisplayName -match 'LobsterAI' })
+        $appRecords = @($installed | Where-Object { $_.DisplayName -match 'HiAi' })
         foreach ($record in $appRecords) {
-            if ($record.InstallLocation) { $candidates.Add((Join-Path $record.InstallLocation 'LobsterAI.exe')) }
+            if ($record.InstallLocation) { $candidates.Add((Join-Path $record.InstallLocation 'HiAi.exe')) }
             if ($record.DisplayIcon) { $candidates.Add(($record.DisplayIcon -replace ',\d+$', '').Trim('"')) }
         }
         foreach ($base in @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)})) {
-            if ($base) { $candidates.Add((Join-Path $base 'Programs\LobsterAI\LobsterAI.exe')); $candidates.Add((Join-Path $base 'LobsterAI\LobsterAI.exe')) }
+            if ($base) { $candidates.Add((Join-Path $base 'Programs\HiAi\HiAi.exe')); $candidates.Add((Join-Path $base 'HiAi\HiAi.exe')) }
         }
-        $valid = @($candidates | Select-Object -Unique | Where-Object { (Test-Path -LiteralPath $_ -PathType Leaf) -and ([IO.Path]::GetFileName($_) -ieq 'LobsterAI.exe') })
+        $valid = @($candidates | Select-Object -Unique | Where-Object { (Test-Path -LiteralPath $_ -PathType Leaf) -and ([IO.Path]::GetFileName($_) -ieq 'HiAi.exe') })
         if (-not $AppPath -and $valid.Count -ge 1) { $AppPath = $valid[0] }
         if (-not $AppPath) {
-            Write-Host '    未找到 LobsterAI 安装位置，请在弹出的窗口中选择 LobsterAI.exe（取消则只收集系统信息）。'
+            Write-Host '    未找到 HiAi 安装位置，请在弹出的窗口中选择 HiAi.exe（取消则只收集系统信息）。'
             Add-Type -AssemblyName System.Windows.Forms
             $dialog = New-Object Windows.Forms.OpenFileDialog
-            $dialog.Title = '请选择正在使用的 LobsterAI.exe'
-            $dialog.Filter = 'LobsterAI.exe|LobsterAI.exe'
+            $dialog.Title = '请选择正在使用的 HiAi.exe'
+            $dialog.Filter = 'HiAi.exe|HiAi.exe'
             try { if ($dialog.ShowDialog() -eq 'OK') { $AppPath = $dialog.FileName } } finally { $dialog.Dispose() }
         }
         $summary.installRecords = @($appRecords | ForEach-Object { [ordered]@{ name = $_.DisplayName; version = $_.DisplayVersion; location = $_.InstallLocation; hive = ([string]$_.PSPath -replace '^.*::', '' -replace '\\Software\\.*$', '') } })
@@ -736,17 +736,17 @@ try {
                 if ($signature.SignerCertificate) { $application.signer = $signature.SignerCertificate.Subject }
             } catch { Record-CollectionError 'signature' $_ }
             $summary.application = $application
-            $digest.Add(('LobsterAI {0}（OpenClaw {1}），位置 {2}，签名 {3}' -f $application.version, $application.openclawVersion, $AppPath, $application.signatureStatus))
+            $digest.Add(('HiAi {0}（OpenClaw {1}），位置 {2}，签名 {3}' -f $application.version, $application.openclawVersion, $AppPath, $application.signatureStatus))
         } else {
             $AppPath = $null
-            Record-CollectionError 'application selection' 'LobsterAI.exe was not found; runtime tests are skipped.'
-            $digest.Add('未找到 LobsterAI.exe，已跳过 LobsterAI 运行时测试。')
+            Record-CollectionError 'application selection' 'HiAi.exe was not found; runtime tests are skipped.'
+            $digest.Add('未找到 HiAi.exe，已跳过 HiAi 运行时测试。')
         }
     } catch { Record-CollectionError 'application' $_ }
     Write-DiagnosticJson (Join-Path $reportDir 'system.json') $system
 
     # ------------------------------------------------------------------ 2
-    Write-Host '[2/7] LobsterAI 运行状态'
+    Write-Host '[2/7] HiAi 运行状态'
     $wait = $null
     try {
         $lobster = @(Get-LobsterProcesses)
@@ -758,19 +758,19 @@ try {
         }
         if (-not $facts.appRunning) {
             if ($AppPath -and -not $NoLaunch) {
-                Write-Host '    LobsterAI 没有在运行。要在它打开时才能检测引擎连接。'
+                Write-Host '    HiAi 没有在运行。要在它打开时才能检测引擎连接。'
                 if (Read-LaunchChoice 15) {
                     Start-Process -FilePath $AppPath -WorkingDirectory (Split-Path $AppPath)
                     $facts.launchedByCollector = $true
                     $wait = Wait-ForGateway $GatewayWaitSeconds
-                } else { $digest.Add('用户选择不打开 LobsterAI，只收集了日志和系统信息。') }
+                } else { $digest.Add('用户选择不打开 HiAi，只收集了日志和系统信息。') }
             }
         } elseif (-not $gatewayListening) {
-            if (-not $gateway) { Write-Host '    没有发现引擎进程。如果 LobsterAI 显示启动失败，请在 LobsterAI 里重试，或从托盘退出后重新打开 LobsterAI。' -ForegroundColor Yellow }
+            if (-not $gateway) { Write-Host '    没有发现引擎进程。如果 HiAi 显示启动失败，请在 HiAi 里重试，或从托盘退出后重新打开 HiAi。' -ForegroundColor Yellow }
             $wait = Wait-ForGateway $GatewayWaitSeconds
         }
         if ($wait -and $wait.found) {
-            Write-Host '    引擎已开始监听，再等 10 秒，让 LobsterAI 完成几轮连接检测…'
+            Write-Host '    引擎已开始监听，再等 10 秒，让 HiAi 完成几轮连接检测…'
             Start-Sleep -Seconds 10
         }
         $summary.wait = $wait
@@ -782,7 +782,7 @@ try {
         if ($facts.appRunning) { $state = '运行中（' + ($roles -join '、') + '）' }
         if ($facts.launchedByCollector) { $state += '，由本工具打开' }
         if ($wait) { $state += ('；等待引擎 {0} 秒，{1}' -f $wait.waitedSeconds, $(if ($wait.found) { '引擎已监听' } elseif ($wait.skipped) { '用户跳过' } else { '超时' })) }
-        $digest.Add('LobsterAI 状态：' + $state)
+        $digest.Add('HiAi 状态：' + $state)
     } catch { Record-CollectionError 'app state' $_ }
 
     # ------------------------------------------------------------------ 3
@@ -813,7 +813,7 @@ try {
         })
         $connection.listeners = @($allListeners | Sort-Object port)
         $facts.listeners = @($allListeners | Where-Object { $_.port -eq $port } | ForEach-Object {
-            @{ pid = $_.pid; name = $_.name; address = $_.address; isGateway = [bool]($gateway -and $_.pid -eq $gateway.pid); isLobster = ($_.name -ieq 'LobsterAI.exe') }
+            @{ pid = $_.pid; name = $_.name; address = $_.address; isGateway = [bool]($gateway -and $_.pid -eq $gateway.pid); isLobster = ($_.name -ieq 'HiAi.exe') }
         })
         foreach ($candidate in $candidatePorts) {
             $owners = @($allListeners | Where-Object { $_.port -eq $candidate } | ForEach-Object {
@@ -824,7 +824,7 @@ try {
             if ($owners.Count -eq 0) { $owners = @('无人监听') }
             $digest.Add(('端口 {0} 监听者：{1}' -f $candidate, ($owners -join '；')))
         }
-        $related = @($allListeners | Where-Object { ($_.name -match $NetworkPattern -or $_.name -ieq 'node.exe' -or ($_.port -ge $DefaultGatewayPort -and $_.port -le $DefaultGatewayPort + 80)) -and $_.name -ine 'LobsterAI.exe' })
+        $related = @($allListeners | Where-Object { ($_.name -match $NetworkPattern -or $_.name -ieq 'node.exe' -or ($_.port -ge $DefaultGatewayPort -and $_.port -le $DefaultGatewayPort + 80)) -and $_.name -ine 'HiAi.exe' })
         if ($related.Count -gt 0) { $digest.Add(('可能冲突的其他监听：' + ((@($related | ForEach-Object { '{0}:{1}（{2} PID {3}）' -f $_.address, $_.port, $_.name, $_.pid })) -join '；'))) }
 
         # The main process polls every 600 ms; SynSent rows mean its SYNs go unanswered.
@@ -859,13 +859,13 @@ try {
         $digest.Add(('PowerShell 请求 /startupz：{0}；curl：{1} {2}' -f $httpText, $connection.curl.meaning, $connection.curl.output))
         $digest.Add(('PowerShell 回环自测（随机端口）：{0}' -f $connection.powershellSelfTest.code))
         if (-not $facts.appRunning) {
-            # Only while LobsterAI is closed: it would need this port for its own gateway.
+            # Only while HiAi is closed: it would need this port for its own gateway.
             $connection.powershellFixedPortTest = Test-LoopbackSelf $port 5000
             $digest.Add(('PowerShell 在端口 {0} 新建监听并连接：{1}（阶段 {2}）' -f $port, $connection.powershellFixedPortTest.code, $connection.powershellFixedPortTest.phase))
         }
 
         if ($AppPath) {
-            Write-Host '    LobsterAI 运行时连接测试（约 10～60 秒）…'
+            Write-Host '    HiAi 运行时连接测试（约 10～60 秒）…'
             $request = [ordered]@{
                 reportPath = (Join-Path $reportDir 'connection-probe.json'); workDir = $workDir
                 ports = @($candidatePorts | Select-Object -First 2); allowFixedPortTest = (-not $facts.appRunning); budgetMs = 75000
@@ -892,7 +892,7 @@ try {
                     $facts.nodeGateway = @{ tcpOk = $entry.summary.tcpOk; tcpTotal = $entry.summary.tcpTotal; fetchOk = $entry.summary.fetchOk; fetchTotal = $entry.summary.fetchTotal; errorCodes = @($entry.summary.errorCodes); startupStatus = $entry.summary.startupStatus }
                     $startupText = $entry.summary.startupStatus
                     if (-not $startupText) { $startupText = '无响应' }
-                    $digest.Add(('LobsterAI 运行时（Node {0} / Electron {1}）连接 127.0.0.1:{2}：TCP {3}/{4} 次成功，fetch {5}/{6} 次成功；/startupz {7}；错误码 {8}' -f $probe.runtime.node, $probe.runtime.electron, $port, $entry.summary.tcpOk, $entry.summary.tcpTotal, $entry.summary.fetchOk, $entry.summary.fetchTotal, $startupText, (Format-ErrorCodes $entry.summary.errorCodes)))
+                    $digest.Add(('HiAi 运行时（Node {0} / Electron {1}）连接 127.0.0.1:{2}：TCP {3}/{4} 次成功，fetch {5}/{6} 次成功；/startupz {7}；错误码 {8}' -f $probe.runtime.node, $probe.runtime.electron, $port, $entry.summary.tcpOk, $entry.summary.tcpTotal, $entry.summary.fetchOk, $entry.summary.fetchTotal, $startupText, (Format-ErrorCodes $entry.summary.errorCodes)))
                 }
                 if ($probe.selfTest) {
                     $facts.nodeSelf = @{ ok = [bool]$probe.selfTest.ok; codes = @($probe.selfTest.tcpEcho.code, $probe.selfTest.fetch.code) }
@@ -900,18 +900,18 @@ try {
                 if ($probe.crossProcess) {
                     $facts.nodeCross = @{ ok = [bool]$probe.crossProcess.ok; codes = @($probe.crossProcess.listen.code, $probe.crossProcess.tcp.code, $probe.crossProcess.fetch.code) }
                 }
-                $digest.Add(('LobsterAI 运行时回环自测：同进程 {0}，跨进程 {1}；localhost 解析为 {2}' -f $(if ($probe.selfTest.ok) { '通过' } else { '失败' }), $(if ($probe.crossProcess.ok) { '通过' } else { '失败' }), (@($probe.dns.addresses) -join ', ')))
+                $digest.Add(('HiAi 运行时回环自测：同进程 {0}，跨进程 {1}；localhost 解析为 {2}' -f $(if ($probe.selfTest.ok) { '通过' } else { '失败' }), $(if ($probe.crossProcess.ok) { '通过' } else { '失败' }), (@($probe.dns.addresses) -join ', ')))
                 $fixed = @($probe.fixedPort | Where-Object { $_ -and $_.requestedPort -eq $port }) | Select-Object -First 1
                 if ($fixed) {
                     $fixedCode = $fixed.listen.code
                     if ($fixed.listen.listening) { $fixedCode = (@($fixed.tcp.code, $fixed.fetch.code) | Where-Object { $_ } | Select-Object -First 1) }
                     $facts.fixedPort = @{ listenOk = [bool]$fixed.listen.listening; connectOk = [bool]$fixed.ok; code = $fixedCode }
-                    $digest.Add(('LobsterAI 运行时在端口 {0} 新建监听并连接：{1}' -f $port, $(if ($fixed.ok) { '通过' } else { '失败 ' + $fixedCode })))
+                    $digest.Add(('HiAi 运行时在端口 {0} 新建监听并连接：{1}' -f $port, $(if ($fixed.ok) { '通过' } else { '失败 ' + $fixedCode })))
                 }
                 $proxyNames = @($probe.runtime.proxyEnvironment.PSObject.Properties | ForEach-Object { $_.Name })
-                if ($proxyNames.Count -gt 0) { $digest.Add(('LobsterAI 运行时看到的代理/Node 变量：' + (@($probe.runtime.proxyEnvironment.PSObject.Properties | ForEach-Object { $_.Name + '=' + $_.Value }) -join '；'))) }
+                if ($proxyNames.Count -gt 0) { $digest.Add(('HiAi 运行时看到的代理/Node 变量：' + (@($probe.runtime.proxyEnvironment.PSObject.Properties | ForEach-Object { $_.Name + '=' + $_.Value }) -join '；'))) }
             } else {
-                $digest.Add(('LobsterAI 运行时测试没有产出结果（退出码 {0}，超时 {1}），见 connection.json 的 probeProcess。' -f $probeRun.exitCode, $probeRun.timedOut))
+                $digest.Add(('HiAi 运行时测试没有产出结果（退出码 {0}，超时 {1}），见 connection.json 的 probeProcess。' -f $probeRun.exitCode, $probeRun.timedOut))
             }
         }
         # The app stops the gateway when its own startup wait runs out; results after that are not comparable.
@@ -994,13 +994,13 @@ try {
             Write-Host '    读取防火墙规则（规则多时需要几十秒）…'
             $network.firewallProfiles = @(Get-NetFirewallProfile -ErrorAction Stop | ForEach-Object { [ordered]@{ name = $_.Name; enabled = [string]$_.Enabled; defaultInbound = [string]$_.DefaultInboundAction; defaultOutbound = [string]$_.DefaultOutboundAction } })
             $rules = @()
-            foreach ($filter in @(Get-NetFirewallApplicationFilter -ErrorAction Stop | Where-Object { $_.Program -match '(?i)LobsterAI' })) {
+            foreach ($filter in @(Get-NetFirewallApplicationFilter -ErrorAction Stop | Where-Object { $_.Program -match '(?i)HiAi' })) {
                 foreach ($rule in @($filter | Get-NetFirewallRule -ErrorAction SilentlyContinue)) {
                     $rules += [ordered]@{ name = $rule.DisplayName; direction = [string]$rule.Direction; action = [string]$rule.Action; enabled = [string]$rule.Enabled; profile = [string]$rule.Profile; program = $filter.Program }
                 }
             }
             $network.lobsterFirewallRules = $rules
-            $digest.Add(('Windows 防火墙：{0}；LobsterAI 相关规则 {1} 条（阻止 {2} 条）' -f ((@($network.firewallProfiles | ForEach-Object { $_.name + '=' + $_.enabled })) -join '，'), $rules.Count, @($rules | Where-Object { $_.action -eq 'Block' }).Count))
+            $digest.Add(('Windows 防火墙：{0}；HiAi 相关规则 {1} 条（阻止 {2} 条）' -f ((@($network.firewallProfiles | ForEach-Object { $_.name + '=' + $_.enabled })) -join '，'), $rules.Count, @($rules | Where-Object { $_.action -eq 'Block' }).Count))
         } catch { Record-CollectionError 'firewall' $_ }
         try {
             $hostsPath = Join-Path $env:SystemRoot 'System32\drivers\etc\hosts'
@@ -1073,7 +1073,7 @@ try {
         $software.autoruns = $autoruns
         $digest.Add(('开机启动项：' + (Join-OrNone @($autoruns | ForEach-Object { $_.name }))))
 
-        # DLLs injected into LobsterAI (hooks, Winsock LSPs) show up as non-Microsoft modules outside the install folder.
+        # DLLs injected into HiAi (hooks, Winsock LSPs) show up as non-Microsoft modules outside the install folder.
         if ($AppPath) {
             $installDir = Split-Path $AppPath
             $software.lobsterModules = @()
@@ -1081,7 +1081,7 @@ try {
                 try {
                     $modules = @(Get-ThirdPartyModules $process.pid $installDir)
                     $software.lobsterModules += [ordered]@{ pid = $process.pid; role = $process.role; modules = $modules }
-                    if ($modules.Count) { $digest.Add(('LobsterAI {0} 进程中的第三方模块：{1}' -f $process.role, ((@($modules | ForEach-Object { [IO.Path]::GetFileName($_.path) + '(' + $_.company + ')' })) -join '、'))) }
+                    if ($modules.Count) { $digest.Add(('HiAi {0} 进程中的第三方模块：{1}' -f $process.role, ((@($modules | ForEach-Object { [IO.Path]::GetFileName($_.path) + '(' + $_.company + ')' })) -join '、'))) }
                 } catch { Record-CollectionError ('modules:' + $process.pid) $_ }
             }
         }
@@ -1109,7 +1109,7 @@ try {
                 $logIndex += Copy-LogTail $log.FullName ('openclaw-' + $number + '-' + $log.Name) 8388608
             }
         }
-        foreach ($timing in @((Join-Path $userData 'install-timing.log'), (Join-Path $env:ProgramData 'LobsterAI\install-timing.log'))) {
+        foreach ($timing in @((Join-Path $userData 'install-timing.log'), (Join-Path $env:ProgramData 'HiAi\install-timing.log'))) {
             if (Test-Path -LiteralPath $timing) { $logIndex += Copy-LogTail $timing ('install-timing-' + $(if ($timing.StartsWith($env:ProgramData)) { 'programdata' } else { 'user' }) + '.log') 1048576 }
         }
         $newestMain = @(Get-ChildItem -LiteralPath (Join-Path $userData 'logs') -Filter 'main-*.log' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1)
@@ -1117,7 +1117,7 @@ try {
             $timeline = Get-GatewayStartupTimeline (Read-DiagnosticTail $newestMain[0].FullName 4194304)
             $facts.timeline = $timeline
             $summary.appLogTimeline = $timeline
-            $digest.Add(('应用日志（最近一次启动 {0}）：引擎启动 {1} 次，引擎自报就绪 {2} 次（首次 {3}），LobsterAI 确认就绪 {4} 次，等待超时 {5} 次；未就绪探测 {6} 条：{7}' -f $timeline.startedAt, $timeline.gatewaySpawns, $timeline.gatewaySelfReady, $timeline.firstSelfReadyAt, $timeline.readyConfirmed, $timeline.waitTimeouts, $timeline.probeNotReady, (Format-Counts $timeline.probeDetails)))
+            $digest.Add(('应用日志（最近一次启动 {0}）：引擎启动 {1} 次，引擎自报就绪 {2} 次（首次 {3}），HiAi 确认就绪 {4} 次，等待超时 {5} 次；未就绪探测 {6} 条：{7}' -f $timeline.startedAt, $timeline.gatewaySpawns, $timeline.gatewaySelfReady, $timeline.firstSelfReadyAt, $timeline.readyConfirmed, $timeline.waitTimeouts, $timeline.probeNotReady, (Format-Counts $timeline.probeDetails)))
         }
     } catch { Record-CollectionError 'logs' $_ }
     Write-DiagnosticJson (Join-Path $reportDir 'log-index.json') @($logIndex | Where-Object { $_ })
@@ -1155,7 +1155,7 @@ try {
         $since = (Get-Date).AddDays(-14)
         # Boot, shutdown and unexpected-shutdown records line up reboots with the app logs.
         $events.bootAndShutdown = Get-EventExcerpt @{ LogName = 'System'; StartTime = $since; Id = 12, 13, 41, 109, 1074, 6005, 6006, 6008 } '.' 200 60
-        $events.lobsterCrashes = Get-EventExcerpt @{ LogName = 'Application'; StartTime = $since; Id = 1000, 1001, 1002 } '(?i)LobsterAI' 300 20
+        $events.lobsterCrashes = Get-EventExcerpt @{ LogName = 'Application'; StartTime = $since; Id = 1000, 1001, 1002 } '(?i)HiAi' 300 20
         # 6005 (event log service started) marks each boot.
         $boots = @($events.bootAndShutdown.events | Where-Object { $_.id -eq 6005 } | Select-Object -First 5 | ForEach-Object { $_.time.Substring(0, 16).Replace('T', ' ') })
         $digest.Add(('最近开机时间：' + (Join-OrNone $boots)))
@@ -1175,7 +1175,7 @@ try {
         Write-DiagnosticJson (Join-Path $reportDir 'collection-errors.json') @($errors.ToArray())
         Write-DiagnosticJson (Join-Path $reportDir 'summary.json') $summary
         $header = @(
-            'LobsterAI 引擎连接诊断摘要',
+            'HiAi 引擎连接诊断摘要',
             ('采集时间：' + $summary.startedAt + ' ~ ' + $summary.finishedAt),
             '',
             '初步判断：'
@@ -1187,7 +1187,7 @@ try {
     if (-not $OutputDirectory) { $OutputDirectory = [Environment]::GetFolderPath('Desktop') }
     if (-not $OutputDirectory) { $OutputDirectory = [IO.Path]::GetTempPath() }
     [void](New-Item -ItemType Directory -Path $OutputDirectory -Force)
-    $zipPath = Join-Path $OutputDirectory ('LobsterAI-Connection-Diagnostics-' + $runId + '.zip')
+    $zipPath = Join-Path $OutputDirectory ('HiAi-Connection-Diagnostics-' + $runId + '.zip')
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [IO.Compression.ZipFile]::CreateFromDirectory($reportDir, $zipPath)
     # The cleanup boundary is the private directory created at the start of this run.

@@ -33,7 +33,7 @@ const options = {
 const report = request.phase === OpenClawRepairPhase.LockRecovery
   ? await recoverOpenClawLockOwners({ ...options, runtimeRoot, executablePath: process.execPath, env }, { acquireLock: acquireGatewayLock })
   : await repairOpenClawCompatibility(options, {
-  withLock: run => withDoctorSqliteMaintenanceLock({ env, operation: 'LobsterAI one-click repair', run }),
+  withLock: run => withDoctorSqliteMaintenanceLock({ env, operation: 'HiAi one-click repair', run }),
   verifyDatabaseSchemas() {
     const pathname = path.join(env.OPENCLAW_STATE_DIR, 'state', 'openclaw.sqlite');
     if (fs.existsSync(pathname)) {
@@ -56,7 +56,7 @@ const report = request.phase === OpenClawRepairPhase.LockRecovery
     const result = await runPluginPayloadSmokeCheckForManifestRecords({ plugins: [{ id, rootDir: root }], env });
     let usesPackagedBridge = false;
     if (options.plugins.some(plugin => plugin.id === id && plugin.root === root)) {
-      // LobsterAI deliberately packages one shared SDK bridge instead of npm's
+      // HiAi deliberately packages one shared SDK bridge instead of npm's
       // per-plugin host junctions. Verify actual Node resolution of that bridge
       // before accepting this one layout-specific difference from npm installs.
       const bridgeRoot = path.join(runtimeRoot, 'node_modules', 'openclaw');

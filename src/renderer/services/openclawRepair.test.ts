@@ -50,12 +50,12 @@ test('explains each loopback repair outcome and hands failures the administrator
   expect(resolveOpenClawLoopbackRepairMessage({
     outcome: OpenClawLoopbackRepairOutcome.Failed,
     detail: 'exit 1',
-    manualCommand: 'netsh advfirewall firewall add rule name="LobsterAI loopback"',
+    manualCommand: 'netsh advfirewall firewall add rule name="HiAi loopback"',
   })).toBe([
     'coworkOpenClawAllowLoopbackFailed',
     'exit 1',
     'coworkOpenClawAllowLoopbackManual',
-    'netsh advfirewall firewall add rule name="LobsterAI loopback"',
+    'netsh advfirewall firewall add rule name="HiAi loopback"',
   ].join('\n'));
   expect(resolveOpenClawLoopbackRepairMessage({ outcome: OpenClawLoopbackRepairOutcome.Unsupported }))
     .toBe('coworkOpenClawAllowLoopbackFailed');

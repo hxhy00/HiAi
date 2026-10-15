@@ -13,7 +13,7 @@ function batchHeader(title) {
   if (!/^[\x20-\x7e]+$/.test(title)) throw new Error('The window title must be printable ASCII for cmd.exe.');
   return [
     // A batch label (ignored by cmd.exe) that opens a PowerShell block comment.
-    '<# : LobsterAI diagnostics launcher',
+    '<# : HiAi diagnostics launcher',
     '@echo off',
     'setlocal',
     `title ${title}`,

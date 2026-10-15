@@ -8,7 +8,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => process.cwd()),
-    getName: vi.fn(() => 'LobsterAI'),
+    getName: vi.fn(() => 'HiAi'),
     getPath: vi.fn(() => os.tmpdir()),
     isPackaged: false,
   },
@@ -49,7 +49,7 @@ const logPath = process.env.FAKE_CLIENT_LOG;
 const record = (method, params) => fs.appendFileSync(logPath, JSON.stringify({ method, params }) + '\n');
 const windows = [
   { app: 'Notes', id: 11, pid: 101, bundleId: 'com.apple.Notes', title: 'Groceries' },
-  { app: 'LobsterAI', id: 12, pid: ${'$'}{SELF_PID}, bundleId: 'com.lobsterai.app', title: 'LobsterAI' },
+  { app: 'HiAi', id: 12, pid: ${'$'}{SELF_PID}, bundleId: 'com.lobsterai.app', title: 'HiAi' },
   { app: 'Terminal', id: 13, pid: 103, bundleId: 'com.apple.Terminal', title: 'zsh' },
 ];
 export class ComputerUseClient {
@@ -146,7 +146,7 @@ function createBridgeFixture(options: { askUserUrl: string; locale?: string }): 
       LOBSTER_COMPUTER_USE_HOME: home,
       LOBSTER_COMPUTER_USE_LOCALE: options.locale ?? 'zh',
       LOBSTER_COMPUTER_USE_PLATFORM: 'darwin',
-      LOBSTER_COMPUTER_USE_SELF_APP: 'LobsterAI',
+      LOBSTER_COMPUTER_USE_SELF_APP: 'HiAi',
       LOBSTER_COMPUTER_USE_SELF_PID: String(SELF_PID),
       LOBSTER_COMPUTER_USE_MCP_SDK_ROOT: resolvePackageRoot('@modelcontextprotocol/sdk')!,
       LOBSTER_COMPUTER_USE_ZOD_ROOT: resolvePackageRoot('zod')!,
@@ -255,7 +255,7 @@ async function expectCleanExit(child: ChildProcessWithoutNullStreams): Promise<v
 const NOTES_WINDOW = { app: 'Notes', id: 11, pid: 101, bundleId: 'com.apple.Notes', title: 'Groceries' };
 
 describe('Computer Use MCP bridge (macOS behavior)', () => {
-  test('hides LobsterAI windows and asks once per app with a localized prompt', async () => {
+  test('hides HiAi windows and asks once per app with a localized prompt', async () => {
     const bridge = await startBridge({ answer: 'allow' });
 
     const listed = JSON.parse(textOf(await bridge.call('list_windows'))) as Array<{ id: number }>;
@@ -265,7 +265,7 @@ describe('Computer Use MCP bridge (macOS behavior)', () => {
     await bridge.call('type_text', { window: NOTES_WINDOW, text: 'eggs' });
 
     expect(bridge.askRequests).toHaveLength(1);
-    expect(bridge.askRequests[0].questions?.[0].question).toBe('允许 LobsterAI 操作「Notes」吗？');
+    expect(bridge.askRequests[0].questions?.[0].question).toBe('允许 HiAi 操作「Notes」吗？');
     expect(bridge.askRequests[0].questions?.[0].options?.map(option => option.label)).toEqual(['允许', '拒绝']);
     const click = bridge.clientCalls().find(call => call.method === 'click');
     expect(click?.params.window).toEqual({ app: 'Notes', id: 11, title: 'Groceries' });
@@ -278,11 +278,11 @@ describe('Computer Use MCP bridge (macOS behavior)', () => {
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain('did not allow Computer Use to operate "Notes"');
-    expect(bridge.askRequests[0].questions?.[0].question).toBe('Allow LobsterAI to use "Notes"?');
+    expect(bridge.askRequests[0].questions?.[0].question).toBe('Allow HiAi to use "Notes"?');
     expect(bridge.clientCalls().some(call => call.method === 'click')).toBe(false);
   });
 
-  test('blocks sensitive apps and LobsterAI itself without prompting', async () => {
+  test('blocks sensitive apps and HiAi itself without prompting', async () => {
     const bridge = await startBridge({ answer: 'allow' });
 
     const terminal = await bridge.call('get_window_state', {
@@ -295,7 +295,7 @@ describe('Computer Use MCP bridge (macOS behavior)', () => {
     expect(textOf(terminal)).toContain('blocked for safety');
     expect(launchTerminal.isError).toBe(true);
     expect(self.isError).toBe(true);
-    expect(textOf(self)).toContain('cannot operate LobsterAI itself');
+    expect(textOf(self)).toContain('cannot operate HiAi itself');
     expect(bridge.askRequests).toHaveLength(0);
     expect(bridge.clientCalls().some(call => call.method === 'launch_app')).toBe(false);
   });
@@ -311,7 +311,7 @@ describe('Computer Use MCP bridge (macOS behavior)', () => {
     expect(textOf(missing)).toContain('No installed app matches');
     expect(launched.isError).toBeFalsy();
     expect(bridge.askRequests).toHaveLength(1);
-    expect(bridge.askRequests[0].questions?.[0].question).toBe('允许 LobsterAI 操作「备忘录」吗？');
+    expect(bridge.askRequests[0].questions?.[0].question).toBe('允许 HiAi 操作「备忘录」吗？');
   });
 
   test('reports a physical Escape stop once, then starts a fresh turn', async () => {

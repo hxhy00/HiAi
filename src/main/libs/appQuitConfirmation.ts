@@ -1,7 +1,7 @@
 /**
  * Quit confirmation for user-initiated quits.
  *
- * Scheduled tasks and IM replies only run while LobsterAI is open, so a quit
+ * Scheduled tasks and IM replies only run while HiAi is open, so a quit
  * the user triggers (Cmd+Q, app menu, Dock, tray "Quit") pauses at a native
  * confirmation first. Programmatic quits — update install, relaunch, OS
  * logout/shutdown — arm a one-shot bypass so the prompt never gets in the way.

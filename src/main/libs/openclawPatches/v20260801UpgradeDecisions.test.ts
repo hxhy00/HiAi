@@ -114,7 +114,7 @@ describe('OpenClaw v2026.8.1 upgrade decisions', () => {
     ]);
   });
 
-  test('keeps LobsterAI-specific reliability and Goal compatibility surfaces', () => {
+  test('keeps HiAi-specific reliability and Goal compatibility surfaces', () => {
     expectPatchContains('openclaw-lancedb-optional-transformers.patch', [
       '"@lancedb/lancedb>@huggingface/transformers": "-"',
       '-  onnxruntime-node@1.19.2:',

@@ -4,7 +4,7 @@
  * The media tools derive their model list entirely from this config, so this
  * form is the only way a user gets image/video generation to work. Entries are
  * filled in by hand (baseUrl / apiKey / modelId); nothing here talks to a
- * LobsterAI server.
+ * HiAi server.
  *
  * Image and video models are two blocks stacked vertically and always both
  * visible — never a two-way toggle — so the user can see the whole picture at

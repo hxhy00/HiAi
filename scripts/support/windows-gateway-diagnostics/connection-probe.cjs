@@ -1,12 +1,12 @@
 'use strict';
 
-// Loopback probe for collect-connection.ps1. LobsterAI.exe runs it with
+// Loopback probe for collect-connection.ps1. HiAi.exe runs it with
 // ELECTRON_RUN_AS_NODE=1, so its sockets and fetch() go through the same
 // executable and Node runtime that the app's main process uses when it polls
 // the gateway (fetch http://127.0.0.1:<port>/startupz). The app only logs
 // "fetch failed"; this probe records the underlying error code. It contacts
 // 127.0.0.1 only and closes every server and child process it starts.
-// Usage: LobsterAI.exe connection-probe.cjs <request.json>
+// Usage: HiAi.exe connection-probe.cjs <request.json>
 const fs = require('node:fs');
 const http = require('node:http');
 const net = require('node:net');
@@ -34,7 +34,7 @@ const PROXY_ENV_NAMES = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', '
 const ABORT_ERROR_NAMES = new Set(['AbortError', 'TimeoutError']);
 const STARTUP_RESPONSE = '{"ok":true,"status":"started"}';
 
-// A second LobsterAI.exe process serves this, like the gateway does for the
+// A second HiAi.exe process serves this, like the gateway does for the
 // main process. It is written to a file so no Windows argument quoting is involved.
 const CHILD_SERVER_SOURCE = [
   "'use strict';",
@@ -488,7 +488,7 @@ async function runProbe(request = {}) {
         : { requestedPort: port, ok: false, skipped: 'time budget' });
     }
   } else {
-    report.fixedPort = { skipped: 'LobsterAI is running, so its gateway may need these ports' };
+    report.fixedPort = { skipped: 'HiAi is running, so its gateway may need these ports' };
   }
   report.finishedAt = new Date().toISOString();
   if (request.reportPath) fs.writeFileSync(request.reportPath, `${JSON.stringify(report, null, 2)}\n`);

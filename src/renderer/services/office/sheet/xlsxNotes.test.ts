@@ -86,7 +86,7 @@ describe('note text and moves', () => {
     const comments = text('xl/comments1.xml');
     expect(comments).toContain('<comment ref="A3" authorId="0"><text><r><rPr><b/><sz val="9"/></rPr><t xml:space="preserve">Ann:</t></r><r><rPr><sz val="9"/></rPr><t xml:space="preserve">\nCheck the new rate</t></r></text></comment>');
     expect(comments).toContain('<comment ref="A2" authorId="0"><text><t>Second</t></text></comment>');
-    expect(comments).not.toContain('LobsterAI');
+    expect(comments).not.toContain('HiAi');
     const vml = text('xl/drawings/vmlDrawing1.vml');
     expect(vml).toContain('<x:Anchor> 1, 15, 1, 10, 3, 15, 5, 4</x:Anchor><x:Row>2</x:Row>');
     expect(vml).toContain('<x:Anchor> 1, 15, 0, 10, 3, 15, 4, 4</x:Anchor><x:Row>1</x:Row>');

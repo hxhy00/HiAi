@@ -13,7 +13,7 @@ import { safelyReplaceTextFileSync } from './safeFileReplace';
 export type OpenClawConfigTarget = {
   baseRaw: string;
   raw: string;
-  /** Complete sections rendered from LobsterAI state, including removals. */
+  /** Complete sections rendered from HiAi state, including removals. */
   ownedSections?: string[];
 };
 

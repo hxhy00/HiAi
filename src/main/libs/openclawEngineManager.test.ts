@@ -36,7 +36,7 @@ import {
 const PLUGIN_FAILURE = 'OpenClaw plugin verification failed; refusing to report the gateway ready.';
 const PLUGIN_CONSENT_DETAIL = '- Plugin "vydra" requires capability consent. Use openclaw plugins install or openclaw plugins enable with --accept-capabilities, then retry. Run `openclaw update repair` to retry plugin repair.';
 const MIGRATION_REFUSAL = OPENCLAW_STARTUP_MIGRATION_REFUSAL;
-const MIGRATION_WARNING = '- Legacy channel allowFrom channel/account is unresolved; left in place at C:\\Users\\L\\AppData\\Roaming\\LobsterAI\\openclaw\\state\\credentials\\openclaw-weixin-a74391227cd8-im-bot-allowFrom.json';
+const MIGRATION_WARNING = '- Legacy channel allowFrom channel/account is unresolved; left in place at C:\\Users\\L\\AppData\\Roaming\\HiAi\\openclaw\\state\\credentials\\openclaw-weixin-a74391227cd8-im-bot-allowFrom.json';
 const MIGRATION_DOCTOR_HINT = 'Run "openclaw doctor --fix" against the same state/config, then restart the gateway.';
 
 describe('buildOpenClawCompileCacheEnv', () => {
@@ -200,7 +200,7 @@ describe('gateway startup wait across system sleep', () => {
 describe('isOpenClawConfigStartupFailure', () => {
   test('matches OpenClaw config validation failures', () => {
     expect(isOpenClawConfigStartupFailure([
-      '[stderr] Error: Invalid config at /Users/test/Library/Application Support/LobsterAI/openclaw/state/openclaw.json.',
+      '[stderr] Error: Invalid config at /Users/test/Library/Application Support/HiAi/openclaw/state/openclaw.json.',
       '[stderr] - models.providers.openai.api: invalid config: unsupported value',
     ].join('\n'))).toBe(true);
   });
@@ -228,7 +228,7 @@ describe('extractOpenClawConfigIssueLines', () => {
   test('reads the per-key lines of the gateway startup failure', () => {
     expect(extractOpenClawConfigIssueLines([
       '[stderr] - plugins.allow: plugin not installed: qqbot',
-      '[stderr] 2026-09-18T23:16:36.503+08:00 Gateway failed to start: Invalid config at C:\\Users\\me\\AppData\\Roaming\\LobsterAI\\openclaw\\state\\openclaw.json:',
+      '[stderr] 2026-09-18T23:16:36.503+08:00 Gateway failed to start: Invalid config at C:\\Users\\me\\AppData\\Roaming\\HiAi\\openclaw\\state\\openclaw.json:',
       '[stderr] openclaw.json:4 — agents.defaults.compaction: Unrecognized key: "truncateAfterCompaction"',
       '[stderr] \u001b[31mopenclaw.json:3 — session.maintenance: Unrecognized key: "rotateBytes"\u001b[0m',
       '[stderr] <root>: Unrecognized key: "staleKey"',

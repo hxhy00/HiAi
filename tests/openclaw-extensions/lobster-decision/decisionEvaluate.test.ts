@@ -20,7 +20,7 @@ type RegisteredTool = {
 type ToolFactory = (ctx: { sessionKey?: string }) => RegisteredTool | null;
 
 const SECRET = 'decision-e2e-secret';
-const DESKTOP_SESSION = 'agent:main:lobsterai:session-e2e';
+const DESKTOP_SESSION = 'agent:main:hiai:session-e2e';
 
 describe('decision_evaluate through the loopback bridge', () => {
   const server = new McpBridgeServer(SECRET);
@@ -67,7 +67,7 @@ describe('decision_evaluate through the loopback bridge', () => {
     await server.stop();
   });
 
-  test('exposes the tool to LobsterAI desktop sessions only', () => {
+  test('exposes the tool to HiAi desktop sessions only', () => {
     expect(factory({ sessionKey: DESKTOP_SESSION })?.name).toBe('decision_evaluate');
     expect(factory({ sessionKey: 'agent:main:dingtalk:group-1' })).toBeNull();
   });

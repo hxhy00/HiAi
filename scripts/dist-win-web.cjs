@@ -25,7 +25,7 @@ function webPackageFileName(version) {
 }
 
 function webSetupFileName(version, keyfrom, silentOnDoubleClick) {
-  return `LobsterAI-WebSetup-x64-${version}-${keyfrom}${silentOnDoubleClick ? '-silent' : ''}.exe`;
+  return `HiAi-WebSetup-x64-${version}-${keyfrom}${silentOnDoubleClick ? '-silent' : ''}.exe`;
 }
 
 function sha256File(filePath) {

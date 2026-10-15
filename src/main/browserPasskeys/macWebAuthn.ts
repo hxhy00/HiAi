@@ -3,8 +3,19 @@ import { promisify } from 'node:util';
 
 import { app, systemPreferences } from 'electron';
 
+import { APP_USER_MODEL_ID } from '../appConstants';
+
 const execFileAsync = promisify(execFile);
-const KEYCHAIN_GROUP_PATTERN = /^[A-Z0-9]{10}\.com\.lobsterai\.app\.webauthn$/;
+
+/**
+ * The signed keychain access group is `<teamId>.<appId>.webauthn`, so it is
+ * derived from `APP_USER_MODEL_ID` rather than hard-coded: the bundle id and the
+ * signing appId have to be changed together, and a stale literal here makes the
+ * lookup silently fail and disables Touch ID without any error.
+ */
+const KEYCHAIN_GROUP_PATTERN = new RegExp(
+  `^[A-Z0-9]{10}\\.${APP_USER_MODEL_ID.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.webauthn$`,
+);
 
 export const readWebAuthnKeychainGroup = (entitlements: string): string | undefined => {
   const groups = entitlements.match(/<key>keychain-access-groups<\/key>\s*<array>([\s\S]*?)<\/array>/)?.[1];

@@ -66,7 +66,7 @@ test('billing: a local inline-key cooldown preserves its actual cause', () => {
   expect(classifyErrorKey(message)).toBe(CoworkErrorI18nKey.ProviderCooldown);
 });
 
-test('billing: LobsterAI upstream balance errors do not tell users to recharge', () => {
+test('billing: HiAi upstream balance errors do not tell users to recharge', () => {
   expect(classifyErrorKey('insufficient balance', ProviderName.LobsteraiServer))
     .toBe(CoworkErrorI18nKey.ModelServiceUnavailable);
   expect(classifyErrorKey('insufficient balance', ProviderName.Moonshot))
@@ -75,7 +75,7 @@ test('billing: LobsterAI upstream balance errors do not tell users to recharge',
     .toBe(CoworkErrorI18nKey.ModelServiceUnavailable);
 });
 
-test.each([40200, 40201, 40202])('billing: LobsterAI user quota code %s still requires quota recovery', (code) => {
+test.each([40200, 40201, 40202])('billing: HiAi user quota code %s still requires quota recovery', (code) => {
   expect(classifyErrorKey(JSON.stringify({ error: { code, message: 'billing failure' } }), ProviderName.LobsteraiServer))
     .toBe(CoworkErrorI18nKey.QuotaExhausted);
 });
@@ -88,27 +88,27 @@ test('billing: OpenAI insufficient_quota', () => {
   expect(classifyError('You exceeded your current quota, please check your plan and billing details. insufficient_quota')).toBe('coworkErrorInsufficientBalance');
 });
 
-test('billing: LobsterAI free quota exhausted', () => {
+test('billing: HiAi free quota exhausted', () => {
   expect(classifyError('免费额度已用完，请升级套餐')).toBe('coworkErrorQuotaExhausted');
 });
 
-test('billing: LobsterAI daily free quota code exhausted', () => {
+test('billing: HiAi daily free quota code exhausted', () => {
   expect(classifyError('{"error":{"message":"今日免费额度已用完","code":40200}}')).toBe('coworkErrorQuotaExhausted');
 });
 
-test('billing: LobsterAI free quota code exhausted', () => {
+test('billing: HiAi free quota code exhausted', () => {
   expect(classifyError('{"error":{"message":"免费额度已用完，请升级套餐","code":40201}}')).toBe('coworkErrorQuotaExhausted');
 });
 
-test('billing: LobsterAI monthly credits exhausted', () => {
+test('billing: HiAi monthly credits exhausted', () => {
   expect(classifyError('本月积分已用完')).toBe('coworkErrorQuotaExhausted');
 });
 
-test('billing: LobsterAI monthly quota JSON payload', () => {
+test('billing: HiAi monthly quota JSON payload', () => {
   expect(classifyError('{"type":"error","error":{"type":"proxy_error","message":"本月积分已用完","code":40202}}')).toBe('coworkErrorQuotaExhausted');
 });
 
-test('billing: detects LobsterAI quota exhausted for proxy helpers', () => {
+test('billing: detects HiAi quota exhausted for proxy helpers', () => {
   expect(isLobsterAIQuotaExhaustedError('monthly credits exhausted')).toBe(true);
   expect(isLobsterAIQuotaExhaustedError('Request failed with status 402')).toBe(false);
 });
@@ -323,16 +323,16 @@ test('network: socket hang up', () => {
 
 test('network: Chromium net error relayed by the token proxy as HTTP 502', () => {
   expect(classifyError(
-    'HTTP 502: LobsterAI proxy upstream request failed: net::ERR_HTTP2_PING_FAILED',
+    'HTTP 502: HiAi proxy upstream request failed: net::ERR_HTTP2_PING_FAILED',
   )).toBe('coworkErrorNetworkError');
   expect(classifyError(
-    '502 LobsterAI proxy upstream request failed: net::ERR_PROXY_CONNECTION_FAILED',
+    '502 HiAi proxy upstream request failed: net::ERR_PROXY_CONNECTION_FAILED',
   )).toBe('coworkErrorNetworkError');
 });
 
 test('network: Chromium certificate error is not mistaken for an invalid credential', () => {
   expect(classifyError(
-    'HTTP 502: LobsterAI proxy upstream request failed: net::ERR_CERT_AUTHORITY_INVALID',
+    'HTTP 502: HiAi proxy upstream request failed: net::ERR_CERT_AUTHORITY_INVALID',
   )).toBe('coworkErrorNetworkError');
 });
 

@@ -7,8 +7,6 @@ export const MANAGEMENT_LIST_CONTAINER_CLASS =
   'divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface';
 
 interface ManagementListRowProps {
-  /** Left icon tile. */
-  icon?: React.ReactNode;
   /** Row title (the entry name). Truncated to one line. */
   title: React.ReactNode;
   /** Extra classes for the title span, e.g. a muted color for disabled rows. */
@@ -25,13 +23,12 @@ interface ManagementListRowProps {
 }
 
 /**
- * One entry in a management list (Kits / Skills / MCP / Tasks) — the row form
- * of the former card grid. Uniform horizontal shape: icon, name with badges,
- * a one-line subtitle, and the actions pinned to the right. Used inside
- * `MANAGEMENT_LIST_CONTAINER_CLASS` so rows read as one list.
+ * One entry in a management list (Skills / MCP / Tasks) — the row form of the
+ * former card grid. Uniform horizontal shape: name with badges, a one-line
+ * subtitle, and the actions pinned to the right. Deliberately has no icon tile;
+ * used inside `MANAGEMENT_LIST_CONTAINER_CLASS` so rows read as one list.
  */
 const ManagementListRow: React.FC<ManagementListRowProps> = ({
-  icon,
   title,
   titleClassName = '',
   badges,
@@ -60,7 +57,6 @@ const ManagementListRow: React.FC<ManagementListRowProps> = ({
         onClick ? 'cursor-pointer hover:bg-surface-raised/50' : ''
       } ${className}`}
     >
-      {icon && <div className="shrink-0">{icon}</div>}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span

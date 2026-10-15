@@ -12,7 +12,7 @@ const mockElectronState = vi.hoisted(() => ({
 vi.mock('electron', () => ({
   app: {
     getAppPath: () => mockElectronState.appPath,
-    getName: () => 'LobsterAI',
+    getName: () => 'HiAi',
     getPath: (name: string) => (name === 'userData' ? mockElectronState.userData : os.tmpdir()),
     isPackaged: mockElectronState.isPackaged,
   },
@@ -42,21 +42,21 @@ afterEach(() => {
 });
 
 describe('selectSpawnableNodeCandidate', () => {
-  test('skips LobsterAI bash and cmd shims on Windows and returns node.exe', () => {
+  test('skips HiAi bash and cmd shims on Windows and returns node.exe', () => {
     expect(selectSpawnableNodeCandidate([
-      'C:\\Users\\demo\\AppData\\Roaming\\LobsterAI\\cowork\\bin\\node',
-      'C:\\Users\\demo\\AppData\\Roaming\\LobsterAI\\cowork\\bin\\node.cmd',
+      'C:\\Users\\demo\\AppData\\Roaming\\HiAi\\cowork\\bin\\node',
+      'C:\\Users\\demo\\AppData\\Roaming\\HiAi\\cowork\\bin\\node.cmd',
       'C:\\Program Files\\nodejs\\node.exe',
-    ], 'win32', 'C:\\Users\\demo\\AppData\\Roaming\\LobsterAI')).toBe(
+    ], 'win32', 'C:\\Users\\demo\\AppData\\Roaming\\HiAi')).toBe(
       'C:\\Program Files\\nodejs\\node.exe',
     );
   });
 
   test('returns null on Windows when only non-native shims are available', () => {
     expect(selectSpawnableNodeCandidate([
-      'C:\\Users\\demo\\AppData\\Roaming\\LobsterAI\\cowork\\bin\\node',
-      'C:\\Users\\demo\\AppData\\Roaming\\LobsterAI\\cowork\\bin\\node.cmd',
-    ], 'win32', 'C:\\Users\\demo\\AppData\\Roaming\\LobsterAI')).toBeNull();
+      'C:\\Users\\demo\\AppData\\Roaming\\HiAi\\cowork\\bin\\node',
+      'C:\\Users\\demo\\AppData\\Roaming\\HiAi\\cowork\\bin\\node.cmd',
+    ], 'win32', 'C:\\Users\\demo\\AppData\\Roaming\\HiAi')).toBeNull();
   });
 
   test('keeps the first command candidate on macOS', () => {
@@ -65,11 +65,11 @@ describe('selectSpawnableNodeCandidate', () => {
 });
 
 describe('resolveNodeRuntimeForSpawn', () => {
-  test('uses real node.exe on Windows when present after LobsterAI shims', () => {
+  test('uses real node.exe on Windows when present after HiAi shims', () => {
     setPlatform('win32');
 
     const runtime = resolveNodeRuntimeForSpawn({}, () => [
-      'C:\\Users\\demo\\AppData\\Roaming\\LobsterAI\\cowork\\bin\\node',
+      'C:\\Users\\demo\\AppData\\Roaming\\HiAi\\cowork\\bin\\node',
       'C:\\Program Files\\nodejs\\node.exe',
     ]);
 
@@ -84,7 +84,7 @@ describe('resolveNodeRuntimeForSpawn', () => {
     setPlatform('win32');
 
     const runtime = resolveNodeRuntimeForSpawn({}, () => [
-      'C:\\Users\\demo\\AppData\\Roaming\\LobsterAI\\cowork\\bin\\node',
+      'C:\\Users\\demo\\AppData\\Roaming\\HiAi\\cowork\\bin\\node',
     ]);
 
     expect(runtime.command).toBe(process.execPath);

@@ -86,7 +86,7 @@ LobsterAI 侧修复策略：
 TypeBox 修复后，`lobster-media-generation` 能成功加载并打印：
 
 ```text
-[lobster-media-generation] registered lobsterai_image_generate and lobsterai_video_generate tools.
+[lobster-media-generation] registered hiai_image_generate and hiai_video_generate tools.
 ```
 
 但端侧图片生成仍实际调用 OpenClaw 原生 `image_generate`。复核 OpenClaw 6.1 的 `src/plugins/registry.ts` 后确认，6.1 已要求插件在 manifest `contracts.tools` 中声明 agent tool 名称；否则 `api.registerTool()` 会被拒绝并记录诊断：`plugin must declare contracts.tools before registering agent tools`。旧版 LobsterAI 本地扩展没有该字段，因此会出现“插件模块已加载、register() 已执行，但工具未进入有效工具列表”的状态。
@@ -94,7 +94,7 @@ TypeBox 修复后，`lobster-media-generation` 能成功加载并打印：
 LobsterAI 侧处理：
 
 1. `ask-user-question/openclaw.plugin.json` 声明 `contracts.tools: ["AskUserQuestion"]`。
-2. `lobster-media-generation/openclaw.plugin.json` 声明 `contracts.tools: ["lobsterai_image_generate", "lobsterai_video_generate"]`。
+2. `lobster-media-generation/openclaw.plugin.json` 声明 `contracts.tools: ["hiai_image_generate", "hiai_video_generate"]`。
 3. 不将 OpenClaw 原生 `image_generate` / `video_generate` 加入 deny。当前目标是让 LobsterAI 工具正确暴露；原生媒体工具仍保留给 OpenClaw/skill 兼容场景。
 4. `mcp-bridge` 不按同样方式修复：MCP 已迁移到 OpenClaw 原生 `mcp.servers`，当前生成的 `openclaw.json` 不包含 `plugins.entries["mcp-bridge"]`，实际工具由 OpenClaw 原生 MCP runtime 物化。旧 `mcp-bridge` 的工具名来自运行时 MCP 配置，不能用静态 `contracts.tools` 正确枚举；后续若彻底清理旧桥接，应移除扩展同步或保留为不可配置兼容项，而不是伪造静态 contract。
 
@@ -291,7 +291,7 @@ npm run build
 | `scripts/build-openclaw-runtime.sh` | runtime 构建与完整性检查 |
 | `scripts/precompile-openclaw-extensions.cjs` | 本地 OpenClaw 扩展预编译；无 `node_modules` 的本地扩展内联普通 npm 依赖 |
 | `openclaw-extensions/ask-user-question/openclaw.plugin.json` | 声明 `AskUserQuestion` agent tool contract，适配 OpenClaw 6.1 插件工具注册要求 |
-| `openclaw-extensions/lobster-media-generation/openclaw.plugin.json` | 声明 `lobsterai_image_generate` / `lobsterai_video_generate` agent tool contracts，确保工具进入有效工具列表 |
+| `openclaw-extensions/lobster-media-generation/openclaw.plugin.json` | 声明 `hiai_image_generate` / `hiai_video_generate` agent tool contracts，确保工具进入有效工具列表 |
 | `openclaw-extensions/ask-user-question/package.json` | 显式声明 `@sinclair/typebox` 依赖 |
 | `openclaw-extensions/lobster-media-generation/package.json` | 显式声明 `@sinclair/typebox` 依赖 |
 | `openclaw-extensions/mcp-bridge/package.json` | 显式声明 `@sinclair/typebox` 依赖 |

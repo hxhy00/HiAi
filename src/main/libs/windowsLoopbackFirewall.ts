@@ -13,7 +13,7 @@ import { detectLoopbackBlock, type LoopbackBlockCheck } from './loopbackSelfTest
  * by name and program, so copies never pile up and other accounts' per-user
  * installs keep their own rule.
  */
-export const WINDOWS_LOOPBACK_FIREWALL_RULE_NAME = 'LobsterAI loopback';
+export const WINDOWS_LOOPBACK_FIREWALL_RULE_NAME = 'HiAi loopback';
 // IPv4 only: netsh rejects ::1 as a rule address ("The specified IP address
 // or address keyword is not valid"), which fails the whole add. The gateway
 // listens on, and is probed at, 127.0.0.1.

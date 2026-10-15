@@ -45,7 +45,7 @@ const canMaterializeModelRefs = (refs: string[], models: unknown): boolean => {
 };
 
 /**
- * Finish a rebuilt LobsterAI config using OpenClaw v2026.8.1 model policy semantics.
+ * Finish a rebuilt HiAi config using OpenClaw v2026.8.1 model policy semantics.
  * A legacy models map was an allowlist; after migration it is metadata only.
  * Policies that exactly match the previous managed map are treated as managed
  * and refreshed. Other policies, explicit allow-any objects, and migrated policy
@@ -73,7 +73,7 @@ export function withManagedOpenClawModelPolicy(
     // Reuse the existing order when the set is unchanged to avoid a write just
     // because OpenClaw serialized an equivalent allowlist in a different order.
     // This also repairs an invalid policy generated from the complete previous
-    // map by older LobsterAI versions, without relaxing an authored policy.
+    // map by older HiAi versions, without relaxing an authored policy.
     policy = !deferred && nextRefs.length > 0
       ? (previousPolicy && matchesModelRefs(previousPolicy.allow, nextRefs)
         ? previousPolicy

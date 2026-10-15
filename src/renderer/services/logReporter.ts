@@ -34,7 +34,7 @@ export type LogEventParams = Record<string, LogParamValue> & {
 };
 
 const logCommons = {
-  _npid: LogReporterProduct.LobsterAI,
+  _npid: LogReporterProduct.HiAi,
   _ncat: LogReporterCategory.Actions,
 } as const;
 
@@ -341,8 +341,8 @@ export const reportYdAnalyzer = async (
     return false;
   }
 
-  if (!params.action.startsWith(LogReporterActionPrefix.LobsterAI)) {
-    writeReporterLog('warn', 'skipped an event without the LobsterAI action prefix');
+  if (!params.action.startsWith(LogReporterActionPrefix.HiAi)) {
+    writeReporterLog('warn', 'skipped an event without the HiAi action prefix');
     return false;
   }
 

@@ -86,7 +86,7 @@ export function registerOfficeFileHandlers<TInfo extends OfficePackageInfo>(opti
         store.releaseOwner(owner.id);
         releaseWatches(owner.id);
         unsafeEditors.delete(owner);
-        agent.cancelAll(`The LobsterAI window reloaded before the ${options.editorName} edit finished; read the file again.`);
+        agent.cancelAll(`The HiAi window reloaded before the ${options.editorName} edit finished; read the file again.`);
       };
       owner.once('destroyed', clear);
       owner.on('render-process-gone', clear);

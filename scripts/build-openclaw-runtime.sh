@@ -98,7 +98,7 @@ node "$ELECTRON_ROOT/scripts/ensure-pnpm-native-binary.cjs" "$OPENCLAW_SRC"
 # ---------------------------------------------------------------------------
 # Build cache: skip if the runtime was already built for the pinned version.
 # On Windows (Git Bash / MSYS2), paths like $ELECTRON_ROOT are Unix-style
-# (e.g. /d/github/LobsterAI) which Node.js cannot resolve via require().
+# (e.g. /d/github/HiAi) which Node.js cannot resolve via require().
 # Use "node -" with process.argv so MSYS2 auto-converts the paths.
 # ---------------------------------------------------------------------------
 DESIRED_VERSION=""
@@ -178,7 +178,7 @@ if ! pnpm install --frozen-lockfile --fetch-timeout "$PNPM_FETCH_TIMEOUT_MS" 2>&
 fi
 pnpm build
 # Skip release:check — it validates the openclaw npm package for publishing and
-# is not relevant for LobsterAI embedded runtime builds.  On Windows it also
+# is not relevant for HiAi embedded runtime builds.  On Windows it also
 # fails due to spawnSync/execFileSync not finding npm without shell:true, and
 # npm pack producing truncated tarballs.
 echo "[openclaw-runtime] Skipping release:check (not needed for embedded builds)"
@@ -273,7 +273,7 @@ echo "[openclaw-runtime] npm target platform=$NPM_TARGET_PLATFORM arch=$NPM_TARG
 # @mistralai/mistralai@2.6.4 treats the OpenTelemetry API as an optional peer,
 # but its request path imports the no-op API eagerly. OpenClaw's source install
 # receives it from dev tooling; the production tarball does not. Keep the small
-# pure-JS API in LobsterAI's embedded runtime so the gateway bundle and Mistral
+# pure-JS API in HiAi's embedded runtime so the gateway bundle and Mistral
 # provider both remain loadable without enabling the optional OTLP exporters.
 NPM_CONFIG_LEGACY_PEER_DEPS=true \
 npm_config_platform="$NPM_TARGET_PLATFORM" \

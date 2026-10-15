@@ -122,13 +122,13 @@ export const ComputerUseHelperStrings = {
   zh: {
     locale: 'zh-CN',
     escToCancel: '按 Esc 取消',
-    usingComputer: 'LobsterAI正在使用你的电脑',
+    usingComputer: 'HiAi正在使用你的电脑',
     stopped: '已停止电脑操作',
   },
   en: {
     locale: 'en-US',
     escToCancel: 'Press Esc to stop',
-    usingComputer: 'LobsterAI is using your computer',
+    usingComputer: 'HiAi is using your computer',
     stopped: 'Computer Use stopped',
   },
 } as const satisfies Record<LanguageType, Record<string, string>>;

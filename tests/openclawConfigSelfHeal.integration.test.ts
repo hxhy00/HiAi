@@ -31,7 +31,7 @@ describe.skipIf(!runtimeRoot)('bundled CLI config self-heal', () => {
     env: { PATH: process.env.PATH, HOME: tempDir, USERPROFILE: tempDir },
   });
 
-  test('accepts a config written by an older LobsterAI after removing the retired keys', async () => {
+  test('accepts a config written by an older HiAi after removing the retired keys', async () => {
     fs.writeFileSync(configPath, JSON.stringify({
       gateway: { mode: 'local' },
       staleRootKey: true,

@@ -39,7 +39,7 @@ function Select-DiagnosticLogText {
     param([string]$Text)
     $selected = New-Object 'System.Collections.Generic.List[string]'
     $continuation = 0
-    $pattern = '(?i)(SQLite read-only worker|ANOMALY:|Could not start the CLI|uses (?:newer )?schema version|Verified shared-state schema|Startup (?:migration process|state migration|compatibility)|Legacy session (?:doctor|storage|migration)|\[openclaw-launcher\]|\[gateway\] (?:starting|ready|listening)|gateway (?:process (?:exited|spawned)|auto-restart|failed to start|startup stopped)|\[OpenClawRepair\]|onHelloOk|waitForGatewayReady: (?:timed out|gateway process is gone)|startGateway: (?:resolveOpenClawEntry|waitForGatewayReady|gateway process)|LobsterAI started|currentVersion=|phase=custom-init-start)'
+    $pattern = '(?i)(SQLite read-only worker|ANOMALY:|Could not start the CLI|uses (?:newer )?schema version|Verified shared-state schema|Startup (?:migration process|state migration|compatibility)|Legacy session (?:doctor|storage|migration)|\[openclaw-launcher\]|\[gateway\] (?:starting|ready|listening)|gateway (?:process (?:exited|spawned)|auto-restart|failed to start|startup stopped)|\[OpenClawRepair\]|onHelloOk|waitForGatewayReady: (?:timed out|gateway process is gone)|startGateway: (?:resolveOpenClawEntry|waitForGatewayReady|gateway process)|HiAi started|currentVersion=|phase=custom-init-start)'
     foreach ($rawLine in ($Text -split '\r?\n')) {
         $line = $rawLine
         if ($line.StartsWith('{')) {

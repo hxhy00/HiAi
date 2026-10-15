@@ -206,4 +206,25 @@
 ### 7.3 后续 TODO
 
 - [ ] 手动跑 `npm run electron:dev` 完成 AC-SM-9，并抽查模型选择/切换/思考档位是否正常。
-- [ ] 在设计文档 §8.2 将「模型选择器订阅分组」「侧栏 banner」标记为已完成（见 §6 文档同步）。
+- [x] 在设计文档 §8.2 将「模型选择器订阅分组」「侧栏 banner」标记为已完成（见 §6 文档同步）。设计文档 §8.2 已于 2026-10-14 标注「已完成」，本条经 2026-10-15 复核确认落实。
+
+---
+
+## 8. 复核记录（2026-10-15）
+
+品牌更名 HiAi 分支（`feature/rebrand-hiai`）改动 12 个提交后，对本文档验收项做全量复验，确认删除无回归：
+
+| 编号 | 复验方式 | 结果 |
+| --- | --- | --- |
+| AC-SM-1 | `rg "getPricingCatalog\|setServerModels\|isServerModel" src --glob '!*.test.ts'` | ✅ 空 |
+| AC-SM-2 | `rg "SidebarExperienceSlot\|useSidebarAdBanners\|SidebarAdBanner" src` | ✅ 空 |
+| AC-SM-3 | `rg -c "ProviderName.LobsteraiServer\|OpenClawProviderId.LobsteraiServer" src/main src/shared/providers` | ✅ 仍有命中，provider 保留 |
+| AC-SM-4 | `rg "enterpriseAccount" src/renderer/types/electron.d.ts` | ✅ 空 |
+| AC-SM-5 | `npx tsc --noEmit`（渲染层） | ✅ 退出码 0 |
+| AC-SM-6 | `npm run compile:electron`（主进程） | ✅ 退出码 0 |
+| AC-SM-7 | `npm test` | ✅ 6301 用例通过；唯一失败为 `tests/openclaw-plugin-patches-popo-sdk.test.ts` 的既有失败（经 stash 对比确认为改动前即存在） |
+| AC-SM-8 | `eslint --max-warnings 0`（本分支 133 个改动文件） | ✅ 零告警（已用故意植入告警的探针反向验证门禁生效） |
+| AC-SM-9 | 手动 `npm run electron:dev` | ⏳ 待人工执行 |
+| AC-SM-10 | `electron.d.ts` 死类型清理 | ✅ 通过 |
+
+**待办**：AC-SM-9 需在真实 GUI 环境人工验证，无法由命令替代。

@@ -1,5 +1,5 @@
 /**
- * File and agent contracts shared by LobsterAI's in-place Office editors. Each format adds its
+ * File and agent contracts shared by HiAi's in-place Office editors. Each format adds its
  * package facts (read-only reasons and the like) through `OfficePackageInfo`.
  */
 

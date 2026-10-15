@@ -14,8 +14,8 @@ export const ModelRuntimeProfileSource = {
 export type ModelRuntimeProfileSource =
   typeof ModelRuntimeProfileSource[keyof typeof ModelRuntimeProfileSource];
 
-export const LOBSTERAI_CLIENT_CAPABILITIES_HEADER = 'X-LobsterAI-Client-Capabilities';
-export const LOBSTERAI_CLIENT_VERSION_HEADER = 'X-LobsterAI-Client-Version';
+export const LOBSTERAI_CLIENT_CAPABILITIES_HEADER = 'X-HiAi-Client-Capabilities';
+export const LOBSTERAI_CLIENT_VERSION_HEADER = 'X-HiAi-Client-Version';
 export const KIMI_K3_AGENTIC_CAPABILITY = 'kimi-k3-agentic-v1';
 export const THINKING_LEVEL_CONTROL_CAPABILITY = 'thinking-level-control-v1';
 export const LOBSTERAI_CLIENT_CAPABILITIES = [

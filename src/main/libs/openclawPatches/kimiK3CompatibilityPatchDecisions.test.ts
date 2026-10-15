@@ -15,7 +15,7 @@ describe('Kimi K3 and model compatibility patch decisions', () => {
     // of the createMoonshotKimiK3Wrapper SDK export, so the extension that serves
     // custom and package K3 models must carry the contract itself.
     const extensionEntry = fs.readFileSync(
-      path.resolve('openclaw-extensions/lobsterai-model-compat/index.ts'),
+      path.resolve('openclaw-extensions/hiai-model-compat/index.ts'),
       'utf8',
     );
     expect(extensionEntry).not.toContain('createMoonshotKimiK3Wrapper');

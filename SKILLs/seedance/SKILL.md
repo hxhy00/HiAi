@@ -1,6 +1,6 @@
 ---
 name: seedance
-description: 使用视频生成工具（lobsterai_video_generate）生成 AI 视频。当用户想生成视频、做文生视频、图生视频、生成音画同步视频、首尾帧过渡或多参考图视频时使用。先用 action=list 查看用户在设置里配置了哪些视频模型，再用 action=generate 提交异步任务。
+description: 使用视频生成工具（hiai_video_generate）生成 AI 视频。当用户想生成视频、做文生视频、图生视频、生成音画同步视频、首尾帧过渡或多参考图视频时使用。先用 action=list 查看用户在设置里配置了哪些视频模型，再用 action=generate 提交异步任务。
 official: true
 version: 2.0.0
 ---

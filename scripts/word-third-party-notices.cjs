@@ -58,9 +58,9 @@ const wasm = fs.readFileSync(path.join(resolveDependency(root, '@docx-editor.dev
 const manifest = { scope: 'Word editor only; not a whole-application license audit',
   packages: [...packages.values()].sort((a, b) => a.name.localeCompare(b.name)),
   fonts: fontSources, wasm: { package: '@docx-editor.dev/core', file: 'dist/harfbuzz.wasm', sha256: hash(wasm) } };
-const preamble = `LobsterAI Word editing — third-party notices
+const preamble = `HiAi Word editing — third-party notices
 
-LobsterAI's own integration code is MIT licensed. Third-party components retain
+HiAi's own integration code is MIT licensed. Third-party components retain
 their original licenses below. No proprietary @docx-editor.dev/pro or editor-api
 package is part of this integration. Only the listed OFL fonts are redistributed;
 the mixed-license @docx-editor.dev/fonts package is not a runtime dependency.
@@ -74,7 +74,7 @@ are redistributed without modification. HarfBuzz WASM notices are included in
 the core package section, including licenses/HarfBuzz-COPYING.txt.
 
 This inventory covers the Word dependency graph and assets, not unrelated
-LobsterAI dependencies. Versions and license materials are verified at build time.
+HiAi dependencies. Versions and license materials are verified at build time.
 `;
 const fontNotices = fontSources.filter(source => source.file.startsWith('OFL-')).map(source =>
   `## ${source.file}\n\n${fs.readFileSync(path.join(fontsRoot, source.file), 'utf8').trim()}`).join('\n\n');

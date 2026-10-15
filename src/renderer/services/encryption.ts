@@ -34,7 +34,7 @@ const getLocalStorage = (): Storage | null => {
     if (typeof globalThis !== 'undefined' && 'localStorage' in globalThis) {
       return globalThis.localStorage;
     }
-  } catch (error) {
+  } catch {
     return null;
   }
   return null;
@@ -47,7 +47,7 @@ const readRawExportKey = (stored: unknown): Uint8Array<ArrayBuffer> | null => {
   if (typeof stored === 'string') {
     try {
       return base64ToBytes(stored);
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -80,7 +80,7 @@ const readExportKeyFromLocalStorage = (): Uint8Array<ArrayBuffer> | null => {
   }
   try {
     return base64ToBytes(stored);
-  } catch (error) {
+  } catch {
     return null;
   }
 };
@@ -92,7 +92,7 @@ const writeExportKeyToLocalStorage = (raw: Uint8Array) => {
   }
   try {
     storage.setItem(CONFIG_KEYS.PROVIDERS_EXPORT_KEY, bytesToBase64(raw));
-  } catch (error) {
+  } catch {
     return;
   }
 };
@@ -222,3 +222,6 @@ export const decryptWithPassword = async (payload: PasswordEncryptedPayload, pas
   const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted);
   return new TextDecoder().decode(decrypted);
 };
+
+// Export files are only ever read back by the same build that wrote them, so a
+// single password is enough; there is no candidate list to try.

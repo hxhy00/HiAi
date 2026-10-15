@@ -21,9 +21,9 @@ Read [references/asset-contract.md](references/asset-contract.md) before the fir
   2. `home.emblem`
 - Aim for about two serial image-generation calls for the completed pack and request one image per attempt by default. This is a soft budget, not a hard quota or a call-to-slot invariant.
 - A status query is not a generation call. If a tool returns a non-terminal task, wait for or query that task to terminal success before continuing.
-- Register each successful asset immediately. Do not start the next generation until `lobsterai_skin_manage` confirms registration.
+- Register each successful asset immediately. Do not start the next generation until `hiai_skin_manage` confirms registration.
 - Additional serial attempts are allowed when generation fails, returns no usable local output, or the current candidate cannot satisfy a required slot. Never run image generations in parallel or switch backend silently.
-- Never write skin files, application configuration, CSS, or databases directly. Only `lobsterai_skin_manage` may register or apply a skin.
+- Never write skin files, application configuration, CSS, or databases directly. Only `hiai_skin_manage` may register or apply a skin.
 - Do not choose or name a LobsterAI color theme. LobsterAI deterministically infers the presentation's preferred light or dark appearance from its validated palette and reuses the existing theme system when the completed skin is applied.
 - Do not create icons, sprite sheets, wallpapers for other views, custom fonts, arbitrary CSS, or layout changes in this MVP.
 - Do not add title-bar assets, title-bar content, home-layout changes, or component-position changes. LobsterAI may apply the validated palette to allow-listed application and conversation title-bar surfaces.
@@ -48,7 +48,7 @@ Do not ask follow-up questions when the request already conveys a recognizable s
 
 ### 2. Create the draft
 
-Call `lobsterai_skin_manage` with:
+Call `hiai_skin_manage` with:
 
 ```json
 {
@@ -86,7 +86,7 @@ Preserve the returned `skinId` for all subsequent calls.
 
 Follow the structured system instruction for this turn:
 
-- LobsterAI route: call `lobsterai_image_generate` with `action="list"`, choose one available image model when no model is already fixed, then keep that model.
+- LobsterAI route: call `hiai_image_generate` with `action="list"`, choose one available image model when no model is already fixed, then keep that model.
 - OpenClaw route: use `image_generate` with `action="list"`, select one ready provider/model, then keep that model.
 - Unavailable route: stop and explain that a supported image provider or LobsterAI media entitlement is required.
 
@@ -98,7 +98,7 @@ Generate exactly one 16:9 or closest supported landscape image. The prompt must 
 
 If the generation returns a pending task:
 
-- for `lobsterai_image_generate`, call `action="status"` once with the task ID; the tool owns adaptive polling;
+- for `hiai_image_generate`, call `action="status"` once with the task ID; the tool owns adaptive polling;
 - for `image_generate`, wait for its completion event and continue from this workflow.
 
 After terminal success, call:
@@ -133,7 +133,7 @@ After terminal success, register it:
 
 ### 6. Validate and apply
 
-Call `lobsterai_skin_manage` with `action="status"` and the draft ID. Apply only when both required slots are registered and ready.
+Call `hiai_skin_manage` with `action="status"` and the draft ID. Apply only when both required slots are registered and ready.
 
 Then call:
 

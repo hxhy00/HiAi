@@ -28,7 +28,7 @@ fs.closeSync = function(fd) {
 export default function register(api) { api.on('before_tool_call', () => {}); }
 `;
 // The exact helper written by the previous release, retained as an upgrade fixture.
-const nativeRequireV1 = `// LobsterAI: nsp-clawguard 2.5.0 native require compatibility v1.
+const nativeRequireV1 = `// HiAi: nsp-clawguard 2.5.0 native require compatibility v1.
 import { createRequire as __lobsteraiNspCreateRequire } from 'node:module';
 var __require = __lobsteraiNspCreateRequire(import.meta.url);`;
 const legacyRequire = pluginSource.slice(0, pluginSource.indexOf('\nconst fs'));

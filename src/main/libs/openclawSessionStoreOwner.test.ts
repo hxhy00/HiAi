@@ -55,7 +55,7 @@ describe('OpenClaw session store compatibility ownership', () => {
     expect(() => withRequiredOpenClawSessionStoreOwner({}, { stateDir })).toThrow('access denied');
   });
 
-  test('pins the existing LobsterAI main owner for a fixed store without an explicit owner', () => {
+  test('pins the existing HiAi main owner for a fixed store without an explicit owner', () => {
     const config = { session: { store: '/state/shared.sqlite' }, agents: { entries: { main: {}, worker: {} } } };
     const resolved = withRequiredOpenClawSessionStoreOwner(config);
     expect(resolved).toMatchObject({ agents: { defaults: { sessionStore: { agentId: AgentId.Main } } } });

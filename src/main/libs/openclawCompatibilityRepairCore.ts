@@ -248,7 +248,7 @@ async function repairPlugins(options: CompatibilityRepairOptions, report: OpenCl
       throw new Error(`Bundled plugin identity/version mismatch: ${plugin.id}`);
     }
     await owners.validatePlugin(plugin.id, plugin.root);
-    // Reconcile to the exact payload already selected by LobsterAI config.
+    // Reconcile to the exact payload already selected by HiAi config.
     // This is a local path install, not a fabricated npm download receipt.
     records[plugin.id] = {
       source: OpenClawRepairPluginSource.Path, sourcePath: plugin.root, installPath: plugin.root,

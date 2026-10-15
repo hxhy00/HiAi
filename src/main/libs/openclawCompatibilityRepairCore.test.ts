@@ -197,11 +197,11 @@ function migratedPluginFixture(linkedAncestor = false) {
     fs.symlinkSync(path.join(base, 'relocated'), path.join(base, 'profiles'), 'junction');
     base = path.join(base, 'profiles');
   }
-  context.options.stateDir = path.join(base, 'admin', 'LobsterAI', 'openclaw', 'state');
+  context.options.stateDir = path.join(base, 'admin', 'HiAi', 'openclaw', 'state');
   fs.mkdirSync(context.options.stateDir, { recursive: true });
   context.options.configPath = path.join(context.options.stateDir, 'openclaw.json');
   fs.writeFileSync(context.options.configPath, '{}');
-  context.records.deepseek.installPath = path.join(base, 'old-user', 'LobsterAI', 'openclaw', 'state',
+  context.records.deepseek.installPath = path.join(base, 'old-user', 'HiAi', 'openclaw', 'state',
     'npm', 'projects', 'openclaw-deepseek-123', 'node_modules', '@openclaw', 'deepseek-provider');
   return context;
 }

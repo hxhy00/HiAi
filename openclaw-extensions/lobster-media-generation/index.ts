@@ -54,9 +54,9 @@ const VIDEO_STATUS_POLL_POLICY: MediaStatusPollPolicy = {
 };
 
 const MediaToolName = {
-  ImageGenerate: 'lobsterai_image_generate',
-  VideoGenerate: 'lobsterai_video_generate',
-  SkinManage: 'lobsterai_skin_manage',
+  ImageGenerate: 'hiai_image_generate',
+  VideoGenerate: 'hiai_video_generate',
+  SkinManage: 'hiai_skin_manage',
 } as const;
 
 const MediaToolAction = {
@@ -522,7 +522,7 @@ const plugin = {
       };
     });
 
-    api.logger.info('[lobster-media-generation] registered lobsterai_image_generate, lobsterai_video_generate, and lobsterai_skin_manage tools.');
+    api.logger.info('[lobster-media-generation] registered hiai_image_generate, hiai_video_generate, and hiai_skin_manage tools.');
   },
 };
 
