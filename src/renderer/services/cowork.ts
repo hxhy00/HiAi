@@ -100,7 +100,7 @@ import {
 } from './coworkSessionRefreshPolicy';
 import { i18nService } from './i18n';
 import { restoreNativeQuestionPermissions } from './nativeQuestionRecovery';
-import { reportOnboardingAction } from './onboardingAnalytics';
+
 import { isConfigApplyPendingStatus, resolveEngineNotReadyMessage } from './openclawEngineStatus';
 import { resolveOpenClawRepairHistoryWarning } from './openclawRepair';
 
@@ -854,10 +854,6 @@ class CoworkService {
       'debug',
       `starting new user welcome task stream animation; session=${session.id}; chars=${characters.length}.`,
     );
-    reportOnboardingAction('welcome_stream_start', {
-      source: 'new_user_welcome_task',
-      charCount: characters.length,
-    });
 
     this.newUserWelcomeAnimationTimer = setInterval(() => {
       visibleCount = Math.min(
@@ -882,10 +878,6 @@ class CoworkService {
           'debug',
           `completed new user welcome task stream animation; session=${session.id}.`,
         );
-        reportOnboardingAction('welcome_stream_complete', {
-          source: 'new_user_welcome_task',
-          charCount: characters.length,
-        });
       }
     }, NEW_USER_WELCOME_STREAM_INTERVAL_MS);
   }

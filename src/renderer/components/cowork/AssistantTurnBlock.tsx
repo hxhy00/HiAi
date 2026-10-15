@@ -25,7 +25,6 @@ import ActivityGroupBlock from './ActivityGroupBlock';
 import { ActivityStepLine } from './ActivityStepLine';
 import AssistantMessageItem from './AssistantMessageItem';
 import { ActivityEntryVariant } from './constants';
-import { reportConversationBlockAction } from './conversationAnalytics';
 import MediaPollingIndicator from './MediaPollingIndicator';
 import { MessageCopyButton } from './MessageActionButton';
 import {
@@ -35,8 +34,6 @@ import {
   type ConsolidatedItem,
   consolidateMediaPolling,
   type ConversationTurn,
-  countTurnCompletedSteps,
-  countTurnFailedSteps,
   COWORK_DETAIL_CONTENT_CLASS,
   COWORK_DETAIL_GUTTER_CLASS,
   formatElapsedDuration,
@@ -844,11 +841,7 @@ const AssistantTurnBlock: React.FC<{
   const processBaseLabel = processDurationMs != null && processDurationMs >= 1000
     ? i18nService.t('coworkTurnProcessDuration').replace('{duration}', formatTurnDuration(processDurationMs))
     : i18nService.t('coworkTurnProcess');
-  // The folded line is just the duration. Step and failure counts only feed
-  // analytics: a turn that reached an answer worked around any failed step
-  // on its own, and the expanded rows still mark each one.
-  const processStepCount = countTurnCompletedSteps(turn);
-  const failedStepCount = countTurnFailedSteps(turn);
+  // The folded line is just the duration.
   const processLabel = processBaseLabel;
   // What the running step is doing right now, for the status line: the last
   // work item while it is still live; null in the silent gaps between steps.
@@ -858,16 +851,6 @@ const AssistantTurnBlock: React.FC<{
 
   const handleProcessToggle = () => {
     const nextExpanded = !isProcessExpanded;
-    reportConversationBlockAction({
-      actionType: nextExpanded ? 'turn_process_expand' : 'turn_process_collapse',
-      blockType: 'turn_process',
-      params: {
-        processChunkCount: processChunks.length,
-        stepCount: processStepCount,
-        failedStepCount,
-        durationMs: processDurationMs ?? undefined,
-      },
-    });
     setProcessExpanded(nextExpanded);
   };
 

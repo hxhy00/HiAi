@@ -3,13 +3,11 @@ import React, { useMemo, useState } from 'react';
 
 import { i18nService } from '../../services/i18n';
 import { ActivityStepLine } from './ActivityStepLine';
-import { bucketCount, reportConversationBlockAction } from './conversationAnalytics';
 import {
   type ActivityChunkEntry,
   type ConsolidatedItem,
   getActivityGroupHeaderLabel,
   getActivityGroupStepKind,
-  getActivityGroupSummary,
   getConsolidatedItemKey,
   getLiveActivityWindow,
   isActivityItemLive,
@@ -67,7 +65,6 @@ const ActivityGroupBlock: React.FC<{
   const folded = useMemo(() => (isFolded ? entries : []), [entries, isFolded]);
   const visible = isFolded ? [] : entries;
   const foldedItems = useMemo(() => folded.map((entry) => entry.item), [folded]);
-  const summary = useMemo(() => getActivityGroupSummary(foldedItems), [foldedItems]);
   const diffStats = useMemo(() => getActivityGroupDiffStats(foldedItems), [foldedItems]);
 
   const lastEntry = entries[entries.length - 1];
@@ -86,16 +83,6 @@ const ActivityGroupBlock: React.FC<{
 
   const handleToggle = () => {
     const nextExpanded = !isExpanded;
-    reportConversationBlockAction({
-      actionType: nextExpanded ? 'activity_group_expand' : 'activity_group_collapse',
-      blockType: 'activity_group',
-      params: {
-        stepCount: summary.stepCount,
-        stepCountBucket: bucketCount(summary.stepCount),
-        itemCount: folded.length,
-        isStreaming: isLiveRun,
-      },
-    });
     setIsExpanded(nextExpanded);
   };
 
@@ -103,16 +90,6 @@ const ActivityGroupBlock: React.FC<{
     const { earlier, earlierStepCount, recent } = liveWindow;
     const handleEarlierToggle = () => {
       const nextExpanded = !isEarlierExpanded;
-      reportConversationBlockAction({
-        actionType: nextExpanded ? 'activity_earlier_expand' : 'activity_earlier_collapse',
-        blockType: 'activity_group',
-        params: {
-          stepCount: earlierStepCount,
-          stepCountBucket: bucketCount(earlierStepCount),
-          itemCount: earlier.length,
-          isStreaming: true,
-        },
-      });
       setIsEarlierExpanded(nextExpanded);
     };
     const earlierLabelKey = isEarlierExpanded

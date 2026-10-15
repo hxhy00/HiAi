@@ -5,7 +5,7 @@ import { i18nService } from '@/services/i18n';
 import { openArtifactPreviewTab, selectSelectedArtifact } from '@/store/slices/artifactSlice';
 import type { Artifact, ArtifactType } from '@/types/artifact';
 
-import { reportArtifactPreviewAction } from './artifactAnalytics';
+
 
 const t = (key: string) => i18nService.t(key);
 
@@ -32,15 +32,6 @@ const ArtifactBadge: React.FC<ArtifactBadgeProps> = ({ artifact }) => {
   const isSelected = selected?.id === artifact.id;
 
   const handleClick = () => {
-    reportArtifactPreviewAction({
-      actionType: 'badge_open',
-      source: 'conversation_artifact_card',
-      artifact,
-      params: {
-        openTarget: 'preview_panel',
-        wasSelected: isSelected,
-      },
-    });
     dispatch(openArtifactPreviewTab({ sessionId: artifact.sessionId, artifactId: artifact.id }));
   };
 

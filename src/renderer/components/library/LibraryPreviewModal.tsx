@@ -25,10 +25,7 @@ import type {
 import { loadDetectedFileArtifact } from '../../services/artifactDetection';
 import { i18nService } from '../../services/i18n';
 import type { Artifact } from '../../types/artifact';
-import {
-  ArtifactPreviewActionSource,
-  ArtifactPublishEntryPoint,
-} from '../artifacts/artifactAnalytics';
+
 import {
   ArtifactFileShareProvider,
   useOptionalArtifactFileShare,
@@ -52,7 +49,7 @@ import FileTypeIcon from '../icons/fileTypes/FileTypeIcon';
 import ShareUploadIcon from '../icons/ShareUploadIcon';
 import Tooltip, { TooltipAlign, TooltipPosition } from '../ui/Tooltip';
 import { LIBRARY_ACTION_MENU_WIDTH_PX } from './libraryActionMenuPresentation';
-import { LibraryAnalyticsSurface } from './libraryAnalytics';
+
 import {
   createLibraryArtifactCandidate,
   getLibraryPreviewContentKey,
@@ -71,7 +68,6 @@ import {
 
 interface LibraryPreviewModalProps {
   item: LibraryItem;
-  analyticsPageViewId: string;
   detail: LibraryLocalDetailData | null;
   detailLoading: boolean;
   onClose: () => void;
@@ -180,7 +176,6 @@ const PreviewHeaderAction: React.FC<PreviewHeaderActionProps> = ({
 
 const LibraryPreviewModalContent: React.FC<LibraryPreviewModalProps> = ({
   item,
-  analyticsPageViewId,
   detail,
   detailLoading,
   onClose,
@@ -254,12 +249,7 @@ const LibraryPreviewModalContent: React.FC<LibraryPreviewModalProps> = ({
 
   const handleShare = (): void => {
     if (!artifact || !artifactFileShare || !canShare) return;
-    void artifactFileShare.openShare(artifact, {
-      source: ArtifactPreviewActionSource.LibraryPreview,
-      entryPoint: ArtifactPublishEntryPoint.LibraryToolbar,
-      surface: LibraryAnalyticsSurface.MyFiles,
-      pageViewId: analyticsPageViewId,
-    });
+    void artifactFileShare.openShare(artifact, {});
   };
 
   const runAction = (action: LibraryItemActionValue): void => {

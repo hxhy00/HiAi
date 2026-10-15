@@ -131,7 +131,6 @@ import {
   UserAttachmentPanelContent,
   type UserAttachmentPreviewPayload,
 } from '../artifacts';
-import { reportArtifactPreviewAction } from '../artifacts/artifactAnalytics';
 import { ArtifactFileShareProvider } from '../artifacts/ArtifactFileShareController';
 import {
   ArtifactAutoPreviewOpenTarget,
@@ -151,12 +150,6 @@ import AssistantTurnBlock, { ContextCompactionDivider } from './AssistantTurnBlo
 import type { BrowserAnnotationAttachmentOpenPayload } from './BrowserAnnotationMessageAttachments';
 import { type CoworkOpenShareOptionsEventDetail, CoworkUiEvent } from './constants';
 import ContextUsageIndicator from './ContextUsageIndicator';
-import {
-  bucketCount,
-  bucketDistance,
-  bucketLength,
-  reportConversationNavigationAction,
-} from './conversationAnalytics';
 import {
   canScrollElementInWheelDirection,
   isAtConversationSessionBottom,
@@ -1725,18 +1718,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
   const [isExportingText, setIsExportingText] = useState(false);
   const [showExportOptions, setShowExportOptions] = useState(false);
 
-  const getConversationControlAnalyticsParams = useCallback(() => ({
-    sessionMessageCountBucket: bucketCount(currentSession?.messages.length ?? 0),
-    totalMessageCountBucket: bucketCount(currentSession?.totalMessages ?? currentSession?.messages.length ?? 0),
-    isStreaming,
-    isSessionBusy,
-  }), [
-    currentSession?.messages.length,
-    currentSession?.totalMessages,
-    isSessionBusy,
-    isStreaming,
-  ]);
-
   useEffect(() => {
     userDetachedFromBottomRef.current = false;
     isLoadingNewerMessagesRef.current = false;
@@ -1754,24 +1735,10 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     }
     if (isContextBusy) {
       console.debug('[CoworkSessionDetail] manual context compaction was ignored because compaction is already running.');
-      reportConversationNavigationAction({
-        actionType: 'context_compact_blocked',
-        params: {
-          ...getConversationControlAnalyticsParams(),
-          reason: 'context_busy',
-        },
-      });
       return;
     }
     if (isSessionBusy || currentSession.status === CoworkSessionStatusValue.Running) {
       console.debug('[CoworkSessionDetail] manual context compaction was ignored because the session is still running.');
-      reportConversationNavigationAction({
-        actionType: 'context_compact_blocked',
-        params: {
-          ...getConversationControlAnalyticsParams(),
-          reason: 'session_running',
-        },
-      });
       window.dispatchEvent(new CustomEvent('app:showToast', {
         detail: i18nService.t('coworkContextCompactBlockedRunning'),
       }));
@@ -1780,31 +1747,19 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     console.debug('[CoworkSessionDetail] manual context compaction confirmation toggled.');
     setShowCompactConfirm(prev => {
       const targetOpen = !prev;
-      reportConversationNavigationAction({
-        actionType: targetOpen ? 'context_compact_confirm_open' : 'context_compact_confirm_close',
-        params: {
-          ...getConversationControlAnalyticsParams(),
-          targetOpen,
-        },
-      });
       return targetOpen;
     });
   }, [
     currentSession?.id,
     currentSession?.status,
-    getConversationControlAnalyticsParams,
     isContextBusy,
     isSessionBusy,
   ]);
 
   const handleCancelCompactContext = useCallback(() => {
     console.debug('[CoworkSessionDetail] manual context compaction was canceled by the user.');
-    reportConversationNavigationAction({
-      actionType: 'context_compact_cancel',
-      params: getConversationControlAnalyticsParams(),
-    });
     setShowCompactConfirm(false);
-  }, [getConversationControlAnalyticsParams]);
+  }, []);
 
   const handleConfirmCompactContext = useCallback(() => {
     if (!currentSession?.id) {
@@ -1813,13 +1768,9 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
       return;
     }
     console.log(`[CoworkSessionDetail] manual context compaction confirmed for session ${currentSession.id}.`);
-    reportConversationNavigationAction({
-      actionType: 'context_compact_confirm',
-      params: getConversationControlAnalyticsParams(),
-    });
     setShowCompactConfirm(false);
     void coworkService.compactContext(currentSession.id);
-  }, [currentSession?.id, getConversationControlAnalyticsParams]);
+  }, [currentSession?.id]);
 
   const handleForkMessage = useCallback((messageId: string) => {
     if (!currentSession?.id) {
@@ -1916,16 +1867,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
       || 'unknown source';
     const result = normalizeCoworkSelectedTextSnippets([...selectedDraftSnippets, snippet]);
     if (result.success === false) {
-      reportConversationNavigationAction({
-        actionType: 'selected_text_add_blocked',
-        params: {
-          ...getConversationControlAnalyticsParams(),
-          sourceType,
-          selectedTextLengthBucket: bucketLength(snippet.text.length),
-          selectedSnippetCount: selectedDraftSnippets.length,
-          errorCode: result.error,
-        },
-      });
       logDetailDiagnostic(
         `rejected a selected text excerpt for session ${currentSession.id}; `
         + `source type is ${sourceType}, source is ${sourceLabel}, and reason is ${result.error}`,
@@ -1936,23 +1877,13 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
       return;
     }
     dispatch(addDraftSelectedTextSnippet({ draftKey: currentSession.id, snippet }));
-    reportConversationNavigationAction({
-      actionType: 'selected_text_add_to_prompt',
-      params: {
-        ...getConversationControlAnalyticsParams(),
-        sourceType,
-        selectedTextLengthBucket: bucketLength(snippet.text.length),
-        selectedSnippetCount: result.snippets.length,
-        selectedTextTotalLengthBucket: bucketLength(result.snippets.reduce((total, item) => total + item.text.length, 0)),
-      },
-    });
     logDetailDiagnostic(
       `added a selected text excerpt to the draft for session ${currentSession.id}; `
       + `source type is ${sourceType}, source is ${sourceLabel}; `
       + `${result.snippets.length} excerpts now contain ${result.snippets.reduce((total, item) => total + item.text.length, 0)} characters`,
     );
     promptInputRef.current?.focus();
-  }, [currentSession?.id, dispatch, getConversationControlAnalyticsParams, selectedDraftSnippets]);
+  }, [currentSession?.id, dispatch, selectedDraftSnippets]);
 
   const handleAddSelectedText = useCallback(() => {
     if (!selectedTextAction) return;
@@ -2003,19 +1934,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
       sessionId,
       selectedTextSnippets: normalized.snippets,
     }));
-    reportConversationNavigationAction({
-      actionType: 'selected_text_open_side_chat',
-      params: {
-        ...getConversationControlAnalyticsParams(),
-        sourceType: CoworkSelectedTextSource.AssistantMessage,
-        selectedTextLengthBucket: bucketLength(selectedTextSnippet.text.length),
-        selectedSnippetCount: normalized.snippets.length,
-        selectedTextTotalLengthBucket: bucketLength(normalized.snippets.reduce(
-          (total, snippet) => total + snippet.text.length,
-          0,
-        )),
-      },
-    });
     logDetailDiagnostic(
       `opened side chat from selected assistant text for session ${sessionId}; `
       + `source is ${sourceMessageId}; mode=${shouldAppendToOpenThread ? 'append' : 'replace'}; `
@@ -2028,7 +1946,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     closeSelectedTextAction,
     currentSession?.id,
     dispatch,
-    getConversationControlAnalyticsParams,
     selectedTextAction,
   ]);
 
@@ -2081,31 +1998,17 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
       container?.querySelectorAll<HTMLElement>('[data-cowork-assistant-message-id]') ?? [],
     ).find(candidate => candidate.dataset.coworkAssistantMessageId === sourceMessageId);
     if (!element) {
-      reportConversationNavigationAction({
-        actionType: 'selected_text_locate_source',
-        params: {
-          ...getConversationControlAnalyticsParams(),
-          result: 'failed',
-        },
-      });
       window.dispatchEvent(new CustomEvent('app:showToast', {
         detail: i18nService.t('coworkSelectedTextSourceUnavailable'),
       }));
       return;
     }
-    reportConversationNavigationAction({
-      actionType: 'selected_text_locate_source',
-      params: {
-        ...getConversationControlAnalyticsParams(),
-        result: 'success',
-      },
-    });
     element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     element.classList.add('ring-2', 'ring-primary/50', 'rounded-lg');
     window.setTimeout(() => {
       element.classList.remove('ring-2', 'ring-primary/50', 'rounded-lg');
     }, 1600);
-  }, [getConversationControlAnalyticsParams]);
+  }, []);
 
   // ─── Artifact detection ─────────────────────────────────────────────
   const isPanelOpen = useSelector((state: RootState) => selectIsPanelOpen(state, sessionId));
@@ -2762,14 +2665,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
   }, [clearBrowserHtmlPreviewState, sessionId]);
 
   const handleOpenArtifactFileListTab = useCallback(() => {
-    reportArtifactPreviewAction({
-      actionType: 'panel_tab_open',
-      source: 'artifact_panel',
-      params: {
-        tabType: 'file_list',
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     setSessionFileListPreviewTabOpen(true);
     setSessionActiveSpecialPreviewTab(ArtifactSpecialTab.FileList);
     if (sessionId) {
@@ -2779,28 +2674,12 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
 
   const handleActivateArtifactFileListTab = useCallback(() => {
     if (!sessionId) return;
-    reportArtifactPreviewAction({
-      actionType: 'panel_tab_switch',
-      source: 'artifact_panel',
-      params: {
-        tabType: 'file_list',
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     setSessionFileListPreviewTabOpen(true);
     setSessionActiveSpecialPreviewTab(ArtifactSpecialTab.FileList);
     dispatch(activateArtifactFileListTab({ sessionId }));
   }, [artifactTabsWithArtifacts.length, dispatch, sessionId, setSessionActiveSpecialPreviewTab, setSessionFileListPreviewTabOpen]);
 
   const handleOpenArtifactBrowserTab = useCallback(() => {
-    reportArtifactPreviewAction({
-      actionType: 'panel_tab_open',
-      source: 'artifact_panel',
-      params: {
-        tabType: 'browser',
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     setShowArtifactAddMenu(false);
     if (!sessionId) return;
     setSessionBrowserPreviewTabOpen(true);
@@ -2809,14 +2688,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
   }, [artifactTabsWithArtifacts.length, dispatch, sessionId, setSessionActiveSpecialPreviewTab, setSessionBrowserPreviewTabOpen]);
 
   const handleOpenArtifactSubagentTab = useCallback(() => {
-    reportArtifactPreviewAction({
-      actionType: 'panel_tab_open',
-      source: 'artifact_panel',
-      params: {
-        tabType: 'subagents',
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     setShowArtifactAddMenu(false);
     setSelectedSubagent(null);
     if (!sessionId) return;
@@ -2881,14 +2752,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
   const handleToggleArtifactPanelExpanded = useCallback(() => {
     setIsArtifactPanelExpanded(value => {
       const nextValue = !value;
-      reportArtifactPreviewAction({
-        actionType: 'panel_expand_toggle',
-        source: 'artifact_panel',
-        params: {
-          targetExpanded: nextValue,
-          tabCount: artifactTabsWithArtifacts.length,
-        },
-      });
       if (!nextValue) {
         setIsExpandedPromptInputHidden(false);
         setIsExpandedConversationPreviewOpen(false);
@@ -2909,14 +2772,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
 
   const handleOpenHtmlFileInBrowser = useCallback(async (artifact: Artifact) => {
     if (!sessionId || artifact.type !== ArtifactTypeValue.Html || !artifact.filePath) return;
-    reportArtifactPreviewAction({
-      actionType: 'open_lobster_browser',
-      source: 'artifact_panel',
-      artifact,
-      params: {
-        openTarget: 'lobster_browser',
-      },
-    });
 
     setShowArtifactAddMenu(false);
     setSessionBrowserPreviewTabOpen(true);
@@ -2951,14 +2806,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
       handleBrowserPreviewAddressChange(artifact.filePath);
       handleBrowserPreviewUrlChange(result.url);
       handleBrowserPreviewTitleChange('');
-      reportArtifactPreviewAction({
-        actionType: 'browser_preview_session_create',
-        source: 'artifact_panel',
-        artifact,
-        params: {
-          result: 'success',
-        },
-      });
     } catch (error) {
       if (!previousPreviewSessionId) {
         clearBrowserHtmlPreviewState(sessionId);
@@ -2966,14 +2813,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
       window.dispatchEvent(new CustomEvent('app:showToast', {
         detail: error instanceof Error ? error.message : i18nService.t('artifactSourceLoadFailed'),
       }));
-      reportArtifactPreviewAction({
-        actionType: 'browser_preview_session_create',
-        source: 'artifact_panel',
-        artifact,
-        params: {
-          result: 'failed',
-        },
-      });
     }
   }, [
     clearBrowserHtmlPreviewState,
@@ -2993,14 +2832,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     if (!url) return;
     const origin = artifact.localService?.origin || normalizeLocalServiceOrigin(url);
     const projectDirectory = artifact.localService?.projectDirectory?.trim();
-    reportArtifactPreviewAction({
-      actionType: 'open_local_service',
-      source: 'artifact_panel',
-      artifact,
-      params: {
-        openTarget: 'lobster_browser',
-      },
-    });
     handleOpenArtifactBrowserTab();
     setSessionBrowserLocalServiceContext({
       artifactId: artifact.id,
@@ -3064,15 +2895,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
 
   const handleCloseArtifactFileListTab = useCallback(() => {
     const wasActive = !activeArtifactPreviewTab && activeSpecialPreviewTab === ArtifactSpecialTab.FileList;
-    reportArtifactPreviewAction({
-      actionType: 'panel_tab_close',
-      source: 'artifact_panel',
-      params: {
-        tabType: 'file_list',
-        wasActive,
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     setSessionFileListPreviewTabOpen(false);
     if (!sessionId) {
       dispatch(closePanel(undefined));
@@ -3128,14 +2950,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
 
   const handleActivateArtifactBrowserTab = useCallback(() => {
     if (!sessionId) return;
-    reportArtifactPreviewAction({
-      actionType: 'panel_tab_switch',
-      source: 'artifact_panel',
-      params: {
-        tabType: 'browser',
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     setSessionBrowserPreviewTabOpen(true);
     setSessionActiveSpecialPreviewTab(ArtifactSpecialTab.Browser);
     dispatch(activateArtifactBrowserTab({ sessionId }));
@@ -3143,14 +2957,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
 
   const handleActivateArtifactAgentBrowserTab = useCallback(() => {
     if (!sessionId) return;
-    reportArtifactPreviewAction({
-      actionType: 'panel_tab_switch',
-      source: 'artifact_panel',
-      params: {
-        tabType: 'agent_browser',
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     setSessionAgentBrowserPreviewTabOpen(true);
     setSessionAgentBrowserUnread(false);
     setSessionActiveSpecialPreviewTab(ArtifactSpecialTab.AgentBrowser);
@@ -3166,14 +2972,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
 
   const handleActivateArtifactSubagentTab = useCallback(() => {
     if (!sessionId) return;
-    reportArtifactPreviewAction({
-      actionType: 'panel_tab_switch',
-      source: 'artifact_panel',
-      params: {
-        tabType: 'subagents',
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     setSessionSubagentPreviewTabOpen(true);
     setSessionActiveSpecialPreviewTab(ArtifactSpecialTab.Subagents);
     dispatch(activateArtifactSubagentTab({ sessionId }));
@@ -3190,15 +2988,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
 
   const handleCloseArtifactBrowserTab = useCallback(() => {
     const wasActive = !activeArtifactPreviewTab && activeSpecialPreviewTab === ArtifactSpecialTab.Browser;
-    reportArtifactPreviewAction({
-      actionType: 'panel_tab_close',
-      source: 'artifact_panel',
-      params: {
-        tabType: 'browser',
-        wasActive,
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     setSessionBrowserPreviewTabOpen(false);
     clearBrowserPreviewState();
     if (!sessionId) {
@@ -3257,15 +3046,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
   const handleCloseArtifactAgentBrowserTab = useCallback(() => {
     const wasActive = !activeArtifactPreviewTab
       && activeSpecialPreviewTab === ArtifactSpecialTab.AgentBrowser;
-    reportArtifactPreviewAction({
-      actionType: 'panel_tab_close',
-      source: 'artifact_panel',
-      params: {
-        tabType: 'agent_browser',
-        wasActive,
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     setSessionAgentBrowserPreviewTabOpen(false);
     setSessionAgentBrowserUnread(false);
     if (!sessionId) {
@@ -3317,15 +3097,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
 
   const handleCloseArtifactSubagentTab = useCallback(() => {
     const wasActive = !activeArtifactPreviewTab && activeSpecialPreviewTab === ArtifactSpecialTab.Subagents;
-    reportArtifactPreviewAction({
-      actionType: 'panel_tab_close',
-      source: 'artifact_panel',
-      params: {
-        tabType: 'subagents',
-        wasActive,
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     setSessionSubagentPreviewTabOpen(false);
     setSelectedSubagent(null);
     if (!sessionId) {
@@ -3382,14 +3153,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
 
   const handleActivateArtifactUserAttachmentTab = useCallback(() => {
     if (!sessionId) return;
-    reportArtifactPreviewAction({
-      actionType: 'panel_tab_switch',
-      source: 'artifact_panel',
-      params: {
-        tabType: 'user_attachment',
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     setSessionUserAttachmentPreviewTabOpen(true);
     setSessionActiveSpecialPreviewTab(ArtifactSpecialTab.UserAttachment);
     dispatch(activateArtifactUserAttachmentTab({ sessionId }));
@@ -3397,15 +3160,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
 
   const handleCloseArtifactUserAttachmentTab = useCallback(() => {
     const wasActive = !activeArtifactPreviewTab && activeSpecialPreviewTab === ArtifactSpecialTab.UserAttachment;
-    reportArtifactPreviewAction({
-      actionType: 'panel_tab_close',
-      source: 'artifact_panel',
-      params: {
-        tabType: 'user_attachment',
-        wasActive,
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     setSessionUserAttachmentPreviewTabOpen(false);
     if (!sessionId) {
       dispatch(closePanel(undefined));
@@ -3491,32 +3245,12 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
 
   const handleActivateArtifactTab = useCallback((tabId: string) => {
     if (!sessionId) return;
-    const artifact = artifactTabsWithArtifacts.find(item => item.tab.id === tabId)?.artifact;
-    reportArtifactPreviewAction({
-      actionType: 'panel_tab_switch',
-      source: 'artifact_panel',
-      artifact,
-      params: {
-        tabType: 'artifact',
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     dispatch(activateArtifactPreviewTab({ sessionId, tabId }));
-  }, [artifactTabsWithArtifacts, dispatch, sessionId]);
+  }, [dispatch, sessionId]);
 
   const handleCloseArtifactTab = useCallback((tabId: string) => {
     if (!sessionId) return;
-    const artifact = artifactTabsWithArtifacts.find(item => item.tab.id === tabId)?.artifact;
     const remainingTabs = artifactTabsWithArtifacts.filter(({ tab }) => tab.id !== tabId);
-    reportArtifactPreviewAction({
-      actionType: 'panel_tab_close',
-      source: 'artifact_panel',
-      artifact,
-      params: {
-        tabType: 'artifact',
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     dispatch(closeArtifactPreviewTab({ sessionId, tabId }));
     if (
       remainingTabs.length === 0
@@ -3538,14 +3272,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
   ]);
 
   const handleToggleArtifactPanel = useCallback(() => {
-    reportArtifactPreviewAction({
-      actionType: 'panel_toggle',
-      source: 'artifact_panel',
-      params: {
-        targetOpen: !isPanelOpen,
-        tabCount: artifactTabsWithArtifacts.length,
-      },
-    });
     if (isPanelOpen) {
       setShowArtifactAddMenu(false);
       if (sessionId && autoPreviewPendingTurnId) {
@@ -3606,14 +3332,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
   const handleToggleArtifactAddMenu = useCallback(() => {
     setShowArtifactAddMenu(open => {
       const nextOpen = !open;
-      reportArtifactPreviewAction({
-        actionType: 'panel_add_menu_toggle',
-        source: 'artifact_panel',
-        params: {
-          targetOpen: nextOpen,
-          tabCount: artifactTabsWithArtifacts.length,
-        },
-      });
       return nextOpen;
     });
   }, [artifactTabsWithArtifacts.length]);
@@ -3985,10 +3703,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     const handleOpenShareOptions = (event: Event) => {
       const detail = (event as CustomEvent<CoworkOpenShareOptionsEventDetail>).detail;
       if (!detail?.sessionId || detail.sessionId !== currentSession?.id) return;
-      reportConversationNavigationAction({
-        actionType: 'export_options_open',
-        params: getConversationControlAnalyticsParams(),
-      });
       setShowExportOptions(true);
     };
 
@@ -3996,7 +3710,7 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     return () => {
       window.removeEventListener(CoworkUiEvent.OpenShareOptions, handleOpenShareOptions);
     };
-  }, [currentSession?.id, getConversationControlAnalyticsParams]);
+  }, [currentSession?.id]);
 
   useEffect(() => {
     if (!currentSession?.id || messageRailIndex.length > 0) return;
@@ -4078,13 +3792,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
   const handleExportText = useCallback(async (format: CoworkTextExportFormatValue) => {
     if (!currentSession || isExportingText) return;
     setIsExportingText(true);
-    reportConversationNavigationAction({
-      actionType: 'export_text_submit',
-      params: {
-        ...getConversationControlAnalyticsParams(),
-        exportFormat: format,
-      },
-    });
     const timestamp = new Date().toISOString().slice(0, 10);
     const fileName = sanitizeExportFileName(`${currentSession.title}-${timestamp}.${format}`);
     try {
@@ -4098,36 +3805,11 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
         fileExtension: format,
       });
       if (result.success && !result.canceled) {
-        reportConversationNavigationAction({
-          actionType: 'export_text_result',
-          params: {
-            ...getConversationControlAnalyticsParams(),
-            exportFormat: format,
-            result: 'success',
-          },
-        });
         showExportedFileToast(i18nService.t('coworkExportTextSuccess'), result.path);
-      } else if (result.canceled) {
-        reportConversationNavigationAction({
-          actionType: 'export_text_result',
-          params: {
-            ...getConversationControlAnalyticsParams(),
-            exportFormat: format,
-            result: 'cancelled',
-          },
-        });
       } else if (!result.success) {
         throw new Error(result.error || 'Export failed');
       }
     } catch (error) {
-      reportConversationNavigationAction({
-        actionType: 'export_text_result',
-        params: {
-          ...getConversationControlAnalyticsParams(),
-          exportFormat: format,
-          result: 'failed',
-        },
-      });
       console.error('Failed to export session text:', error);
       window.dispatchEvent(new CustomEvent('app:showToast', {
         detail: i18nService.t('coworkExportTextFailed'),
@@ -4135,24 +3817,12 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     } finally {
       setIsExportingText(false);
     }
-  }, [currentSession, getConversationControlAnalyticsParams, isExportingText, loadTextExportMessages]);
+  }, [currentSession, isExportingText, loadTextExportMessages]);
 
   const handleExportDiagnostics = useCallback(async () => {
     if (!currentSession?.id) return;
-    reportConversationNavigationAction({
-      actionType: 'export_diagnostics_submit',
-      params: getConversationControlAnalyticsParams(),
-    });
 
     const result = await coworkService.exportSessionDiagnostics({ sessionId: currentSession.id });
-    const outcome = result.canceled ? 'cancelled' : result.success ? 'success' : 'failed';
-    reportConversationNavigationAction({
-      actionType: 'export_diagnostics_result',
-      params: {
-        ...getConversationControlAnalyticsParams(),
-        result: outcome,
-      },
-    });
     if (result.canceled) return;
 
     if (result.success) {
@@ -4160,7 +3830,7 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     } else {
       showToast(result.error || i18nService.t('coworkExportDiagnosticsFailed'));
     }
-  }, [currentSession?.id, getConversationControlAnalyticsParams]);
+  }, [currentSession?.id]);
 
   const handleCancelExportImage = useCallback(() => {
     exportImageAbortRef.current = true;
@@ -4184,10 +3854,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     isExportingImageRef.current = true;
     exportImageAbortRef.current = false;
     setExportImageProgress({ phase: 'loading' });
-    reportConversationNavigationAction({
-      actionType: 'export_image_submit',
-      params: getConversationControlAnalyticsParams(),
-    });
 
     void (async () => {
       try {
@@ -4399,26 +4065,12 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
             defaultFileName: sanitizeExportFileName(`${sessionTitle}-${timestamp}.png`),
           });
           if (saveResult.success && !saveResult.canceled) {
-            reportConversationNavigationAction({
-              actionType: 'export_image_result',
-              params: {
-                ...getConversationControlAnalyticsParams(),
-                result: 'success',
-              },
-            });
             showExportedFileToast(i18nService.t('coworkExportImageSuccess'), saveResult.path);
             return;
           }
           if (!saveResult.success) {
             throw new Error(saveResult.error || 'Failed to export image');
           }
-          reportConversationNavigationAction({
-            actionType: 'export_image_result',
-            params: {
-              ...getConversationControlAnalyticsParams(),
-              result: 'cancelled',
-            },
-          });
         } finally {
           const maxScrollTop = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight);
           scrollContainer.scrollTop = Math.max(
@@ -4428,22 +4080,8 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
         }
       } catch (error) {
         if (error instanceof ExportImageCancelledError) {
-          reportConversationNavigationAction({
-            actionType: 'export_image_result',
-            params: {
-              ...getConversationControlAnalyticsParams(),
-              result: 'cancelled',
-            },
-          });
           return;
         }
-        reportConversationNavigationAction({
-          actionType: 'export_image_result',
-          params: {
-            ...getConversationControlAnalyticsParams(),
-            result: 'failed',
-          },
-        });
         console.error('Failed to export session image:', error);
         showToast(error instanceof ExportImageTooLongError
           ? i18nService.t('coworkExportImageTooLong')
@@ -4626,17 +4264,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     const scrollLogMessage = `Scroll to bottom requested for session ${targetSessionId ?? 'unknown'}; distance was ${Math.max(0, Math.round(distanceToBottom))}px; loadedEnd=${hasLoadedSessionEnd}.`;
     console.debug(`[CoworkSessionDetail] ${scrollLogMessage}`);
     window.electron?.log?.fromRenderer?.('debug', 'CoworkSessionDetail', scrollLogMessage);
-    reportConversationNavigationAction({
-      actionType: 'scroll_to_bottom_click',
-      params: {
-        distanceToBottomBucket: bucketDistance(Math.max(0, distanceToBottom)),
-        railItemCount: railItemCountRef.current,
-        currentRailIndex: currentRailIndexRef.current,
-        sessionMessageCountBucket: bucketCount(currentSession?.messages.length ?? 0),
-        totalMessageCountBucket: bucketCount(currentSession?.totalMessages ?? currentSession?.messages.length ?? 0),
-        isStreaming,
-      },
-    });
     const activeSearchMatchKey = conversationSearchActiveMatchKeyRef.current;
     if (conversationSearchViewportLockedRef.current && activeSearchMatchKey) {
       markConversationSearchViewportAsManual();
@@ -4849,23 +4476,11 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
 
   const navigateToRailItem = useCallback((
     railIndex: number,
-    actionType: 'rail_item_click' | 'rail_prev_click' | 'rail_next_click' = 'rail_item_click',
   ) => {
     if (railIndex < 0 || railIndex >= railItemCountRef.current) return;
     const item = railItemsRef.current[railIndex];
     if (!item) return;
 
-    reportConversationNavigationAction({
-      actionType,
-      params: {
-        currentRailIndex: currentRailIndexRef.current,
-        targetRailIndex: railIndex,
-        railItemCount: railItemCountRef.current,
-        sessionMessageCountBucket: bucketCount(currentSession?.messages.length ?? 0),
-        totalMessageCountBucket: bucketCount(currentSession?.totalMessages ?? currentSession?.messages.length ?? 0),
-        isStreaming,
-      },
-    });
 
     const isNavigatingToLastRailItem = railIndex >= railItemCountRef.current - 1;
     if (!isNavigatingToLastRailItem) {
@@ -6509,7 +6124,7 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
               onClick={() => {
                 const resolvedRail = currentRailIndex < 0 ? railItemCountRef.current - 1 : currentRailIndex;
                 if (resolvedRail <= 0) return;
-                navigateToRailItem(resolvedRail - 1, 'rail_prev_click');
+                navigateToRailItem(resolvedRail - 1);
               }}
               onMouseEnter={() => { setHoveredRailIndex(null); }}
               className={`shrink-0 flex items-center justify-center w-5 h-5 mb-2 -mr-[5px] rounded-full transition-all text-neutral-600 dark:text-neutral-400
@@ -6540,7 +6155,7 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
                     key={msg.key}
                     type="button"
                     onClick={() => {
-                      navigateToRailItem(idx, 'rail_item_click');
+                      navigateToRailItem(idx);
                     }}
                     onMouseEnter={(e) => {
                       setHoveredRailIndex(idx);
@@ -6579,7 +6194,7 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
                 const maxRail = railItemCountRef.current - 1;
                 const resolvedRail = currentRailIndex < 0 ? maxRail : currentRailIndex;
                 if (resolvedRail >= maxRail) return;
-                navigateToRailItem(resolvedRail + 1, 'rail_next_click');
+                navigateToRailItem(resolvedRail + 1);
               }}
               onMouseEnter={() => { setHoveredRailIndex(null); }}
               className={`shrink-0 flex items-center justify-center w-5 h-5 mt-2 -mr-[5px] rounded-full transition-all text-neutral-600 dark:text-neutral-400

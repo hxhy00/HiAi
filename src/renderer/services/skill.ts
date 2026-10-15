@@ -1,7 +1,7 @@
 import { BUNDLED_SKILL_DISPLAY_NAMES } from '../components/skills/bundledSkillNames';
 import { LocalizedText, LocalSkillInfo, MarketplaceSkill, MarketTag, Skill } from '../types/skill';
 import { i18nService } from './i18n';
-import { LogReporterAction, reportYdAnalyzer } from './logReporter';
+
 
 export function resolveLocalizedText(text: string | LocalizedText): string {
   if (!text) return '';
@@ -48,12 +48,6 @@ export function compareVersions(a: string, b: string): number {
     if (na < nb) return -1;
   }
   return 0;
-}
-
-function getSkillAnalyticsSource(skill: Skill): string {
-  if (skill.isBuiltIn) return 'built_in';
-  if (skill.isOfficial) return 'official';
-  return 'custom';
 }
 
 type EmailConnectivityCheck = {
@@ -133,22 +127,9 @@ class SkillService {
 
   async setSkillEnabled(id: string, enabled: boolean): Promise<Skill[]> {
     try {
-      const previousSkill = this.skills.find(skill => skill.id === id);
       const result = await window.electron.skills.setEnabled({ id, enabled });
       if (result.success && result.skills) {
         this.skills = result.skills;
-        const updatedSkill = this.skills.find(skill => skill.id === id) ?? previousSkill;
-        if (enabled && previousSkill?.enabled !== true && updatedSkill) {
-          void reportYdAnalyzer({
-            action: LogReporterAction.SkillEnabled,
-            skillId: updatedSkill.id,
-            skillName: updatedSkill.name,
-            skillSource: getSkillAnalyticsSource(updatedSkill),
-            isBuiltIn: updatedSkill.isBuiltIn,
-            isOfficial: updatedSkill.isOfficial,
-            version: updatedSkill.version,
-          });
-        }
         return this.skills;
       }
       throw new Error(result.error || 'Failed to update skill');

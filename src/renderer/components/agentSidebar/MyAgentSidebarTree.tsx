@@ -22,7 +22,6 @@ import { agentService } from '../../services/agent';
 import { coworkService } from '../../services/cowork';
 import { i18nService } from '../../services/i18n';
 import { RootState } from '../../store';
-import { selectCurrentSessionId } from '../../store/selectors/coworkSelectors';
 import { setDraftCollaborationMode } from '../../store/slices/coworkSlice';
 import { CoworkCollaborationMode } from '../../types/cowork';
 import { getAgentDisplayName, isDefaultAgentId } from '../../utils/agentDisplay';
@@ -61,24 +60,6 @@ interface MyAgentSidebarTreeProps {
   isTaskFilterActive: boolean;
   onShowCowork: () => void;
   onTaskFilterSummaryChange: (hasUnreadCompletedTasks: boolean) => void;
-  onTaskSelected?: (params: {
-    agentType: 'main' | 'custom';
-    isCurrentSession: boolean;
-    taskStatus: string;
-  }) => void;
-  onSidebarAction?: (actionType: string, params?: {
-    agentType?: 'main' | 'custom';
-    hasActiveSubagent?: boolean;
-    isCurrentSession?: boolean;
-    isCurrentSubagent?: boolean;
-    isExpanded?: boolean;
-    isPinned?: boolean;
-    result?: 'success' | 'failed';
-    subagentStatus?: string;
-    targetPinned?: boolean;
-    taskStatus?: string;
-    visibleTaskCount?: number;
-  }) => void;
   onToggleSelection: (selectionKey: string, agentId: string) => void;
   onEnterBatchMode: (sessionId: string, agentId: string) => void;
   onBatchSelectableItemsChange: (items: AgentSidebarBatchItem[]) => void;
@@ -150,15 +131,12 @@ const MyAgentSidebarTree: React.FC<MyAgentSidebarTreeProps> = ({
   isTaskFilterActive,
   onShowCowork,
   onTaskFilterSummaryChange,
-  onTaskSelected,
-  onSidebarAction,
   onToggleSelection,
   onEnterBatchMode,
   onBatchSelectableItemsChange,
 }) => {
   const currentAgentId = useSelector((state: RootState) => state.agent.currentAgentId);
   const dispatch = useDispatch();
-  const currentSessionId = useSelector(selectCurrentSessionId);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createAgentSource, setCreateAgentSource] = useState<'home_agent_sidebar' | 'home_agent_sidebar_empty'>(
     'home_agent_sidebar',
@@ -201,28 +179,11 @@ const MyAgentSidebarTree: React.FC<MyAgentSidebarTreeProps> = ({
     onTaskFilterSummaryChange(hasUnreadCompletedTasks);
   }, [hasUnreadCompletedTasks, onTaskFilterSummaryChange]);
 
-  const getAgentType = useCallback((agentId: string): 'main' | 'custom' => (
-    isDefaultAgentId(agentId) ? 'main' : 'custom'
-  ), []);
-
-  const getTaskActionParams = useCallback((task: AgentSidebarTaskNode, hasActiveSubagent?: boolean) => ({
-    agentType: getAgentType(task.agentId),
-    hasActiveSubagent,
-    isCurrentSession: task.id === currentSessionId,
-    isPinned: task.pinned,
-    taskStatus: task.status,
-  }), [currentSessionId, getAgentType]);
-
   useEffect(() => {
     void agentService.loadAgents();
   }, []);
 
   const handleSelectTask = useCallback(async (task: AgentSidebarTaskNode) => {
-    onTaskSelected?.({
-      agentType: isDefaultAgentId(task.agentId) ? 'main' : 'custom',
-      isCurrentSession: task.id === currentSessionId,
-      taskStatus: task.status,
-    });
     try {
       if (task.agentId !== currentAgentId) {
         agentService.switchAgent(task.agentId, { targetSessionId: task.id });
@@ -255,7 +216,7 @@ const MyAgentSidebarTree: React.FC<MyAgentSidebarTreeProps> = ({
     } finally {
       coworkService.finishSessionNavigation(task.id);
     }
-  }, [currentAgentId, currentSessionId, onShowCowork, onTaskSelected]);
+  }, [currentAgentId, onShowCowork]);
 
   useEffect(() => {
     const handleSwitchAgent = (event: Event) => {
@@ -342,10 +303,6 @@ const MyAgentSidebarTree: React.FC<MyAgentSidebarTreeProps> = ({
 
   const handleDeleteTask = async (task: AgentSidebarTaskNode) => {
     const deleted = await coworkService.deleteSession(task.id);
-    onSidebarAction?.(deleted ? 'task_delete_success' : 'task_delete_failed', {
-      ...getTaskActionParams(task),
-      result: deleted ? 'success' : 'failed',
-    });
     if (deleted) {
       removeTaskPreview(task.id);
     }
@@ -353,11 +310,6 @@ const MyAgentSidebarTree: React.FC<MyAgentSidebarTreeProps> = ({
 
   const handleToggleTaskPin = async (task: AgentSidebarTaskNode, pinned: boolean) => {
     const result = await coworkService.setSessionPinned(task.id, pinned);
-    onSidebarAction?.('task_pin_toggle', {
-      ...getTaskActionParams(task),
-      result: result.success ? 'success' : 'failed',
-      targetPinned: pinned,
-    });
     if (result.success) {
       patchTaskPreview(task.id, { pinned, pinOrder: result.pinOrder }, { preserveUpdatedAt: true });
     }
@@ -365,17 +317,12 @@ const MyAgentSidebarTree: React.FC<MyAgentSidebarTreeProps> = ({
 
   const handleRenameTask = async (task: AgentSidebarTaskNode, title: string) => {
     const renamed = await coworkService.renameSession(task.id, title);
-    onSidebarAction?.('task_rename_submit', {
-      ...getTaskActionParams(task),
-      result: renamed ? 'success' : 'failed',
-    });
     if (renamed) {
       patchTaskPreview(task.id, { title }, { preserveUpdatedAt: true });
     }
   };
 
   const handleShareTask = async (task: AgentSidebarTaskNode) => {
-    onSidebarAction?.('task_share_open', getTaskActionParams(task));
     const session = await handleSelectTask(task);
     if (!session) return;
 
@@ -396,11 +343,6 @@ const MyAgentSidebarTree: React.FC<MyAgentSidebarTreeProps> = ({
   };
 
   const handleCreateTask = async (agent: AgentSidebarAgentNode) => {
-    onSidebarAction?.('agent_create_task', {
-      agentType: getAgentType(agent.id),
-      isExpanded: agent.isExpanded,
-      isPinned: agent.pinned,
-    });
     if (agent.id !== currentAgentId) {
       agentService.switchAgent(agent.id);
       await coworkService.loadSessions(agent.id);
@@ -421,11 +363,6 @@ const MyAgentSidebarTree: React.FC<MyAgentSidebarTreeProps> = ({
   const handleDeleteAgent = async (agent: AgentSidebarAgentNode) => {
     if (isDefaultAgentId(agent.id)) return;
     const deleted = await agentService.deleteAgent(agent.id);
-    onSidebarAction?.(deleted ? 'agent_delete_success' : 'agent_delete_failed', {
-      agentType: getAgentType(agent.id),
-      isPinned: agent.pinned,
-      result: deleted ? 'success' : 'failed',
-    });
     if (deleted) {
       removeAgentTaskPreviews(agent.id);
     }
@@ -439,12 +376,6 @@ const MyAgentSidebarTree: React.FC<MyAgentSidebarTreeProps> = ({
 
   const handleToggleAgentPin = async (agent: AgentSidebarAgentNode, pinned: boolean) => {
     const updated = await agentService.updateAgent(agent.id, { pinned });
-    onSidebarAction?.('agent_pin_toggle', {
-      agentType: getAgentType(agent.id),
-      isPinned: agent.pinned,
-      result: updated ? 'success' : 'failed',
-      targetPinned: pinned,
-    });
     if (!updated) {
       window.dispatchEvent(new CustomEvent('app:showToast', { detail: i18nService.t('agentPinFailed') }));
     }
@@ -490,38 +421,18 @@ const MyAgentSidebarTree: React.FC<MyAgentSidebarTreeProps> = ({
         showBatchOption
         onToggleExpanded={toggleAgentExpanded}
         onEditAgent={(agent) => {
-          onSidebarAction?.('agent_edit', {
-            agentType: getAgentType(agent.id),
-            isExpanded: agent.isExpanded,
-            isPinned: agent.pinned,
-          });
           setSettingsAgentId(agent.id);
         }}
         onCreateTask={(agent) => void handleCreateTask(agent)}
         onDeleteAgent={handleDeleteAgent}
         onToggleAgentPin={handleToggleAgentPin}
         onRetryLoadTasks={(agentId) => {
-          const targetAgent = agentNodes.find((item) => item.id === agentId);
-          onSidebarAction?.('task_list_retry_load', {
-            agentType: getAgentType(agentId),
-            visibleTaskCount: targetAgent?.tasks.length,
-          });
           void retryLoadTasks(agentId);
         }}
         onLoadMoreTasks={(agentId) => {
-          const targetAgent = agentNodes.find((item) => item.id === agentId);
-          onSidebarAction?.('task_list_expand_more', {
-            agentType: getAgentType(agentId),
-            visibleTaskCount: targetAgent?.tasks.length,
-          });
           void loadMoreTasks(agentId);
         }}
         onCollapseTasks={(agentId) => {
-          const targetAgent = agentNodes.find((item) => item.id === agentId);
-          onSidebarAction?.('task_list_collapse', {
-            agentType: getAgentType(agentId),
-            visibleTaskCount: targetAgent?.tasks.length,
-          });
           collapseTasks(agentId);
         }}
         onSelectTask={(task) => void handleSelectTask(task)}
@@ -531,8 +442,6 @@ const MyAgentSidebarTree: React.FC<MyAgentSidebarTreeProps> = ({
         onRenameTask={handleRenameTask}
         onToggleSelection={onToggleSelection}
         onEnterBatchMode={handleEnterBatchMode}
-        onSidebarAction={onSidebarAction}
-        getTaskActionParams={getTaskActionParams}
       />
     </SortableAgentNode>
   );
@@ -559,8 +468,6 @@ const MyAgentSidebarTree: React.FC<MyAgentSidebarTreeProps> = ({
         onRename={(title) => handleRenameTask(task, title)}
         onToggleSelection={() => onToggleSelection(createSessionBatchKey(task.id), task.agentId)}
         onEnterBatchMode={() => handleEnterBatchMode(task)}
-        onSidebarAction={onSidebarAction}
-        analyticsParams={getTaskActionParams(task)}
       />
     );
   };

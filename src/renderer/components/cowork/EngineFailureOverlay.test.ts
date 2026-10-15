@@ -12,7 +12,6 @@ vi.mock('../../services/cowork', () => ({
   coworkService: { getOpenClawEngineStatusSnapshot: () => snapshot.status },
 }));
 vi.mock('../../services/i18n', () => ({ i18nService: { t: (key: string) => key } }));
-vi.mock('../../services/logReporter', () => ({ LogReporterAction: {}, reportYdAnalyzer: vi.fn() }));
 
 describe('EngineFailureOverlay', () => {
   test('shows the initial startup cause without requiring a repair attempt', () => {

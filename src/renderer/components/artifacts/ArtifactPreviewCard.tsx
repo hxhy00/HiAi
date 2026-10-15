@@ -19,11 +19,6 @@ import { type Artifact, ArtifactTypeValue } from '@/types/artifact';
 import { revealLocalPathWithToast, showShellFailureToast } from '@/utils/localFileActions';
 
 import ServiceDeploymentIcon from '../icons/ServiceDeploymentIcon';
-import {
-  ArtifactPreviewActionSource,
-  ArtifactPublishEntryPoint,
-  reportArtifactPreviewAction,
-} from './artifactAnalytics';
 import { useOptionalArtifactFileShare } from './ArtifactFileShareController';
 import { isArtifactFileShareable } from './artifactFileSharePolicy';
 import ArtifactPreviewIdentity from './ArtifactPreviewIdentity';
@@ -57,7 +52,6 @@ interface OpenDropdownProps {
 
 const OpenDropdown: React.FC<OpenDropdownProps> = ({
   anchorRef,
-  artifact,
   filePath,
   browserUrl,
   browserProjectDirectory,
@@ -154,11 +148,9 @@ const OpenDropdown: React.FC<OpenDropdownProps> = ({
 
   const handleOpenWithSpecificApp = useCallback(async (app: ShellAppInfo) => {
     if (!filePath && !browserUrl) return;
-    let success = false;
     try {
       if (browserUrl) {
         const result = await window.electron?.shell?.openUrlWithApp(browserUrl, app.path);
-        success = Boolean(result?.success);
         if (!result?.success) {
           console.warn('[ArtifactPreviewCard] system app open request failed:', {
             appName: app.name,
@@ -169,7 +161,6 @@ const OpenDropdown: React.FC<OpenDropdownProps> = ({
         }
       } else if (filePath) {
         const result = await window.electron?.shell?.openPathWithApp(normalizeShellFilePath(filePath), app.path);
-        success = Boolean(result?.success);
         if (!result?.success) {
           console.warn('[ArtifactPreviewCard] system app open request failed:', {
             appName: app.name,
@@ -183,74 +174,35 @@ const OpenDropdown: React.FC<OpenDropdownProps> = ({
       console.warn('[ArtifactPreviewCard] failed to open artifact with app:', error);
       showShellFailureToast(null, 'openFileFailed');
     }
-    reportArtifactPreviewAction({
-      actionType: 'open_external_app',
-      source: 'conversation_artifact_card',
-      artifact,
-      params: {
-        appName: app.name,
-        isDefaultApp: app.isDefault,
-        openTarget: 'external_app',
-        result: success ? 'success' : 'failed',
-      },
-    });
     onClose();
-  }, [artifact, browserUrl, filePath, onClose]);
+  }, [browserUrl, filePath, onClose]);
 
   const handleOpenWithDefault = useCallback(async () => {
     if (!filePath) return;
     const normalized = normalizeShellFilePath(filePath);
-    let success = false;
     try {
       const result = await window.electron?.shell?.openPath(normalized);
-      success = Boolean(result?.success);
       if (!result?.success) {
         showShellFailureToast(result, 'openFileFailed');
       }
     } catch {
       showShellFailureToast(null, 'openFileFailed');
     }
-    reportArtifactPreviewAction({
-      actionType: 'open_external_app',
-      source: 'conversation_artifact_card',
-      artifact,
-      params: {
-        appName: 'default',
-        openTarget: 'external_app',
-        result: success ? 'success' : 'failed',
-      },
-    });
     onClose();
-  }, [artifact, filePath, onClose]);
+  }, [filePath, onClose]);
 
   const handleRevealInFolder = useCallback(async () => {
     const pathToReveal = revealFolderPath || filePath;
     if (!pathToReveal) return;
     const normalized = normalizeShellFilePath(pathToReveal);
     await revealLocalPathWithToast(normalized);
-    reportArtifactPreviewAction({
-      actionType: 'reveal_in_folder',
-      source: 'conversation_artifact_card',
-      artifact,
-      params: {
-        openTarget: 'folder',
-      },
-    });
     onClose();
-  }, [artifact, filePath, onClose, revealFolderPath]);
+  }, [filePath, onClose, revealFolderPath]);
 
   const handleBrowserOpen = useCallback(() => {
-    reportArtifactPreviewAction({
-      actionType: 'open_lobster_browser',
-      source: 'conversation_artifact_card',
-      artifact,
-      params: {
-        openTarget: 'lobster_browser',
-      },
-    });
     browserOpenAction?.onOpen();
     onClose();
-  }, [artifact, browserOpenAction, onClose]);
+  }, [browserOpenAction, onClose]);
 
   if (!position) return null;
 
@@ -363,16 +315,6 @@ const ArtifactPreviewCard: React.FC<ArtifactPreviewCardProps> = ({
   const dropdownAnchorRef = useRef<HTMLButtonElement>(null);
 
   const handleClick = useCallback(() => {
-    reportArtifactPreviewAction({
-      actionType: 'card_open',
-      source: 'conversation_artifact_card',
-      artifact,
-      params: {
-        openTarget: artifact.type === ArtifactTypeValue.LocalService || artifact.type === ArtifactTypeValue.Html
-          ? 'lobster_browser'
-          : 'preview_panel',
-      },
-    });
     if (artifact.type === ArtifactTypeValue.LocalService && onOpenLocalService) {
       onOpenLocalService(artifact);
       return;
@@ -390,10 +332,7 @@ const ArtifactPreviewCard: React.FC<ArtifactPreviewCardProps> = ({
 
   const handleShareClick = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    void artifactFileShare?.openShare(artifact, {
-      source: ArtifactPreviewActionSource.ConversationArtifactCard,
-      entryPoint: ArtifactPublishEntryPoint.PreviewCard,
-    });
+    void artifactFileShare?.openShare(artifact, {});
   }, [artifact, artifactFileShare]);
 
   const handleDeployClick = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
@@ -480,14 +419,6 @@ const ArtifactPreviewCard: React.FC<ArtifactPreviewCardProps> = ({
             e.stopPropagation();
             setDropdownOpen(v => {
               const nextOpen = !v;
-              reportArtifactPreviewAction({
-                actionType: 'open_menu_toggle',
-                source: 'conversation_artifact_card',
-                artifact,
-                params: {
-                  targetOpen: nextOpen,
-                },
-              });
               return nextOpen;
             });
           }}

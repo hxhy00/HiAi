@@ -20,7 +20,7 @@ import { MANAGEMENT_BODY_TEXT, MANAGEMENT_META_TEXT, MANAGEMENT_TITLE_TEXT } fro
 import Modal from '../common/Modal';
 import ErrorMessage from '../ErrorMessage';
 import SearchIcon from '../icons/SearchIcon';
-import { getKitAnalyticsParams, reportKitAction } from './analytics';
+
 import KitIcon from './KitIcon';
 
 const KitOperationType = {
@@ -220,23 +220,12 @@ const KitsManager: React.FC<KitsManagerProps> = ({ onTryAsking, onUseKit }) => {
     const query = searchQuery.trim();
     if (!query) return undefined;
     const timer = window.setTimeout(() => {
-      reportKitAction('search', {
-        source: 'kits_manager',
-        activeTab,
-        searchKeywordLength: query.length,
-        resultCount: filteredKits.length,
-      });
     }, 600);
     return () => window.clearTimeout(timer);
   }, [activeTab, filteredKits.length, searchQuery]);
 
   const handleTabChange = (targetTab: KitTab) => {
     if (targetTab === activeTab) return;
-    reportKitAction('tab_change', {
-      source: 'kits_manager',
-      activeTab,
-      targetTab,
-    });
     setActiveTab(targetTab);
   };
 
@@ -248,40 +237,19 @@ const KitsManager: React.FC<KitsManagerProps> = ({ onTryAsking, onUseKit }) => {
     setOperatingKitId(kit.id);
     setOperationType(KitOperationType.Install);
     setActionError('');
-    reportKitAction('install_submit', {
-      source: 'kits_manager',
-      ...getKitAnalyticsParams(kit, installedKits[kit.id]),
-    });
     try {
       const result = await kitService.installKit(kit);
       if (result.success) {
         const installed = await kitService.getInstalledKits();
         setInstalledKits(installed);
         dispatch(setInstalledKitsAction(installed));
-        reportKitAction('install_success', {
-          source: 'kits_manager',
-          result: 'success',
-          ...getKitAnalyticsParams(kit, installed[kit.id]),
-        });
       } else {
         console.error('[KitsManager] Install failed:', result.error);
         setActionError(formatKitActionError('kitInstallFailed', kit));
-        reportKitAction('install_failed', {
-          source: 'kits_manager',
-          result: 'failed',
-          errorCode: 'install_failed',
-          ...getKitAnalyticsParams(kit, installedKits[kit.id]),
-        });
       }
     } catch (error) {
       console.error('[KitsManager] Install failed:', error);
       setActionError(formatKitActionError('kitInstallFailed', kit));
-      reportKitAction('install_failed', {
-        source: 'kits_manager',
-        result: 'failed',
-        errorCode: 'install_failed',
-        ...getKitAnalyticsParams(kit, installedKits[kit.id]),
-      });
     } finally {
       setOperatingKitId(null);
       setOperationType(null);
@@ -289,20 +257,12 @@ const KitsManager: React.FC<KitsManagerProps> = ({ onTryAsking, onUseKit }) => {
   };
 
   const handleRequestUninstall = (kit: MarketplaceKit) => {
-    reportKitAction('uninstall_confirm_open', {
-      source: 'kits_manager',
-      ...getKitAnalyticsParams(kit, installedKits[kit.id]),
-    });
     setKitPendingUninstall(kit);
   };
 
   const handleCancelUninstall = () => {
     if (operationType === KitOperationType.Uninstall) return;
     if (kitPendingUninstall) {
-      reportKitAction('uninstall_confirm_cancel', {
-        source: 'kits_manager',
-        ...getKitAnalyticsParams(kitPendingUninstall, installedKits[kitPendingUninstall.id]),
-      });
     }
     setKitPendingUninstall(null);
   };
@@ -313,10 +273,6 @@ const KitsManager: React.FC<KitsManagerProps> = ({ onTryAsking, onUseKit }) => {
     setOperationType(KitOperationType.Uninstall);
     setActionError('');
     if (kit) {
-      reportKitAction('uninstall_submit', {
-        source: 'kits_manager',
-        ...getKitAnalyticsParams(kit, installedKits[kit.id]),
-      });
     }
     try {
       const result = await kitService.uninstallKit(kitId);
@@ -325,34 +281,17 @@ const KitsManager: React.FC<KitsManagerProps> = ({ onTryAsking, onUseKit }) => {
         setInstalledKits(installed);
         dispatch(setInstalledKitsAction(installed));
         if (kit) {
-          reportKitAction('uninstall_success', {
-            source: 'kits_manager',
-            result: 'success',
-            ...getKitAnalyticsParams(kit, installedKits[kit.id]),
-          });
         }
       } else {
         console.error('[KitsManager] Uninstall failed:', result.error);
         if (kit) {
           setActionError(formatKitActionError('kitUninstallFailed', kit));
-          reportKitAction('uninstall_failed', {
-            source: 'kits_manager',
-            result: 'failed',
-            errorCode: 'uninstall_failed',
-            ...getKitAnalyticsParams(kit, installedKits[kit.id]),
-          });
         }
       }
     } catch (error) {
       console.error('[KitsManager] Uninstall failed:', error);
       if (kit) {
         setActionError(formatKitActionError('kitUninstallFailed', kit));
-        reportKitAction('uninstall_failed', {
-          source: 'kits_manager',
-          result: 'failed',
-          errorCode: 'uninstall_failed',
-          ...getKitAnalyticsParams(kit, installedKits[kit.id]),
-        });
       }
     } finally {
       setOperatingKitId(null);
@@ -372,19 +311,10 @@ const KitsManager: React.FC<KitsManagerProps> = ({ onTryAsking, onUseKit }) => {
   const isOperating = (kitId: string) => operatingKitId === kitId;
 
   const openKitDetail = (kit: MarketplaceKit) => {
-    reportKitAction('open_detail', {
-      source: 'kits_manager',
-      resultCount: filteredKits.length,
-      ...getKitAnalyticsParams(kit, installedKits[kit.id]),
-    });
     setSelectedKit(kit);
   };
 
   const handleUseKit = (kit: MarketplaceKit) => {
-    reportKitAction('use_kit', {
-      source: 'kits_manager',
-      ...getKitAnalyticsParams(kit, installedKits[kit.id]),
-    });
     onUseKit?.(kit.id);
   };
   const getSkillCount = (kit: MarketplaceKit) => kit.skills?.list.length ?? 0;
@@ -402,23 +332,12 @@ const KitsManager: React.FC<KitsManagerProps> = ({ onTryAsking, onUseKit }) => {
 
   const handleTryAskingClick = (text: string, kitId: string) => {
     const kit = kits.find(item => item.id === kitId);
-    const tryAskingIndex = kit?.tryAsking?.findIndex(prompt => resolveLocalizedText(prompt) === text);
     if (isKitInstalled(kitId)) {
       if (kit) {
-        reportKitAction('try_asking', {
-          source: 'kits_manager',
-          tryAskingIndex: tryAskingIndex === undefined || tryAskingIndex < 0 ? undefined : tryAskingIndex,
-          ...getKitAnalyticsParams(kit, installedKits[kitId]),
-        });
       }
       onTryAsking?.(text, kitId);
     } else {
       if (kit) {
-        reportKitAction('install_prompt_open', {
-          source: 'kits_manager',
-          tryAskingIndex: tryAskingIndex === undefined || tryAskingIndex < 0 ? undefined : tryAskingIndex,
-          ...getKitAnalyticsParams(kit, installedKits[kitId]),
-        });
       }
       setInstallPrompt({ kitId, text });
     }
@@ -428,10 +347,6 @@ const KitsManager: React.FC<KitsManagerProps> = ({ onTryAsking, onUseKit }) => {
     if (!installPrompt || !selectedKit) return;
     const { kitId, text } = installPrompt;
     setInstallPrompt(null);
-    reportKitAction('install_and_try_submit', {
-      source: 'kits_manager',
-      ...getKitAnalyticsParams(selectedKit, installedKits[selectedKit.id]),
-    });
     await handleInstall(selectedKit);
     // After install, check if it succeeded and navigate
     const installed = await kitService.getInstalledKits();
@@ -488,10 +403,6 @@ const KitsManager: React.FC<KitsManagerProps> = ({ onTryAsking, onUseKit }) => {
         <button
           type="button"
           onClick={() => {
-            reportKitAction('back_to_list', {
-              source: 'kits_manager',
-              ...getKitAnalyticsParams(selectedKit, installedKits[selectedKit.id]),
-            });
             setSelectedKit(null);
           }}
           className="non-draggable relative z-30 inline-flex items-center gap-1.5 text-sm text-secondary hover:text-foreground transition-colors"
@@ -643,10 +554,6 @@ const KitsManager: React.FC<KitsManagerProps> = ({ onTryAsking, onUseKit }) => {
         {installPrompt && (
           <Modal
             onClose={() => {
-              reportKitAction('install_prompt_cancel', {
-                source: 'kits_manager',
-                ...getKitAnalyticsParams(selectedKit, installedKits[selectedKit.id]),
-              });
               setInstallPrompt(null);
             }}
             overlayClassName="fixed inset-0 z-[9999] flex items-center justify-center modal-backdrop px-4"
@@ -664,10 +571,6 @@ const KitsManager: React.FC<KitsManagerProps> = ({ onTryAsking, onUseKit }) => {
               <button
                 type="button"
                 onClick={() => {
-                  reportKitAction('install_prompt_cancel', {
-                    source: 'kits_manager',
-                    ...getKitAnalyticsParams(selectedKit, installedKits[selectedKit.id]),
-                  });
                   setInstallPrompt(null);
                 }}
                 className="px-4 py-2 text-sm font-medium rounded-lg text-secondary hover:bg-surface-raised transition-colors"
@@ -717,11 +620,6 @@ const KitsManager: React.FC<KitsManagerProps> = ({ onTryAsking, onUseKit }) => {
               <button
                 type="button"
                 onClick={() => {
-                  reportKitAction('clear_search', {
-                    source: 'kits_manager',
-                    searchKeywordLength: searchQuery.trim().length,
-                    resultCount: filteredKits.length,
-                  });
                   setSearchQuery('');
                 }}
                 className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-secondary transition-colors hover:text-primary"
@@ -795,11 +693,6 @@ const KitsManager: React.FC<KitsManagerProps> = ({ onTryAsking, onUseKit }) => {
             <button
               type="button"
               onClick={() => {
-                reportKitAction('clear_search', {
-                  source: 'kits_manager',
-                  searchKeywordLength: searchQuery.trim().length,
-                  resultCount: filteredKits.length,
-                });
                 setSearchQuery('');
               }}
               className="mt-3 text-sm font-medium text-primary hover:underline"
