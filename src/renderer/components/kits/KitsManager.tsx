@@ -693,10 +693,6 @@ const KitsManager: React.FC<KitsManagerProps> = ({ onTryAsking, onUseKit }) => {
   // List view
   return (
     <div className="space-y-4">
-      <p className={`${MANAGEMENT_BODY_TEXT} pb-2 text-secondary`}>
-        {i18nService.t('kitDescription')}
-      </p>
-
       {/* Sticky toolbar: Search + tabs */}
       <div
         data-skin-management-toolbar="true"

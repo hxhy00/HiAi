@@ -19,6 +19,7 @@ import { McpMarketplaceCategoryInfo,McpRegistryEntry, McpServerConfig, McpServer
 import { CARD_ACTION_PILL_CLASS, DETAIL_ACTION_PILL_CLASS } from '../common/actionPillStyles';
 import CardOverflowMenu, { type CardOverflowMenuItem } from '../common/CardOverflowMenu';
 import CardToggle from '../common/CardToggle';
+import { MANAGEMENT_LIST_CONTAINER_CLASS } from '../common/ManagementListRow';
 import { MANAGEMENT_BODY_TEXT, MANAGEMENT_META_TEXT, MANAGEMENT_TITLE_TEXT } from '../common/managementTypography';
 import Modal from '../common/Modal';
 import ErrorMessage from '../ErrorMessage';
@@ -90,6 +91,8 @@ const buildCategoryOptions = (
 ];
 
 /** Management actions stay hidden until the card is hovered or focused. */
+const MCP_LIST_CONTAINER_CLASS = MANAGEMENT_LIST_CONTAINER_CLASS;
+
 const CARD_MENU_REVEAL_CLASS =
   'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100';
 
@@ -249,11 +252,6 @@ const McpManager: React.FC = () => {
     if (persistedDescription) return persistedDescription;
     return getTransportSummary(server);
   }, [getRegistryEntryDescription, getRegistryEntryForServer]);
-
-  const getServerIcon = useCallback(
-    (server: McpServerConfig): string | undefined => getRegistryEntryForServer(server)?.icon,
-    [getRegistryEntryForServer],
-  );
 
   const installedItems = useMemo(
     () => buildInstalledMcpItems(servers, dynamicRegistry),
@@ -820,12 +818,15 @@ const McpManager: React.FC = () => {
     const registryEntry = getRegistryEntryForServer(server);
     const launchStatusLabel = getLaunchStatusLabel(server);
     const requiredEnvKeyCount = registryEntry?.requiredEnvKeys?.length ?? 0;
+    const endpointSummary = server.transportType === 'stdio'
+      ? (server.command ? getStdioCommandSummary(server.command, server.args) : '')
+      : (server.url ?? '');
+    const description = server.description?.trim() || endpointSummary || getInstalledDescription(server);
     return (
       <McpCard
         key={server.id}
         title={getServerDisplayName(server)}
-        description={getInstalledDescription(server)}
-        icon={getServerIcon(server)}
+        description={description}
         onOpenDetail={() => openServerDetail(server)}
         actions={(
           <>
@@ -840,7 +841,7 @@ const McpManager: React.FC = () => {
             />
           </>
         )}
-        meta={(
+        badges={(
           <>
             {/* Only the hand-configured origin is labelled; from the
                 marketplace is the norm. */}
@@ -869,25 +870,10 @@ const McpManager: React.FC = () => {
                 {i18nService.t('mcpLaunchRetry')}
               </button>
             )}
-            {server.transportType === 'stdio' && server.command && (
-              <>
-                <span className="shrink-0 text-secondary/50">·</span>
-                <span className="min-w-0 truncate">{getStdioCommandSummary(server.command, server.args)}</span>
-              </>
-            )}
-            {(server.transportType === 'sse' || server.transportType === 'http') && server.url && (
-              <>
-                <span className="shrink-0 text-secondary/50">·</span>
-                <span className="min-w-0 truncate">{server.url}</span>
-              </>
-            )}
             {requiredEnvKeyCount > 0 && (
-              <>
-                <span className="shrink-0 text-secondary/50">·</span>
-                <span className="shrink-0 text-amber-500 dark:text-amber-400">
-                  {requiredEnvKeyCount} key{requiredEnvKeyCount > 1 ? 's' : ''}
-                </span>
-              </>
+              <span className="shrink-0 text-amber-500 dark:text-amber-400">
+                {requiredEnvKeyCount} key{requiredEnvKeyCount > 1 ? 's' : ''}
+              </span>
             )}
           </>
         )}
@@ -926,7 +912,6 @@ const McpManager: React.FC = () => {
     Object.keys(record ?? {}).join(', ');
 
   const renderServerDetail = (server: McpServerConfig) => {
-    const registryEntry = getRegistryEntryForServer(server);
     const displayName = getServerDisplayName(server);
     const launchStatusLabel = getLaunchStatusLabel(server);
     const stats: McpDetailStat[] = [
@@ -977,7 +962,6 @@ const McpManager: React.FC = () => {
       <McpDetailModal
         title={displayName}
         subtitle={displayName === server.name ? undefined : server.name}
-        icon={registryEntry?.icon}
         description={getInstalledDescription(server)}
         stats={stats}
         info={info}
@@ -1037,7 +1021,6 @@ const McpManager: React.FC = () => {
     return (
       <McpDetailModal
         title={groupName}
-        icon={item.registryEntry?.icon}
         description={getRegistryGroupDescription(item)}
         stats={stats}
         info={info}
@@ -1111,7 +1094,6 @@ const McpManager: React.FC = () => {
     return (
       <McpDetailModal
         title={getRegistryEntryName(entry)}
-        icon={entry.icon}
         description={getRegistryEntryDescription(entry)}
         stats={stats}
         info={info}
@@ -1189,12 +1171,6 @@ const McpManager: React.FC = () => {
 
   return (
     <div className="relative space-y-4">
-      <div className="pb-2">
-        <p className={`${MANAGEMENT_BODY_TEXT} text-secondary`}>
-          {i18nService.t('mcpDescription')}
-        </p>
-      </div>
-
       {actionError && (
         <ErrorMessage
           message={actionError}
@@ -1352,20 +1328,18 @@ const McpManager: React.FC = () => {
             </div>
           )
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+          <div className={MCP_LIST_CONTAINER_CLASS}>
             {filteredInstalled.map((item) => {
               if (item.kind === 'registryGroup') {
                 const groupName = getRegistryGroupName(item);
                 const groupDescription = getRegistryGroupDescription(item);
                 const groupTransportType = getRegistryGroupTransportType(item);
-                const groupSummary = getRegistryGroupSummary(item);
                 const groupEnabled = item.servers.some(server => server.enabled);
                 return (
                   <McpCard
                     key={item.id}
                     title={groupName}
                     description={groupDescription}
-                    icon={item.registryEntry?.icon}
                     onOpenDetail={() => openRegistryGroupDetail(item)}
                     actions={(
                       <>
@@ -1395,7 +1369,7 @@ const McpManager: React.FC = () => {
                         />
                       </>
                     )}
-                    meta={(
+                    badges={(
                       <>
                         {groupTransportType && (
                           <span className={`shrink-0 rounded px-1.5 py-0.5 font-medium ${TRANSPORT_BADGE_COLORS[groupTransportType] || ''}`}>
@@ -1405,12 +1379,6 @@ const McpManager: React.FC = () => {
                         <span className="shrink-0 rounded bg-surface-raised px-1.5 py-0.5 font-medium">
                           {i18nService.t('mcpServersCount').replace('{count}', String(item.servers.length))}
                         </span>
-                        {groupSummary && (
-                          <>
-                            <span className="shrink-0 text-secondary/50">·</span>
-                            <span className="min-w-0 truncate">{groupSummary}</span>
-                          </>
-                        )}
                       </>
                     )}
                   />
@@ -1425,29 +1393,22 @@ const McpManager: React.FC = () => {
       {/* ── Tab: Marketplace ────────────────────────────── */}
       {activeTab === McpTab.Marketplace && (
         isLoadingMarketplace ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4" aria-hidden="true">
+        <div className={MCP_LIST_CONTAINER_CLASS} aria-hidden="true">
           {Array.from({ length: 6 }).map((_, idx) => (
-            <div key={idx} className="animate-pulse rounded-2xl border border-border bg-surface p-4">
-              <div className="mb-3 flex items-center gap-2.5">
-                <div className="h-10 w-10 rounded-[10px] bg-surface-raised" />
-                <div className="h-3.5 w-1/3 rounded bg-surface-raised" />
-              </div>
-              <div className="space-y-2">
-                <div className="h-3 w-full rounded bg-surface-raised" />
-                <div className="h-3 w-2/3 rounded bg-surface-raised" />
-              </div>
-              <div className="mt-3 flex items-center gap-1.5">
-                <div className="h-4 w-12 rounded bg-surface-raised" />
-                <div className="h-4 w-10 rounded bg-surface-raised" />
+            <div key={idx} className="animate-pulse flex items-center gap-3 px-4 py-3">
+              <div className="h-8 w-8 rounded-lg bg-surface-raised" />
+              <div className="space-y-1.5">
+                <div className="h-3.5 w-32 rounded bg-surface-raised" />
+                <div className="h-3 w-48 rounded bg-surface-raised" />
               </div>
             </div>
           ))}
         </div>
         ) : (
         <div>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+          <div className={MCP_LIST_CONTAINER_CLASS}>
             {filteredMarketplace.length === 0 ? (
-              <div className="col-span-full text-center py-12 text-sm text-secondary">
+              <div className="text-center py-12 text-sm text-secondary">
                 {i18nService.t('noMcpServersAvailable')}
               </div>
             ) : (
@@ -1460,9 +1421,8 @@ const McpManager: React.FC = () => {
                   <McpCard
                     key={entry.id}
                     title={getRegistryEntryName(entry)}
-                    description={getRegistryEntryDescription(entry)}
-                    icon={entry.icon}
-                    onOpenDetail={() => openMarketplaceDetail(entry)}
+                    description={getRegistryEntryDescription(entry) || getStdioCommandSummary(entry.command, entry.defaultArgs)}
+                                onOpenDetail={() => openMarketplaceDetail(entry)}
                     actions={isInstalled ? (
                       /* Installed is a fact, not an action — it stays quiet. */
                       <span className={`inline-flex h-[26px] flex-shrink-0 items-center gap-1 px-1 ${MANAGEMENT_META_TEXT} text-muted`}>
@@ -1483,20 +1443,15 @@ const McpManager: React.FC = () => {
                           : i18nService.t('mcpInstall')}
                       </button>
                     )}
-                    meta={(
+                    badges={(
                       <>
                         <span className={`shrink-0 rounded px-1.5 py-0.5 font-medium ${TRANSPORT_BADGE_COLORS[entry.transportType] || ''}`}>
                           {entry.transportType}
                         </span>
-                        <span className="shrink-0 text-secondary/50">·</span>
-                        <span className="min-w-0 truncate">{getStdioCommandSummary(entry.command, entry.defaultArgs)}</span>
                         {requiredEnvKeyCount > 0 && (
-                          <>
-                            <span className="shrink-0 text-secondary/50">·</span>
-                            <span className="shrink-0 text-amber-500 dark:text-amber-400">
-                              {requiredEnvKeyCount} key{requiredEnvKeyCount > 1 ? 's' : ''}
-                            </span>
-                          </>
+                          <span className="shrink-0 text-amber-500 dark:text-amber-400">
+                            {requiredEnvKeyCount} key{requiredEnvKeyCount > 1 ? 's' : ''}
+                          </span>
                         )}
                       </>
                     )}

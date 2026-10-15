@@ -14,6 +14,7 @@ import { i18nService } from '../../services/i18n';
 import { scheduledTaskService } from '../../services/scheduledTask';
 import { RootState } from '../../store';
 import { selectTask, setViewMode } from '../../store/slices/scheduledTaskSlice';
+import ManagementListRow, { MANAGEMENT_LIST_CONTAINER_CLASS } from '../common/ManagementListRow';
 import { MANAGEMENT_BODY_TEXT, MANAGEMENT_TITLE_TEXT } from '../common/managementTypography';
 import EditIcon from '../icons/EditIcon';
 import TrashIcon from '../icons/TrashIcon';
@@ -35,6 +36,7 @@ import {
 } from './utils';
 
 const cardGridClass = 'grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-3';
+const taskListClass = MANAGEMENT_LIST_CONTAINER_CLASS;
 const menuWidthPx = 144;
 const menuHeightEstimatePx = 156;
 const menuEdgeGapPx = 8;
@@ -191,35 +193,33 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onRequestDelete }) => {
     }
   }, [analyticsParams, task.id]);
 
-  const handleCardKeyDown = React.useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      // Nested controls (toggle, menu) handle their own keys.
-      if (event.target !== event.currentTarget) return;
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        handleSelectTask();
-      }
-    },
-    [handleSelectTask],
-  );
-
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      className="group flex cursor-pointer flex-col rounded-xl border border-border bg-surface p-4 shadow-subtle transition hover:border-primary/50 hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-      onClick={handleSelectTask}
-      onKeyDown={handleCardKeyDown}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <h3
-          className={`min-w-0 flex-1 truncate ${MANAGEMENT_TITLE_TEXT} font-semibold ${
-            task.enabled ? 'text-foreground' : 'text-secondary'
-          }`}
-        >
-          {task.name}
-        </h3>
-        <div className="flex shrink-0 items-center gap-1">
+    <ManagementListRow
+      title={task.name}
+      titleClassName={task.enabled ? '' : 'text-secondary'}
+      badges={(
+        <TaskStatusChip
+          status={displayStatus}
+          title={
+            task.state.lastRunAtMs
+              ? `${i18nService.t('scheduledTasksLastRun')} · ${formatDateTimeMinute(new Date(task.state.lastRunAtMs))}`
+              : undefined
+          }
+        />
+      )}
+      subtitle={(
+        <span className="flex min-w-0 items-center gap-1.5">
+          <ClockIcon className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">
+            {formatScheduleLabel(task.schedule)}
+            {nextRunLabel && <span className="text-secondary/60"> · {nextRunLabel}</span>}
+            <span className="text-secondary/60"> · </span>
+            <span>{task.description || promptText}</span>
+          </span>
+        </span>
+      )}
+      right={(
+        <>
           <TaskToggle
             enabled={task.enabled}
             onToggle={() => void handleToggleTask()}
@@ -303,31 +303,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onRequestDelete }) => {
               )
             )}
           </div>
-        </div>
-      </div>
-
-      <p className={`mt-1.5 min-h-[40px] ${MANAGEMENT_BODY_TEXT} leading-5 text-secondary line-clamp-2`}>
-        {task.description || promptText}
-      </p>
-
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5 text-xs text-secondary">
-          <ClockIcon className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">
-            {formatScheduleLabel(task.schedule)}
-            {nextRunLabel && <span className="text-secondary/60"> · {nextRunLabel}</span>}
-          </span>
-        </div>
-        <TaskStatusChip
-          status={displayStatus}
-          title={
-            task.state.lastRunAtMs
-              ? `${i18nService.t('scheduledTasksLastRun')} · ${formatDateTimeMinute(new Date(task.state.lastRunAtMs))}`
-              : undefined
-          }
-        />
-      </div>
-    </div>
+        </>
+      )}
+      onClick={handleSelectTask}
+    />
   );
 };
 
@@ -462,21 +441,11 @@ const TaskList: React.FC<TaskListProps> = ({
 
   if (status === ScheduledTaskDataStatus.Loading) {
     return (
-      <div className={cardGridClass} aria-hidden="true">
+      <div className={taskListClass} aria-hidden="true">
         {Array.from({ length: 4 }).map((_, idx) => (
-          <div key={idx} className="animate-pulse rounded-xl border border-border bg-surface p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="h-4 w-1/2 rounded bg-surface-raised" />
-              <div className="h-4 w-8 rounded-full bg-surface-raised" />
-            </div>
-            <div className="mt-3 space-y-2">
-              <div className="h-3 w-full rounded bg-surface-raised" />
-              <div className="h-3 w-2/3 rounded bg-surface-raised" />
-            </div>
-            <div className="mt-4 flex items-center justify-between">
-              <div className="h-3 w-1/3 rounded bg-surface-raised" />
-              <div className="h-4 w-12 rounded-full bg-surface-raised" />
-            </div>
+          <div key={idx} className="flex items-center gap-3 px-4 py-3">
+            <div className="h-4 flex-1 rounded bg-surface-raised" />
+            <div className="h-4 w-8 rounded-full bg-surface-raised" />
           </div>
         ))}
       </div>
@@ -539,7 +508,7 @@ const TaskList: React.FC<TaskListProps> = ({
           </button>
         </div>
       ) : (
-        <div className={cardGridClass}>
+        <div className={taskListClass}>
           {visibleTasks.map(task => (
             <TaskCard key={task.id} task={task} onRequestDelete={onRequestDelete} />
           ))}

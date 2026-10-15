@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom';
 import { i18nService } from '../../services/i18n';
 import { MANAGEMENT_BODY_TEXT, MANAGEMENT_META_TEXT, MANAGEMENT_TITLE_TEXT } from '../common/managementTypography';
 import Modal from '../common/Modal';
-import { McpIconTile } from './McpCard';
 
 export interface McpDetailStat {
   label: string;
@@ -24,7 +23,6 @@ export interface McpDetailInfoRow {
 interface McpDetailModalProps {
   title: string;
   subtitle?: string;
-  icon?: string;
   description: string;
   stats: McpDetailStat[];
   info: McpDetailInfoRow[];
@@ -43,7 +41,6 @@ interface McpDetailModalProps {
 const McpDetailModal: React.FC<McpDetailModalProps> = ({
   title,
   subtitle,
-  icon,
   description,
   stats,
   info,
@@ -67,7 +64,6 @@ const McpDetailModal: React.FC<McpDetailModalProps> = ({
         <XMarkIcon className="h-5 w-5" />
       </button>
       <div className="flex items-center gap-3.5 pr-9">
-        <McpIconTile icon={icon} className="h-14 w-14 rounded-2xl" iconClassName="h-7 w-7" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-base font-semibold leading-tight text-foreground">
             {title}

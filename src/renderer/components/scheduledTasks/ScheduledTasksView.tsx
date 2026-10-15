@@ -10,7 +10,6 @@ import { scheduledTaskService } from '../../services/scheduledTask';
 import { RootState } from '../../store';
 import { selectTask, setViewMode } from '../../store/slices/scheduledTaskSlice';
 import {
-  MANAGEMENT_BODY_TEXT,
   MANAGEMENT_META_TEXT,
   MANAGEMENT_PAGE_TITLE_TEXT,
   MANAGEMENT_TITLE_TEXT,
@@ -253,10 +252,6 @@ const ScheduledTasksView: React.FC<ScheduledTasksViewProps> = ({
         <div className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
           <div className="mx-auto w-full max-w-[1120px] px-8 py-6">
             <div className="space-y-4">
-              <p className={`${MANAGEMENT_BODY_TEXT} pb-2 text-secondary`}>
-                {i18nService.t('scheduledTasksPageSubtitle')}
-              </p>
-
               {/* Sticky toolbar: Search + New Task + tabs */}
               <div
                 data-skin-management-toolbar="true"

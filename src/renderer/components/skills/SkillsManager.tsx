@@ -19,6 +19,7 @@ import { MarketplaceSkill, MarketTag,Skill } from '../../types/skill';
 import { CARD_ACTION_PILL_CLASS, DETAIL_ACTION_PILL_CLASS } from '../common/actionPillStyles';
 import CardOverflowMenu, { type CardOverflowMenuItem } from '../common/CardOverflowMenu';
 import CardToggle from '../common/CardToggle';
+import ManagementListRow, { MANAGEMENT_LIST_CONTAINER_CLASS } from '../common/ManagementListRow';
 import { MANAGEMENT_BODY_TEXT, MANAGEMENT_META_TEXT, MANAGEMENT_TITLE_TEXT } from '../common/managementTypography';
 import Modal from '../common/Modal';
 import ErrorMessage from '../ErrorMessage';
@@ -34,7 +35,6 @@ import {
   getMarketplaceSkillAnalyticsParams,
   reportSkillAction,
 } from './analytics';
-import SkillIconTile from './SkillIconTile';
 import { SKILL_LOAD_ISSUE_I18N_KEYS } from './skillLoadIssue';
 import SkillSecurityReport from './SkillSecurityReport';
 import { SKILL_TAB_LABEL_KEYS, SKILL_TAB_ORDER, SkillTab } from './skillTabs';
@@ -68,6 +68,8 @@ const importTabConfig: Record<ImportSourceType, {
 };
 
 /** Hover/focus-revealed card actions, matching the MCP card treatment. */
+const SKILL_LIST_CONTAINER_CLASS = MANAGEMENT_LIST_CONTAINER_CLASS;
+
 const CARD_ACTION_REVEAL_CLASS =
   'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100';
 
@@ -1068,33 +1070,54 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       && compareVersions(marketplaceSkill.version, skill.version || '0.0.0') > 0,
     );
     return (
-      <div
+      <ManagementListRow
         key={skill.id}
-        role="button"
-        tabIndex={0}
-        className="group flex flex-col cursor-pointer rounded-2xl border border-border bg-surface p-4 shadow-subtle transition-all hover:border-primary/50 hover:shadow-card focus-within:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        onClick={openInstalledDetail}
-        onKeyDown={(e) => {
-          if (e.target !== e.currentTarget) return;
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            openInstalledDetail();
-          }
-        }}
-      >
-        {/* Single-line title keeps every card the same shape; the raw id is
-            reference material and lives in the detail dialog. */}
-        <div className="mb-3 flex items-center gap-2.5">
-          <SkillIconTile icon={skillService.getSkillIcon(skill.id)} />
-          <div className={`min-w-0 flex-1 truncate ${MANAGEMENT_TITLE_TEXT} font-semibold leading-snug text-foreground`}>
-            {displayName}
-          </div>
-          {/* This is a management surface — the everyday "use a skill" path is
-              the picker in the composer. So use/menu surface on hover or
-              keyboard focus, while the enable switch stays on the resting card
-              (same layout as an MCP card): state is readable at a glance and
-              toggling is one click. */}
-          <div className="flex flex-shrink-0 items-center gap-1">
+        title={displayName}
+        badges={(
+          <>
+            {showOriginBadge ? (
+              <span className={`rounded px-1.5 py-0.5 font-medium ${MANAGEMENT_META_TEXT} ${
+                skill.isBuiltIn ? 'bg-surface-raised text-secondary' : 'bg-primary-muted text-primary'
+              }`}>
+                {i18nService.t(skill.isBuiltIn ? 'skillOriginBuiltIn' : 'skillOriginMine')}
+              </span>
+            ) : skill.isOfficial && (
+              <span className={`rounded bg-primary-muted px-1.5 py-0.5 font-medium ${MANAGEMENT_META_TEXT} text-primary`}>
+                {i18nService.t('official')}
+              </span>
+            )}
+            {/* The agent skips this skill even though it is enabled here; the
+                detail dialog explains why. */}
+            {skill.loadIssue && (
+              <span
+                className={`flex-shrink-0 rounded bg-amber-500/10 px-1.5 py-0.5 font-medium ${MANAGEMENT_META_TEXT} text-amber-600 dark:text-amber-400`}
+                title={i18nService.t(SKILL_LOAD_ISSUE_I18N_KEYS[skill.loadIssue].detail)}
+              >
+                {i18nService.t(SKILL_LOAD_ISSUE_I18N_KEYS[skill.loadIssue].label)}
+              </span>
+            )}
+          </>
+        )}
+        subtitle={skillService.getLocalizedSkillDescription(skill.id, skill.name, skill.description)}
+        right={(
+          <>
+            <span className={`truncate ${MANAGEMENT_META_TEXT} text-muted`}>{formatSkillDate(skill.updatedAt)}</span>
+            {hasUpdate && marketplaceSkill && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleUpgradeSkill(marketplaceSkill); }}
+                disabled={upgradeState?.isActive === true}
+                className={`inline-flex flex-shrink-0 items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 ${MANAGEMENT_META_TEXT} font-medium text-emerald-600 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-400`}
+              >
+                <ArrowPathIcon className="h-3.5 w-3.5" />
+                {i18nService.t('skillUpgrade')}
+              </button>
+            )}
+            {/* This is a management surface — the everyday "use a skill" path is
+                the picker in the composer. So use/menu surface on hover or
+                keyboard focus, while the enable switch stays visible
+                (same layout as an MCP row): state is readable at a glance and
+                toggling is one click. */}
             <div className={`flex items-center gap-1 ${CARD_ACTION_REVEAL_CLASS}`}>
               {onUseSkill && skill.enabled && (
                 <button
@@ -1113,64 +1136,15 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
               disabled={readOnly}
               onToggle={() => handleToggleSkill(skill.id)}
             />
-          </div>
-        </div>
-
-        <p className="mb-3 line-clamp-2 min-h-[2.6em] text-xs leading-relaxed text-secondary">
-          {skillService.getLocalizedSkillDescription(skill.id, skill.name, skill.description)}
-        </p>
-
-        <div className={`mt-auto flex items-center justify-between gap-2 ${MANAGEMENT_META_TEXT} text-muted`}>
-          <div className="flex min-w-0 items-center gap-1.5">
-            {/* No "disabled" badge here — the switch above already carries the
-                state, and labelling it twice reads as two different facts. */}
-            {showOriginBadge ? (
-              <span className={`rounded px-1.5 py-0.5 font-medium ${
-                skill.isBuiltIn ? 'bg-surface-raised text-secondary' : 'bg-primary-muted text-primary'
-              }`}>
-                {i18nService.t(skill.isBuiltIn ? 'skillOriginBuiltIn' : 'skillOriginMine')}
-              </span>
-            ) : skill.isOfficial && (
-              <span className="rounded bg-primary-muted px-1.5 py-0.5 font-medium text-primary">
-                {i18nService.t('official')}
-              </span>
-            )}
-            {/* The agent skips this skill even though it is enabled here; the
-                detail dialog explains why. */}
-            {skill.loadIssue && (
-              <span
-                className="flex-shrink-0 rounded bg-amber-500/10 px-1.5 py-0.5 font-medium text-amber-600 dark:text-amber-400"
-                title={i18nService.t(SKILL_LOAD_ISSUE_I18N_KEYS[skill.loadIssue].detail)}
-              >
-                {i18nService.t(SKILL_LOAD_ISSUE_I18N_KEYS[skill.loadIssue].label)}
-              </span>
-            )}
-            <span className="truncate">{formatSkillDate(skill.updatedAt)}</span>
-          </div>
-          {hasUpdate && marketplaceSkill && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); handleUpgradeSkill(marketplaceSkill); }}
-              disabled={upgradeState?.isActive === true}
-              className={`inline-flex flex-shrink-0 items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 ${MANAGEMENT_META_TEXT} font-medium text-emerald-600 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-400`}
-            >
-              <ArrowPathIcon className="h-3.5 w-3.5" />
-              {i18nService.t('skillUpgrade')}
-            </button>
-          )}
-        </div>
-      </div>
+          </>
+        )}
+        onClick={openInstalledDetail}
+      />
     );
   };
 
   return (
     <div className="space-y-4">
-      <div className="pb-2">
-        <p className={`${MANAGEMENT_BODY_TEXT} text-secondary`}>
-          {i18nService.t('skillsDescription')}
-        </p>
-      </div>
-
       {skillActionError && !isRemoteImportOpen && (
         <ErrorMessage
           message={skillActionError}
@@ -1396,9 +1370,9 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       <div>
       {/* Search spans both installed groups, so hits from the other tab stay reachable. */}
       {isInstalledTab && isSkillSearchActive && (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+        <div className={SKILL_LIST_CONTAINER_CLASS}>
           {filteredSkills.length === 0 ? (
-            <div className="col-span-full text-center py-8 text-sm text-secondary">
+            <div className="text-center py-8 text-sm text-secondary">
               {i18nService.t('noSkillsAvailable')}
             </div>
           ) : (
@@ -1466,34 +1440,27 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
             </div>
           )
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+          <div className={SKILL_LIST_CONTAINER_CLASS}>
             {mySkills.map((skill) => renderInstalledSkillCard(skill, false))}
           </div>
         )
       )}
 
       {activeTab === SkillTab.BuiltIn && !isSkillSearchActive && (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+        <div className={SKILL_LIST_CONTAINER_CLASS}>
           {builtInSkills.map((skill) => renderInstalledSkillCard(skill, false))}
         </div>
       )}
 
       {activeTab === SkillTab.Marketplace && (
         isLoadingMarketplace ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4" aria-hidden="true">
+          <div className={SKILL_LIST_CONTAINER_CLASS} aria-hidden="true">
             {Array.from({ length: 6 }).map((_, idx) => (
-              <div key={idx} className="animate-pulse rounded-2xl border border-border bg-surface p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-lg bg-surface-raised" />
-                  <div className="h-3.5 w-1/3 rounded bg-surface-raised" />
-                </div>
-                <div className="space-y-2">
-                  <div className="h-3 w-full rounded bg-surface-raised" />
-                  <div className="h-3 w-2/3 rounded bg-surface-raised" />
-                </div>
-                <div className="mt-3 flex items-center gap-1.5">
-                  <div className="h-4 w-12 rounded bg-surface-raised" />
-                  <div className="h-4 w-10 rounded bg-surface-raised" />
+              <div key={idx} className="animate-pulse flex items-center gap-3 px-4 py-3">
+                <div className="h-8 w-8 rounded-lg bg-surface-raised" />
+                <div className="space-y-1.5">
+                  <div className="h-3.5 w-32 rounded bg-surface-raised" />
+                  <div className="h-3 w-48 rounded bg-surface-raised" />
                 </div>
               </div>
             ))}
@@ -1505,7 +1472,7 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                 {i18nService.t('skillMarketplaceEmpty')}
               </div>
             ) : (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+              <div className={SKILL_LIST_CONTAINER_CLASS}>
                 {filteredMarketplaceSkills.map((skill) => {
                   const openMarketplaceDetail = () => {
                     reportSkillAction('open_marketplace_detail', {
@@ -1520,28 +1487,30 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                     });
                     setSelectedMarketplaceSkill(skill);
                   };
+                  const installedVer = getInstalledVersion(skill.id);
+                  const hasUpdate = Boolean(
+                    skill.version && installedVer && compareVersions(skill.version, installedVer) > 0,
+                  );
                   return (
-              <div
+              <ManagementListRow
                 key={skill.id}
-                role="button"
-                tabIndex={0}
-                className="group flex flex-col cursor-pointer rounded-2xl border border-border bg-surface p-4 shadow-subtle transition-all hover:border-primary/50 hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                onClick={openMarketplaceDetail}
-                onKeyDown={(e) => {
-                  if (e.target !== e.currentTarget) return;
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    openMarketplaceDetail();
-                  }
-                }}
-              >
-                <div className="mb-3 flex items-center gap-2.5">
-                  <SkillIconTile icon={skill.icon ?? skillService.getSkillIcon(skill.id)} />
-                  <div className={`min-w-0 flex-1 truncate ${MANAGEMENT_TITLE_TEXT} font-semibold leading-snug text-foreground`}>
-                    {skillService.getLocalizedSkillName(skill.id, skill.name)}
-                  </div>
-                  {/* App Store rules: one capsule, label carries the state.
-                      Uninstall is not a browsing action — it lives in detail. */}
+                title={skillService.getLocalizedSkillName(skill.id, skill.name)}
+                badges={(
+                  <>
+                    {skill.source?.from && (
+                      <span className={`rounded bg-surface-raised px-1.5 py-0.5 font-medium ${MANAGEMENT_META_TEXT} text-muted`}>
+                        {skill.source.from}
+                      </span>
+                    )}
+                    {hasUpdate && installedVer && (
+                      <span className={`rounded bg-amber-500/10 px-1.5 py-0.5 font-medium ${MANAGEMENT_META_TEXT} text-amber-600 dark:text-amber-400`}>
+                        v{installedVer} → v{skill.version}
+                      </span>
+                    )}
+                  </>
+                )}
+                subtitle={resolveLocalizedText(skill.description)}
+                right={(
                   <div className="flex flex-shrink-0 items-center">
                     {(() => {
                       const status = getSkillInstallStatus(skill);
@@ -1592,34 +1561,9 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                       ) : null;
                     })()}
                   </div>
-                </div>
-
-                <p className="mb-3 line-clamp-2 min-h-[2.6em] text-xs leading-relaxed text-secondary">
-                  {resolveLocalizedText(skill.description)}
-                </p>
-
-                <div className={`mt-auto flex items-center gap-1.5 ${MANAGEMENT_META_TEXT} text-muted`}>
-                  {skill.source?.from && (
-                    <span className="rounded bg-surface-raised px-1.5 py-0.5 font-medium">
-                      {skill.source.from}
-                    </span>
-                  )}
-                  {(() => {
-                    const installedVer = getInstalledVersion(skill.id);
-                    if (skill.version && installedVer && compareVersions(skill.version, installedVer) > 0) {
-                      return (
-                        <span className="rounded bg-amber-500/10 px-1.5 py-0.5 font-medium text-amber-600 dark:text-amber-400">
-                          v{installedVer} → v{skill.version}
-                        </span>
-                      );
-                    }
-                    return null;
-                  })()}
-                  {skill.source?.author && (
-                    <span className="truncate">{skill.source.author}</span>
-                  )}
-                </div>
-              </div>
+                )}
+                onClick={openMarketplaceDetail}
+              />
                   );
                 })}
           </div>
@@ -1667,11 +1611,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                 <XMarkIcon className="h-5 w-5" />
               </button>
               <div className="flex items-center gap-3.5 pr-9">
-                <SkillIconTile
-                  icon={selectedMarketplaceSkill.icon ?? skillService.getSkillIcon(selectedMarketplaceSkill.id)}
-                  className="h-14 w-14 rounded-2xl"
-                  iconClassName="h-7 w-7"
-                />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-base font-semibold leading-tight text-foreground">
                     {skillService.getLocalizedSkillName(selectedMarketplaceSkill.id, selectedMarketplaceSkill.name)}
@@ -1802,11 +1741,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                 <XMarkIcon className="h-5 w-5" />
               </button>
               <div className="flex items-center gap-3.5 pr-9">
-                <SkillIconTile
-                  icon={skillService.getSkillIcon(selectedSkill.id)}
-                  className="h-14 w-14 rounded-2xl"
-                  iconClassName="h-7 w-7"
-                />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-base font-semibold leading-tight text-foreground">
                     {skillService.getLocalizedSkillName(selectedSkill.id, selectedSkill.name)}
