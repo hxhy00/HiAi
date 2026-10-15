@@ -203,7 +203,10 @@ const bridgeSecret = requireEnv('LOBSTER_MCP_BRIDGE_SECRET');
 const helperStateHome = requireEnv('LOBSTER_COMPUTER_USE_HOME');
 const locale = String(env.LOBSTER_COMPUTER_USE_LOCALE || 'zh').toLowerCase().startsWith('en') ? 'en' : 'zh';
 const selfPid = Number(env.LOBSTER_COMPUTER_USE_SELF_PID || 0) || null;
-const selfAppName = String(env.LOBSTER_COMPUTER_USE_SELF_APP || 'LobsterAI').trim();
+// Fallback only: the launcher passes app.getName(), so this normally tracks the
+// packaged product name. It matters because isSelfApp compares against it to keep
+// computer-use from driving this app's own windows.
+const selfAppName = String(env.LOBSTER_COMPUTER_USE_SELF_APP || 'HiAi').trim();
 
 const { McpServer } = await import(moduleUrl(sdkRoot, 'dist', 'esm', 'server', 'mcp.js'));
 const { StdioServerTransport } = await import(moduleUrl(sdkRoot, 'dist', 'esm', 'server', 'stdio.js'));

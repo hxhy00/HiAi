@@ -5125,7 +5125,9 @@ if (!gotTheLock) {
             ? [
                 {
                   archiveName: 'install-timing.log',
-                  filePath: path.join(app.getPath('appData'), 'LobsterAI', 'install-timing.log'),
+                  // Must match the path the NSIS installer writes to; it lives
+                  // beside the profile, not inside it.
+                  filePath: path.join(app.getPath('appData'), APP_NAME, 'install-timing.log'),
                 },
               ]
             : []),

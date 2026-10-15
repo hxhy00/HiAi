@@ -38,7 +38,7 @@ describe('loopback firewall rule', () => {
   test('allows only inbound TCP between loopback addresses for one program', () => {
     expect(buildLoopbackFirewallRuleArgs(programPath)).toEqual([
       'advfirewall', 'firewall', 'add', 'rule',
-      'name=LobsterAI loopback',
+      'name=HiAi loopback',
       'dir=in',
       'action=allow',
       `program=${programPath}`,
@@ -52,7 +52,7 @@ describe('loopback firewall rule', () => {
 
   test('gives administrators a command they can paste', () => {
     expect(formatLoopbackFirewallManualCommand(programPath)).toBe(
-      'netsh advfirewall firewall add rule name="LobsterAI loopback" dir=in action=allow '
+      'netsh advfirewall firewall add rule name="HiAi loopback" dir=in action=allow '
       + `program="${programPath}" protocol=TCP localip=127.0.0.1 remoteip=127.0.0.1 profile=any`,
     );
   });
@@ -72,7 +72,7 @@ describe('buildLoopbackFirewallElevatedScript', () => {
 
     expect(lines[0]).toBe("$netsh = Join-Path $env:SystemRoot 'System32\\netsh.exe'");
     expect(lines[1]).toBe(
-      `& $netsh 'advfirewall' 'firewall' 'delete' 'rule' 'name=LobsterAI loopback' 'dir=in' 'program=${programPath}' | Out-Null`,
+      `& $netsh 'advfirewall' 'firewall' 'delete' 'rule' 'name=HiAi loopback' 'dir=in' 'program=${programPath}' | Out-Null`,
     );
     expect(lines[2]).toContain("'localip=127.0.0.1' 'remoteip=127.0.0.1'");
     expect(lines[3]).toBe('exit $LASTEXITCODE');
