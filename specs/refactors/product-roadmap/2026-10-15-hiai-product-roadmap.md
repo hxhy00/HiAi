@@ -35,6 +35,7 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 | 8 | 移除模型凭据冷却期 | ✅ 已完成 | 全局禁用模型凭据冷却期 |
 | 9 | 版本更新改 GitHub Releases | ⏳ 待执行 | 更新检查改走 GitHub Releases |
 | 10 | 彻底移除遥测功能 | ✅ 已完成 | 删除使用日志上报链路 |
+| 11 | 删除设置中的「帮助改进 HiAi」 | ✅ 已完成 | 移除使用统计开关（随任务 10 一并删除） |
 | — | Web Search 方案调研 | 🔜 暂缓 | 调研联网搜索方案，本期不落地 |
 
 ## 3. 各项说明
@@ -131,6 +132,18 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 
 **说明**：使用日志上报链路已整体删除（含 `logReporter`、`installationId`、`analyticsIdentity`）。原设计文档 `specs/features/usage-analytics/2026-06-22-usage-analytics-design.md` 已加废弃标注，仅作历史记录保留。
 
+### 任务 11 · 删除设置中的「帮助改进 HiAi」✅ 已完成
+
+**结论**：该开关（i18n key `usageAnalyticsEnabled`，中文文案「帮助改进 HiAi」，位于设置
+「数据与隐私」组）**已随任务 10 一并删除**，无需另行开发。
+
+**证据**：`74734f2` 提交说明明确列出「删除『帮助改进 HiAi』设置开关、配置字段与 i18n 文案」；
+`git show 74734f2 -- src/renderer/services/i18n.ts` 可见被删行
+`-    usageAnalyticsEnabled: '帮助改进 HiAi',`。
+
+**现状核实**：`src/renderer/components/Settings.tsx` 的「数据与隐私」组（`settingsGroupDataPrivacy`）
+现仅含「临时文件占用」与「SQLite 自动备份」两项；全仓已无 `帮助改进 HiAi` / `usageAnalyticsEnabled` 残留。
+
 ### Web Search 方案调研 🔜 暂缓
 
 **说明**：联网搜索（Web Search）方案调研已识别，但本期不排期，暂缓。
@@ -142,7 +155,7 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 - **任务 2（移除云端）** 与 **任务 9（改 GitHub Releases）** 存在重叠：更新检查端点属云端残留，建议**先做 9，再收口 2**，避免重复审计。
 - **任务 3 / 4（规则 / Hook）** 同属"agent 可扩展机制"，可共享一套配置与加载框架，建议**一起设计**。
 - **任务 5 / 7（润色 / 技能市场）** 相互独立，可并行推进。
-- **任务 6 / 8 / 10** 已完成，无需再排期。
+- **任务 6 / 8 / 10 / 11** 已完成，无需再排期。
 
 ## 5. 变更记录
 
@@ -150,3 +163,4 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 | --- | --- |
 | 2026-10-15 | 建档；归档 10 项任务状态。其中任务 8（凭据冷却期）、任务 10（遥测）已完成；任务 6（思考展示）已定位根因为上游未下发数据；Web Search 暂缓。 |
 | 2026-10-15 | 任务 6 修复完成：用户自配 provider 桥接 thinkingConfig（`buildCustomModelThinkingConfig`）。任务 3（规则系统）、任务 4（Hook 系统）按用户决定暂缓。 |
+| 2026-10-15 | 登记任务 11（删除「帮助改进 HiAi」开关），核实其已随任务 10 的 `74734f2` 一并删除，标记为已完成。 |
