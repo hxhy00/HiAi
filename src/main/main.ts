@@ -535,7 +535,7 @@ import {
   restoreOriginalProxyEnv,
   setSystemProxyEnabled,
 } from './libs/systemProxy';
-import { migrateLegacyUserDataDir } from './libs/userDataDirMigration';
+import { migrateLegacyUserDataDir, renameLegacySqliteFiles } from './libs/userDataDirMigration';
 import { type LoopbackFirewallRepairResult, repairWindowsLoopbackFirewall } from './libs/windowsLoopbackFirewall';
 import { getLogFilePath, getRecentMainLogEntries, initLogger } from './logger';
 import { type AskUserResponse, McpRuntime } from './mcp/mcpRuntime';
