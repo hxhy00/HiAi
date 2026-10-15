@@ -273,7 +273,7 @@
     "@univerjs/sheets-sort": "1.0.2",
     "@univerjs/sheets-sort-ui": "1.0.2",
     "@univerjs/sheets-ui": "1.0.2",
-    "@univerjs/ui": "1.0.2",
+    "@univerjs/ui": "1.0.3",
     "@wecom/wecom-aibot-sdk": "^0.1.0",
     "better-sqlite3": "^13.0.3",
     "bufferutil": "^4.1.0",
