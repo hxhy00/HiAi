@@ -1,6 +1,12 @@
 export const APP_NAME = 'HiAi';
-export const APP_ID = 'lobsterai';
-export const APP_USER_MODEL_ID = 'com.lobsterai.app';
+export const APP_ID = 'hiai';
+/**
+ * Windows AppUserModelID. Must stay identical to `appId` in
+ * `electron-builder.json`, otherwise the installer registers the app under one
+ * identity while notifications claim another and toast notifications lose their
+ * app name and icon.
+ */
+export const APP_USER_MODEL_ID = 'com.hiai.app';
 export const APP_ATTENTION_BADGE_COLOR = '#FF3B30';
 export const DB_FILENAME = 'hiai.sqlite';
 
