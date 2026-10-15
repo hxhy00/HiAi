@@ -110,7 +110,7 @@ export function buildComputerUseMarketplaceKit(): Record<string, unknown> {
     name: ComputerUseKitMetadata.Name,
     description: ComputerUseKitMetadata.Description,
     icon: COMPUTER_USE_KIT_ICON_URL,
-    author: 'LobsterAI',
+    author: 'HiAi',
     version: runtime?.version ?? '0.0.0',
     tryAsking: [
       {
@@ -220,7 +220,7 @@ export function removeComputerUseSkillArtifacts(store: SqliteStore): void {
 /**
  * macOS: ask for Accessibility right after the kit is installed, so the system prompt
  * appears while the user is looking at Computer Use rather than mid-task. The helper
- * inherits LobsterAI's permission, and requests Screen Recording on first capture.
+ * inherits HiAi's permission, and requests Screen Recording on first capture.
  */
 export function promptComputerUseAccessibilityPermission(): boolean {
   if (process.platform !== ComputerUseRuntimePlatform.MacOS) {

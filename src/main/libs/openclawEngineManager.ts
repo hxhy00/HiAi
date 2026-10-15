@@ -85,7 +85,7 @@ const GATEWAY_RESTART_DELAYS = [3_000, 5_000, 10_000, 20_000, 30_000];
 // shortly after startup restart forever without ever reaching the limit.
 const GATEWAY_RESTART_BUDGET_RESET_MS = 60_000;
 // How long a gateway-initiated restart (SIGUSR1 in-process restart after a
-// config change) is trusted to complete before LobsterAI resumes managing the
+// config change) is trusted to complete before HiAi resumes managing the
 // process itself.
 const GATEWAY_SELF_RESTART_WINDOW_MS = 30_000;
 const OPENCLAW_GATEWAY_MAX_OLD_SPACE_MB = 4096;
@@ -398,7 +398,7 @@ export function buildOpenClawGatewayExecArgv(existingNodeOptions: string | undef
 export function buildOpenClawCompileCacheEnv(compileCacheDir: string): NodeJS.ProcessEnv {
   return {
     NODE_COMPILE_CACHE: compileCacheDir,
-    // The cache is already configured by LobsterAI. Prevent the packaged
+    // The cache is already configured by HiAi. Prevent the packaged
     // launcher from respawning through Electron Helper as if it were Node.
     OPENCLAW_PACKAGED_COMPILE_CACHE_RESPAWNED: '1',
   };
@@ -674,7 +674,7 @@ export class OpenClawEngineManager extends EventEmitter {
 
   /**
    * Called on the native shutdown event with restartExpectedMs. While the window is
-   * active LobsterAI must not kill/respawn the process: the gateway is between
+   * active HiAi must not kill/respawn the process: the gateway is between
    * releasing and re-acquiring its single-instance lock, and a TerminateProcess
    * there leaves a poisoned (empty) lock file behind.
    */
@@ -1203,7 +1203,7 @@ export class OpenClawEngineManager extends EventEmitter {
     }
 
     // Prepend bundled/user Python runtime paths so gateway exec commands
-    // find the LobsterAI-managed Python instead of the Windows Store stub.
+    // find the HiAi-managed Python instead of the Windows Store stub.
     appendPythonRuntimeToEnv(env as Record<string, string | undefined>);
 
     // Inject node/npm/npx shims so gateway exec commands can use them.
@@ -1715,7 +1715,7 @@ export class OpenClawEngineManager extends EventEmitter {
       }
       if (result.protectedExisting.length > 0) {
         console.warn(
-          `[OpenClaw] Skipped ${result.protectedExisting.length} worker shim(s) because existing files are not LobsterAI shims.`,
+          `[OpenClaw] Skipped ${result.protectedExisting.length} worker shim(s) because existing files are not HiAi shims.`,
         );
       }
     } catch (error) {
@@ -2378,7 +2378,7 @@ export class OpenClawEngineManager extends EventEmitter {
       }
     };
 
-    // A read-time restore means the gateway runs a config LobsterAI did not write.
+    // A read-time restore means the gateway runs a config HiAi did not write.
     const noteConfigAutoRestore = (text: string) => {
       const restore = parseOpenClawConfigAutoRestore(text);
       if (!restore) return;

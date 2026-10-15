@@ -1,5 +1,5 @@
 /**
- * Agent tools that read and edit the presentation LobsterAI has open, in place. Edits go through
+ * Agent tools that read and edit the presentation HiAi has open, in place. Edits go through
  * the live editor, so the user sees them immediately and can undo each call as one step.
  */
 export const SlidesAgentTool = {
@@ -42,7 +42,7 @@ export type SlidesShapeKind = typeof SlidesShapeKind[keyof typeof SlidesShapeKin
 
 export const SLIDES_AGENT_TIMEOUT_MS = 60_000;
 
-/** The LobsterAI-managed MCP server that exposes these tools to OpenClaw. */
+/** The HiAi-managed MCP server that exposes these tools to OpenClaw. */
 export const SLIDES_AGENT_MCP_SERVER_NAME = 'lobster-ppt';
 
 /** Tool descriptions and schemas shared by the MCP server and the renderer's validator. */
@@ -50,7 +50,7 @@ export const SLIDES_AGENT_TOOL_DEFINITIONS = [
   {
     name: SlidesAgentTool.Read,
     description: [
-      'Open a local .pptx in LobsterAI\'s PowerPoint editor (right-side panel) and read its slides.',
+      'Open a local .pptx in HiAi\'s PowerPoint editor (right-side panel) and read its slides.',
       'Returns the presentation revision, the slide size in points, and for each slide its number, layout, speaker notes and shapes:',
       'id, name, kind (text, shape, picture, table, group, chart, other), placeholder role (title, body, ...), position and size in points,',
       'text (one line per paragraph, tabs before a line give its bullet level) and table cells. It also returns the user\'s current selection.',
@@ -70,7 +70,7 @@ export const SLIDES_AGENT_TOOL_DEFINITIONS = [
   {
     name: SlidesAgentTool.Edit,
     description: [
-      'Apply edits to a .pptx open in LobsterAI\'s PowerPoint editor. Edits apply in order as one undoable step; if any edit is invalid, none is applied.',
+      'Apply edits to a .pptx open in HiAi\'s PowerPoint editor. Edits apply in order as one undoable step; if any edit is invalid, none is applied.',
       'Changes appear live and save automatically. Pass expectedRevision from ppt_read; if the user changed the presentation since, the call is refused and you must read again.',
       'Slides are numbered from 1 in their current order, shapes are addressed by the ids from ppt_read, and lengths are in points. Edit types:',
       'set_text {slide, shape, text} replaces a shape\'s text and keeps its formatting (a newline starts a paragraph, leading tabs set its bullet level);',
@@ -140,7 +140,7 @@ export const SLIDES_AGENT_TOOL_DEFINITIONS = [
 export const SLIDES_AGENT_PROMPT = [
   '## Editing Existing Presentations',
   '',
-  `- When the user wants to change an existing \`.pptx\` and \`${SlidesAgentTool.Read}\` / \`${SlidesAgentTool.Edit}\` are available, use them instead of rewriting the file with scripts: edits appear live in LobsterAI's editor, keep the theme, layouts, animations and other content, and can be undone as one step.`,
+  `- When the user wants to change an existing \`.pptx\` and \`${SlidesAgentTool.Read}\` / \`${SlidesAgentTool.Edit}\` are available, use them instead of rewriting the file with scripts: edits appear live in HiAi's editor, keep the theme, layouts, animations and other content, and can be undone as one step.`,
   '- They change text and its formatting, table cells, shape positions and sizes, add text boxes, add, duplicate, move and delete slides, and write speaker notes.',
   '- Use file-based tools only for what those tools cannot do (pictures, charts, new designs), when the presentation is reported as read-only or an edit is refused, or to create a new presentation.',
 ].join('\n');

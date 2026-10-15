@@ -27,7 +27,7 @@ export interface OfficeEditorSpec {
   readonly extension: string;
   readonly channels: OfficeFileChannels;
   readonly agent: {
-    /** The LobsterAI-managed MCP server that exposes the tools to OpenClaw. */
+    /** The HiAi-managed MCP server that exposes the tools to OpenClaw. */
     readonly serverName: string;
     readonly tools: readonly OfficeToolDefinition[];
     readonly timeoutMs: number;

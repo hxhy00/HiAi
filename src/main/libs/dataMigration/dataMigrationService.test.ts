@@ -413,22 +413,22 @@ test('inspectMigrationArchive still accepts an archive written before the rename
   // the read path has to keep accepting the old root.
   createMigrationArchiveSync({ userDataPath: sourceUserData, outputPath: archivePath });
   const extractRoot = extractArchive(archivePath);
-  const legacyRoot = path.join(extractRoot, 'LobsterAI');
+  const legacyRoot = path.join(extractRoot, 'HiAi');
   fs.renameSync(path.join(extractRoot, 'HiAi'), legacyRoot);
 
   const manifestPath = path.join(legacyRoot, '.lobsterai-migration.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
-  writeFile(manifestPath, JSON.stringify({ ...manifest, appName: 'LobsterAI', archiveRoot: 'LobsterAI' }));
+  writeFile(manifestPath, JSON.stringify({ ...manifest, appName: 'HiAi', archiveRoot: 'HiAi' }));
 
   tar.create({
     sync: true,
     gzip: true,
     file: legacyArchivePath,
     cwd: extractRoot,
-  }, ['LobsterAI']);
+  }, ['HiAi']);
 
   const info = inspectMigrationArchiveSync(legacyArchivePath);
-  expect(info.root).toBe('LobsterAI');
+  expect(info.root).toBe('HiAi');
 });
 
 test('inspectMigrationArchive rejects archives without a migration manifest', () => {

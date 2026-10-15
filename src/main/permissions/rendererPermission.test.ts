@@ -17,7 +17,7 @@ import { registerRendererPermissionHandler } from './rendererPermission';
 type PermissionRequestHandler = NonNullable<Parameters<Electron.Session['setPermissionRequestHandler']>[0]>;
 type RequestedPermission = Parameters<PermissionRequestHandler>[1];
 
-const APP_URL = 'file:///Applications/LobsterAI.app/Contents/Resources/app.asar/dist/index.html';
+const APP_URL = 'file:///Applications/HiAi.app/Contents/Resources/app.asar/dist/index.html';
 const DEV_SERVER_URL = 'http://localhost:5175';
 const ARTIFACT_PREVIEW_URL = 'http://127.0.0.1:43123/preview/index.html';
 

@@ -55,7 +55,7 @@ export function installOfficeAgentBridges(): () => void {
         .catch((error: unknown): OfficeAgentToolResult => {
           console.error(`${format.agentLogTag} Tool call failed:`, error);
           const message = error instanceof Error ? error.message : String(error);
-          return { content: [{ type: 'text', text: `The LobsterAI ${format.spec.editorName} editor failed: ${message}` }], isError: true };
+          return { content: [{ type: 'text', text: `The HiAi ${format.spec.editorName} editor failed: ${message}` }], isError: true };
         })
         .then(result => bridge.respondAgent({ requestId: request.requestId, result }));
     });

@@ -1,6 +1,6 @@
 'use strict';
 
-// Startup performance probe, run by LobsterAI.exe with ELECTRON_RUN_AS_NODE=1.
+// Startup performance probe, run by HiAi.exe with ELECTRON_RUN_AS_NODE=1.
 // Customer files are only read as raw bytes (never opened through SQLite).
 // All writes stay in the diagnostic directories named by the request.
 const fs = require('node:fs');

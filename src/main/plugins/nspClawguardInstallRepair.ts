@@ -33,7 +33,7 @@ function samePath(left: string, right: string): boolean {
 
 /**
  * Called only under the startup helper's stopped-gateway maintenance lock.
- * LobsterAI moved user installs out of state/extensions, but a stale npm receipt
+ * HiAi moved user installs out of state/extensions, but a stale npm receipt
  * can make OpenClaw try downloading an old private-registry package at startup.
  * Reconcile only this known missing install with an enabled, existing payload.
  */
@@ -129,6 +129,6 @@ export async function repairNspClawguardInstall(
     if (!isDeepStrictEqual({ ...owners.read() }, repaired)) {
       throw new Error('Clawguard install record could not be verified after startup repair.');
     }
-    return [`Reconciled ${id} ${pkg.version} with its existing LobsterAI installation at ${pluginDir}.`];
+    return [`Reconciled ${id} ${pkg.version} with its existing HiAi installation at ${pluginDir}.`];
   });
 }

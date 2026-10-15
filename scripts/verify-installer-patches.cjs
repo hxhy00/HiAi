@@ -2,7 +2,7 @@
 
 // Build gate for Windows installer packaging.
 //
-// Every LobsterAI fix to the electron-builder NSIS templates lives in
+// Every HiAi fix to the electron-builder NSIS templates lives in
 // patches/app-builder-lib+24.13.3.patch and only reaches node_modules when
 // patch-package runs, i.e. during `npm install` / `npm ci` (postinstall).
 // `git pull` does not re-apply it, so a build machine that pulled a newer

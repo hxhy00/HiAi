@@ -5,7 +5,7 @@
 const path = require('node:path');
 const { buildSingleFileCollector, splitParamBlock, writeCollector } = require('./single-file-collector.cjs');
 
-const OUTPUT_NAME = 'LobsterAI-Performance-Diagnostics.cmd';
+const OUTPUT_NAME = 'HiAi-Performance-Diagnostics.cmd';
 const PROBE_VARIABLE = '$script:EmbeddedPerformanceProbe';
 
 function buildPerformanceCollector(sourceDir = __dirname) {
@@ -14,7 +14,7 @@ function buildPerformanceCollector(sourceDir = __dirname) {
     collectorFile: 'collect-performance.ps1',
     probeFile: 'performance-probe.cjs',
     probeVariable: PROBE_VARIABLE,
-    title: 'LobsterAI Startup Performance Diagnostics',
+    title: 'HiAi Startup Performance Diagnostics',
   });
 }
 

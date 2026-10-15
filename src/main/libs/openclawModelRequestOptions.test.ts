@@ -21,7 +21,7 @@ const profile: LobsterAIThinkingProfile = {
   requestOptionsVersion: 1,
 };
 
-describe('LobsterAI request options', () => {
+describe('HiAi request options', () => {
   test('uses an allowed selected level and falls back to the profile default', () => {
     expect(resolveLobsterAIRequestThinkingLevel(profile, 'off')).toBe('off');
     expect(resolveLobsterAIRequestThinkingLevel(profile, 'xhigh')).toBe('max');

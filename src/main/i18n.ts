@@ -8,7 +8,7 @@
  * Usage:
  *   import { t, setLanguage } from './i18n';
  *   setLanguage('en');
- *   const label = t('trayShowWindow'); // "Open LobsterAI"
+ *   const label = t('trayShowWindow'); // "Open HiAi"
  *   const msg = t('imMissingCredentials', { fields: 'appId, appSecret' });
  */
 
@@ -36,16 +36,16 @@ const translations: Record<LanguageType, Record<string, string>> = {
     dshPlanProviderName: '套餐',
 
     // Tray menu
-    trayShowWindow: '打开 LobsterAI',
+    trayShowWindow: '打开 HiAi',
     trayNewTask: '新建任务',
     trayViewCompletedTask: '查看完成的任务',
-    trayCompletedTaskTooltip: 'LobsterAI - {count} 个任务已完成',
+    trayCompletedTaskTooltip: 'HiAi - {count} 个任务已完成',
     traySettings: '设置',
     trayQuit: '退出',
 
     // Quit confirmation (native dialog shown on user-initiated quit)
-    appQuitConfirmTitle: '退出 LobsterAI？',
-    appQuitConfirmDetail: 'LobsterAI 关闭期间，定时任务不会运行，也无法回复 IM 消息。',
+    appQuitConfirmTitle: '退出 HiAi？',
+    appQuitConfirmDetail: 'HiAi 关闭期间，定时任务不会运行，也无法回复 IM 消息。',
     appQuitConfirmUnsafeMarkdown: '有文档修改尚未保存，也尚未备份。退出后这些修改将丢失。请取消退出，返回文档保存修改。',
     appQuitConfirmQuit: '退出',
     appQuitConfirmCancel: '取消',
@@ -59,7 +59,7 @@ const translations: Record<LanguageType, Record<string, string>> = {
     questionNotificationBody: '需要你回答问题后才能继续',
     browserCredentialApprovalHeader: '保存的登录信息',
     browserCredentialApprovalTitle: '允许 Agent 自动登录',
-    browserCredentialApprovalSubtitle: 'LobsterAI 将在隔离页面中填写，密码不会提供给 Agent。',
+    browserCredentialApprovalSubtitle: 'HiAi 将在隔离页面中填写，密码不会提供给 Agent。',
     browserCredentialApprovalQuestion: '是否允许 Agent 使用账号 {username} 登录 {origin}？',
     browserCredentialApprovalReason: 'Agent 给出的原因：{reason}',
     browserCredentialApprovalAllow: '允许并继续',
@@ -68,7 +68,7 @@ const translations: Record<LanguageType, Record<string, string>> = {
     browserCredentialApprovalDenyDescription: '不使用保存的登录信息',
     browserCredentialSelectionQuestion: '选择允许 Agent 用于登录 {origin} 的账号',
     browserCredentialSelectionTitle: '选择登录账号',
-    browserCredentialSelectionSubtitle: '选定后，LobsterAI 将自动完成账号密码填写。',
+    browserCredentialSelectionSubtitle: '选定后，HiAi 将自动完成账号密码填写。',
     browserCredentialSelectionDescription: '使用该账号继续登录',
     contextMenuCut: '剪切',
     contextMenuCopy: '复制',
@@ -119,7 +119,7 @@ const translations: Record<LanguageType, Record<string, string>> = {
     // Cowork error messages (shared with renderer via classifyErrorKey)
     coworkErrorAuthInvalid: 'API 密钥无效或已过期，请检查配置。',
     coworkErrorSubagentSummaryFailed: '子任务已完成，但主 Agent 未能恢复汇总。请继续对话以重试汇总。',
-    coworkErrorLobsterAILoginExpired: '登录状态已过期，请重新登录后继续使用 LobsterAI 套餐模型。',
+    coworkErrorLobsterAILoginExpired: '登录状态已过期，请重新登录后继续使用 HiAi 套餐模型。',
     coworkErrorOAuthInvalid: 'OAuth 授权已失效或权限不足，请重新授权后重试。',
     coworkErrorModelAccessDenied: '当前账号无权访问该模型，请切换模型或检查服务商账号权限。',
     coworkErrorQuotaExhausted:
@@ -137,7 +137,7 @@ const translations: Record<LanguageType, Record<string, string>> = {
       '本次消息过大，请减少附件、压缩图片或拆分提交。（单次整体需小于 30MB）',
     coworkErrorCouldNotProcessPdf: '无法处理 PDF 文件。',
     coworkErrorModelNotFound: '请求的模型不存在或不可用。',
-    coworkGatewaySessionSyncTimeout: 'OpenClaw 引擎响应缓慢，消息尚未发送。请等待 1~2 分钟后重新发送；若频繁出现，请检查系统内存与磁盘占用，并将 LobsterAI 加入杀毒软件白名单。',
+    coworkGatewaySessionSyncTimeout: 'OpenClaw 引擎响应缓慢，消息尚未发送。请等待 1~2 分钟后重新发送；若频繁出现，请检查系统内存与磁盘占用，并将 HiAi 加入杀毒软件白名单。',
     coworkErrorTranscriptOversized: '该任务的历史记录过大。为保护 AI 引擎，本次消息未发送；请新建任务继续，原任务记录仍会保留。',
     coworkErrorGatewayHeapOutOfMemory: '本地 AI 引擎内存不足并已自动重启。当前任务可能过大，请等待恢复后在新任务中继续。',
     coworkErrorGatewayDisconnected: 'AI 引擎连接中断，请重试。',
@@ -159,9 +159,9 @@ const translations: Record<LanguageType, Record<string, string>> = {
     coworkErrorToolLoopBlocked:
       '检测到 AI 在重复执行同一个工具调用且没有新的进展（通常是在等待一个耗时较长的后台任务），本轮已被安全停止。后台任务可能仍在运行，可以继续发消息让 AI 接着处理。',
     coworkErrorModelRoutedToPlan:
-      '当前任务选择的模型是「{requested}」，但 AI 引擎把它解析成了套餐模型「{resolved}」。为避免误用套餐额度，这条消息没有发送。请重新选择模型后重试；如果仍然出现，请重启 LobsterAI。',
+      '当前任务选择的模型是「{requested}」，但 AI 引擎把它解析成了套餐模型「{resolved}」。为避免误用套餐额度，这条消息没有发送。请重新选择模型后重试；如果仍然出现，请重启 HiAi。',
     coworkErrorRunUsedPlanModel:
-      '这一轮本应使用你选择的「{requested}」，但 AI 引擎实际调用了套餐模型「{actual}」并且失败了，所以出现了套餐相关的报错。请重新选择模型后重试；如果仍然出现，请重启 LobsterAI。',
+      '这一轮本应使用你选择的「{requested}」，但 AI 引擎实际调用了套餐模型「{actual}」并且失败了，所以出现了套餐相关的报错。请重新选择模型后重试；如果仍然出现，请重启 HiAi。',
     coworkErrorOutputLimitReached:
       '模型单次回复达到了输出长度上限，任务没有完成。可以继续发消息让它从中断处接着做；如果反复出现，可以让它分段完成，比如分批写入文件、用脚本生成大段数据。',
     coworkErrorOutputLimitReachedWithSettings:
@@ -210,13 +210,13 @@ const translations: Record<LanguageType, Record<string, string>> = {
     mediaTaskAccountMismatch: '该媒体任务属于其他账号，无法操作。',
 
     // Data migration dialogs
-    dataMigrationBackupDialogTitle: '备份 LobsterAI 数据',
-    dataMigrationRestoreDialogTitle: '导入 LobsterAI 数据备份',
-    dataMigrationBackupArchiveFilter: 'LobsterAI 备份包',
+    dataMigrationBackupDialogTitle: '备份 HiAi 数据',
+    dataMigrationRestoreDialogTitle: '导入 HiAi 数据备份',
+    dataMigrationBackupArchiveFilter: 'HiAi 备份包',
     dataMigrationAllFilesFilter: '所有文件',
     dataMigrationBackupBlockedByActiveWorkloads:
       '当前有正在运行的 Agent 或定时任务，请停止或等待任务完成后再备份。',
-    dataMigrationRestoreProgressTitle: '正在导入 LobsterAI 数据',
+    dataMigrationRestoreProgressTitle: '正在导入 HiAi 数据',
     dataMigrationRestoreProgressDesc: '正在恢复备份并校验数据，完成后应用会自动重启。',
     dataMigrationRestoreProgressWarning: '请不要关闭应用或重启电脑，否则可能中断本次数据迁移。',
 
@@ -430,16 +430,16 @@ const translations: Record<LanguageType, Record<string, string>> = {
     dshPlanProviderName: 'Plan',
 
     // Tray menu
-    trayShowWindow: 'Open LobsterAI',
+    trayShowWindow: 'Open HiAi',
     trayNewTask: 'New Task',
     trayViewCompletedTask: 'View Completed Task',
-    trayCompletedTaskTooltip: 'LobsterAI - {count} completed task(s)',
+    trayCompletedTaskTooltip: 'HiAi - {count} completed task(s)',
     traySettings: 'Settings',
     trayQuit: 'Quit',
 
     // Quit confirmation (native dialog shown on user-initiated quit)
-    appQuitConfirmTitle: 'Quit LobsterAI?',
-    appQuitConfirmDetail: 'While LobsterAI is closed, scheduled tasks will not run and IM messages will not be answered.',
+    appQuitConfirmTitle: 'Quit HiAi?',
+    appQuitConfirmDetail: 'While HiAi is closed, scheduled tasks will not run and IM messages will not be answered.',
     appQuitConfirmUnsafeMarkdown: 'Some document changes have not been saved or backed up. Quitting will lose these changes. Cancel and return to the document to save your changes.',
     appQuitConfirmQuit: 'Quit',
     appQuitConfirmCancel: 'Cancel',
@@ -453,7 +453,7 @@ const translations: Record<LanguageType, Record<string, string>> = {
     questionNotificationBody: 'Waiting for your answer to continue.',
     browserCredentialApprovalHeader: 'Saved login',
     browserCredentialApprovalTitle: 'Allow Agent sign-in',
-    browserCredentialApprovalSubtitle: 'LobsterAI fills the isolated page without revealing the password to the Agent.',
+    browserCredentialApprovalSubtitle: 'HiAi fills the isolated page without revealing the password to the Agent.',
     browserCredentialApprovalQuestion: 'Allow the Agent to sign in to {origin} as {username}?',
     browserCredentialApprovalReason: 'Reason from the Agent: {reason}',
     browserCredentialApprovalAllow: 'Allow and continue',
@@ -462,7 +462,7 @@ const translations: Record<LanguageType, Record<string, string>> = {
     browserCredentialApprovalDenyDescription: 'Do not use the saved login',
     browserCredentialSelectionQuestion: 'Choose an account the Agent may use to sign in to {origin}',
     browserCredentialSelectionTitle: 'Choose a sign-in account',
-    browserCredentialSelectionSubtitle: 'LobsterAI will fill the selected account automatically.',
+    browserCredentialSelectionSubtitle: 'HiAi will fill the selected account automatically.',
     browserCredentialSelectionDescription: 'Continue with this account',
     contextMenuCut: 'Cut',
     contextMenuCopy: 'Copy',
@@ -524,7 +524,7 @@ const translations: Record<LanguageType, Record<string, string>> = {
     coworkErrorAuthInvalid: 'Invalid or expired API key. Please check your configuration.',
     coworkErrorSubagentSummaryFailed: 'Subtasks finished, but the main agent could not resume the summary. Send a follow-up to retry.',
     coworkErrorLobsterAILoginExpired:
-      'Your login session has expired. Sign in again to continue using LobsterAI plan models.',
+      'Your login session has expired. Sign in again to continue using HiAi plan models.',
     coworkErrorOAuthInvalid: 'OAuth authorization is invalid or missing required access. Re-authenticate and try again.',
     coworkErrorModelAccessDenied: 'This account is not allowed to access the selected model. Switch models or check provider account permissions.',
     coworkErrorQuotaExhausted:
@@ -542,7 +542,7 @@ const translations: Record<LanguageType, Record<string, string>> = {
       'This message is too large. Reduce attachments, compress images, or split it up. (Keep each message under about 30 MB.)',
     coworkErrorCouldNotProcessPdf: 'Unable to process the PDF file.',
     coworkErrorModelNotFound: 'The requested model does not exist or is unavailable.',
-    coworkGatewaySessionSyncTimeout: 'The OpenClaw engine is responding slowly and your message has not been sent. Please wait a minute or two and resend. If this happens frequently, check system memory and disk usage, and add LobsterAI to your antivirus allowlist.',
+    coworkGatewaySessionSyncTimeout: 'The OpenClaw engine is responding slowly and your message has not been sent. Please wait a minute or two and resend. If this happens frequently, check system memory and disk usage, and add HiAi to your antivirus allowlist.',
     coworkErrorTranscriptOversized: 'This task history is too large. The message was not sent to protect the AI engine. Continue in a new task; the original task will be preserved.',
     coworkErrorGatewayHeapOutOfMemory: 'The local AI engine ran out of memory and is restarting automatically. This task may be too large; wait for recovery and continue in a new task.',
     coworkErrorGatewayDisconnected: 'AI engine connection lost. Please retry.',
@@ -566,9 +566,9 @@ const translations: Record<LanguageType, Record<string, string>> = {
     coworkErrorToolLoopBlocked:
       'This turn was stopped safely because the AI kept repeating the same tool call with no new progress (usually while waiting on a slow background task). The background task may still be running — send another message to continue.',
     coworkErrorModelRoutedToPlan:
-      'This task is set to {requested}, but the AI engine resolved it to the plan model {resolved}. The message was not sent, so your plan quota is not used by mistake. Reselect the model and try again; if this keeps happening, restart LobsterAI.',
+      'This task is set to {requested}, but the AI engine resolved it to the plan model {resolved}. The message was not sent, so your plan quota is not used by mistake. Reselect the model and try again; if this keeps happening, restart HiAi.',
     coworkErrorRunUsedPlanModel:
-      'This turn should have used your selected model {requested}, but the AI engine called the plan model {actual} instead, and that call failed. That is why a plan error appeared. Reselect the model and try again; if this keeps happening, restart LobsterAI.',
+      'This turn should have used your selected model {requested}, but the AI engine called the plan model {actual} instead, and that call failed. That is why a plan error appeared. Reselect the model and try again; if this keeps happening, restart HiAi.',
     coworkErrorOutputLimitReached:
       'The model hit its output length limit before finishing this task. Send another message to let it continue where it stopped. If this keeps happening, ask it to work in smaller steps, such as writing files in batches or generating large data with a script.',
     coworkErrorOutputLimitReachedWithSettings:
@@ -626,15 +626,15 @@ const translations: Record<LanguageType, Record<string, string>> = {
     mediaVideoProviderNotConfigured: 'No video model is configured. Add a video model in Settings and try again.',
 
     // Data migration dialogs
-    dataMigrationBackupDialogTitle: 'Back Up LobsterAI Data',
-    dataMigrationRestoreDialogTitle: 'Import LobsterAI Data Backup',
-    dataMigrationBackupArchiveFilter: 'LobsterAI Backup',
+    dataMigrationBackupDialogTitle: 'Back Up HiAi Data',
+    dataMigrationRestoreDialogTitle: 'Import HiAi Data Backup',
+    dataMigrationBackupArchiveFilter: 'HiAi Backup',
     dataMigrationAllFilesFilter: 'All Files',
     dataMigrationBackupBlockedByActiveWorkloads:
       'An agent or scheduled task is still running. Stop it or wait for it to finish before backing up.',
-    dataMigrationRestoreProgressTitle: 'Importing LobsterAI data',
+    dataMigrationRestoreProgressTitle: 'Importing HiAi data',
     dataMigrationRestoreProgressDesc:
-      'Restoring the backup and validating data. LobsterAI will restart automatically when finished.',
+      'Restoring the backup and validating data. HiAi will restart automatically when finished.',
     dataMigrationRestoreProgressWarning:
       'Do not close the app or restart the computer, or the migration may be interrupted.',
 

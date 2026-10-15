@@ -806,7 +806,7 @@ describe('Windows installer hardening contracts', () => {
 
   test('allows only loopback TCP for the committed executable and removes it on uninstall', () => {
     // Field case 2026-10: Windows Firewall's "Query user" default dropped
-    // 127.0.0.1 connections to LobsterAI.exe, so the app never reached its
+    // 127.0.0.1 connections to HiAi.exe, so the app never reached its
     // gateway after a reboot.
     const start = installerInclude.indexOf('!macro LobsterApplyLoopbackFirewallRule');
     expect(start).toBeGreaterThan(-1);

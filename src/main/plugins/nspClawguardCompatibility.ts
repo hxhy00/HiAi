@@ -21,10 +21,10 @@ const LEGACY_REQUIRE = `var __require = /* @__PURE__ */ ((x) => typeof require !
   if (typeof require !== "undefined") return require.apply(this, arguments);
   throw Error('Dynamic require of "' + x + '" is not supported');
 });`;
-const NATIVE_REQUIRE_V1 = `// LobsterAI: nsp-clawguard 2.5.0 native require compatibility v1.
+const NATIVE_REQUIRE_V1 = `// HiAi: nsp-clawguard 2.5.0 native require compatibility v1.
 import { createRequire as __lobsteraiNspCreateRequire } from 'node:module';
 var __require = __lobsteraiNspCreateRequire(import.meta.url);`;
-const nativeModuleContextFor = (version: string) => `// LobsterAI: nsp-clawguard ${version} native module compatibility v2.
+const nativeModuleContextFor = (version: string) => `// HiAi: nsp-clawguard ${version} native module compatibility v2.
 import { createRequire as __lobsteraiNspCreateRequire } from 'node:module';
 import { fileURLToPath as __lobsteraiNspFileURLToPath } from 'node:url';
 import { dirname as __lobsteraiNspDirname } from 'node:path';

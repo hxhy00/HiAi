@@ -73,13 +73,13 @@ describe('AppQuitConfirmationGate', () => {
 describe('buildAppQuitConfirmationOptions', () => {
   test('builds a warning alert with Quit as default and Cancel as escape', () => {
     const options = buildAppQuitConfirmationOptions({
-      appName: 'LobsterAI',
+      appName: 'HiAi',
       translate: key => `<${key}>`,
     });
 
     expect(options).toEqual({
       type: 'warning',
-      title: 'LobsterAI',
+      title: 'HiAi',
       message: '<appQuitConfirmTitle>',
       detail: '<appQuitConfirmDetail>',
       buttons: ['<appQuitConfirmQuit>', '<appQuitConfirmCancel>'],
@@ -93,7 +93,7 @@ describe('buildAppQuitConfirmationOptions', () => {
 
   test('warns that unsafe Markdown edits will be lost and defaults to Cancel', () => {
     const options = buildAppQuitConfirmationOptions({
-      appName: 'LobsterAI',
+      appName: 'HiAi',
       translate: key => `<${key}>`,
       hasUnsafeMarkdownEdits: true,
     });

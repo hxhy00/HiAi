@@ -45,7 +45,7 @@ const catalogKey = (providerId: string, modelId: string): string =>
   `${normalizeLookupPart(providerId)}/${normalizeLookupPart(modelId)}`;
 
 // The bundled OpenClaw catalog may be unavailable in CI or in a trimmed
-// runtime, and pinned plugin catalogs can lag vendor releases, but LobsterAI
+// runtime, and pinned plugin catalogs can lag vendor releases, but HiAi
 // still needs to write correct limits for known native Anthropic-format
 // providers. Keep this fallback scoped to official provider IDs so custom
 // providers do not inherit limits by model-name coincidence.

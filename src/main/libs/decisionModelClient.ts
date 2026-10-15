@@ -14,7 +14,7 @@ export const OPENROUTER_JEV_MODEL = 'typesafe/jev-1.13';
 
 // OpenRouter attributes requests to the calling app through these headers.
 const OPENROUTER_APP_REFERER = 'https://lobsterai.youdao.com';
-const OPENROUTER_APP_TITLE = 'LobsterAI';
+const OPENROUTER_APP_TITLE = 'HiAi';
 
 export const DEFAULT_DECISION_TIMEOUT_MS = 30_000;
 const CONNECTION_TEST_TIMEOUT_MS = 20_000;
@@ -482,7 +482,7 @@ export async function evaluateDecision(
 const CONNECTION_TEST_QUESTION_ID = 'connection_check';
 
 const CONNECTION_TEST_INPUT: DecisionEvaluateInput = {
-  state: 'LobsterAI is checking that the decision model is reachable.',
+  state: 'HiAi is checking that the decision model is reachable.',
   questions: [{
     id: CONNECTION_TEST_QUESTION_ID,
     type: DecisionQuestionType.Boolean,

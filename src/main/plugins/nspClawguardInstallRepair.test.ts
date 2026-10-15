@@ -22,7 +22,7 @@ function fixture(release: typeof NSP_CLAWGUARD.Releases[number] = NSP_CLAWGUARD.
     fs.mkdirSync(path.join(root, 'relocated'));
     fs.symlinkSync(path.join(root, 'relocated'), path.join(root, 'app-data'), 'junction');
   }
-  const userData = linkedAncestor ? path.join(root, 'app-data', 'LobsterAI') : root;
+  const userData = linkedAncestor ? path.join(root, 'app-data', 'HiAi') : root;
   const stateDir = path.join(userData, 'openclaw', 'state');
   const configPath = path.join(stateDir, 'openclaw.json');
   const pluginDir = path.join(userData, 'third-party-extensions', id);

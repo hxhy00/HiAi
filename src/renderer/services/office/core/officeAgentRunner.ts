@@ -24,7 +24,7 @@ export function agentSaveOutcome<TInfo extends OfficePackageInfo>(document: Offi
   if (saved || !state.inUse) return { saved };
   return {
     saved,
-    saveProblem: `The edits are in the LobsterAI editor but not in the file yet: another program locks it, usually ${lockingApps} with the file open. Ask the user to close it there; LobsterAI then saves the edits automatically. Do not write this file with other tools meanwhile.`,
+    saveProblem: `The edits are in the HiAi editor but not in the file yet: another program locks it, usually ${lockingApps} with the file open. Ask the user to close it there; HiAi then saves the edits automatically. Do not write this file with other tools meanwhile.`,
   };
 }
 
@@ -93,7 +93,7 @@ export function createOfficeAgentHandler<TSession extends OfficeEditorSession<Of
       if (!session.document.getSnapshot().inUse) return agentReply(result);
       return agentReply({
         ...result,
-        fileInUse: `Another program locks this ${noun}, usually ${adapter.lockingApps} with the file open. Edits made here stay in the LobsterAI editor and are saved automatically once the file is free; tell the user to close it there.`,
+        fileInUse: `Another program locks this ${noun}, usually ${adapter.lockingApps} with the file open. Edits made here stay in the HiAi editor and are saved automatically once the file is free; tell the user to close it there.`,
       });
     }
 
@@ -101,7 +101,7 @@ export function createOfficeAgentHandler<TSession extends OfficeEditorSession<Of
     if (state.readOnlyReasons.length) {
       return agentFailure(`This ${noun} opened read-only because it contains ${state.readOnlyReasons.join(', ')}. Edit a copy with other tools or ask the user to use ${adapter.desktopApps}.`);
     }
-    if (state.needsResolution) return agentFailure(`LobsterAI is waiting for the user to choose between two versions of this ${noun}. Ask them to resolve it first.`);
+    if (state.needsResolution) return agentFailure(`HiAi is waiting for the user to choose between two versions of this ${noun}. Ask them to resolve it first.`);
     const revision = adapter.revision(session);
     const expected = numberArg(args.expectedRevision);
     if (expected !== undefined && expected !== revision) {

@@ -20,7 +20,7 @@ $runId = (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + ([guid]::NewGuid().ToStrin
 $runRoot = Join-Path ([IO.Path]::GetTempPath()) ('lobsterai-perf-diagnostic-' + $runId)
 $reportDir = Join-Path $runRoot 'report'
 $helperHome = Join-Path $runRoot 'helper-home'
-$userData = Join-Path $env:APPDATA 'LobsterAI'
+$userData = Join-Path $env:APPDATA 'HiAi'
 $openclawBase = Join-Path $userData 'openclaw'
 $stateDir = Join-Path $openclawBase 'state'
 # Written on the same volume and folder policy as the engine state; removed at the end.
@@ -313,7 +313,7 @@ function Copy-LogTail {
     } catch { Record-CollectionError ('log:' + $Source) $_ }
 }
 
-Write-Host 'LobsterAI 启动性能诊断' -ForegroundColor Cyan
+Write-Host 'HiAi 启动性能诊断' -ForegroundColor Cyan
 Write-Host '会测量这台电脑读写文件、启动进程和运行引擎启动步骤的速度。'
 Write-Host '引擎步骤使用临时的空数据运行，不会修改或删除您的聊天记录、配置和数据库，也不会自动上传。'
 Write-Host '通常需要 5～15 分钟，电脑很慢时最长约 30 分钟。请保持此窗口打开。'
@@ -391,32 +391,32 @@ try {
 
     # Locate the installation the same way as the gateway collector, plus recent main-log paths.
     try {
-        $processes = @(Get-CimSafe Win32_Process -Filter "Name = 'LobsterAI.exe'")
+        $processes = @(Get-CimSafe Win32_Process -Filter "Name = 'HiAi.exe'")
         $installed = @()
         foreach ($registry in @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
             $installed += @(Get-ItemProperty -Path $registry -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName })
         }
         $candidates = New-Object 'System.Collections.Generic.List[string]'
         foreach ($process in $processes) { if ($process.ExecutablePath) { $candidates.Add($process.ExecutablePath) } }
-        foreach ($record in @($installed | Where-Object { $_.DisplayName -match 'LobsterAI' })) {
-            if ($record.InstallLocation) { $candidates.Add((Join-Path $record.InstallLocation 'LobsterAI.exe')) }
+        foreach ($record in @($installed | Where-Object { $_.DisplayName -match 'HiAi' })) {
+            if ($record.InstallLocation) { $candidates.Add((Join-Path $record.InstallLocation 'HiAi.exe')) }
             if ($record.DisplayIcon) { $candidates.Add(($record.DisplayIcon -replace ',\d+$', '').Trim('"')) }
         }
         foreach ($log in @(Get-ChildItem -LiteralPath (Join-Path $userData 'logs') -Filter 'main-*.log' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 2)) {
             $match = [regex]::Match((Read-DiagnosticTail $log.FullName 1048576), '([A-Za-z]:\\[^\r\n"'']*?)\\resources\\app\.asar')
-            if ($match.Success) { $candidates.Add((Join-Path $match.Groups[1].Value 'LobsterAI.exe')) }
+            if ($match.Success) { $candidates.Add((Join-Path $match.Groups[1].Value 'HiAi.exe')) }
         }
         foreach ($base in @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)})) {
-            if ($base) { $candidates.Add((Join-Path $base 'Programs\LobsterAI\LobsterAI.exe')); $candidates.Add((Join-Path $base 'LobsterAI\LobsterAI.exe')) }
+            if ($base) { $candidates.Add((Join-Path $base 'Programs\HiAi\HiAi.exe')); $candidates.Add((Join-Path $base 'HiAi\HiAi.exe')) }
         }
-        $valid = @($candidates | Select-Object -Unique | Where-Object { (Test-Path -LiteralPath $_ -PathType Leaf) -and ([IO.Path]::GetFileName($_) -ieq 'LobsterAI.exe') })
+        $valid = @($candidates | Select-Object -Unique | Where-Object { (Test-Path -LiteralPath $_ -PathType Leaf) -and ([IO.Path]::GetFileName($_) -ieq 'HiAi.exe') })
         if (-not $AppPath -and $valid.Count -ge 1) { $AppPath = $valid[0] }
         if (-not $AppPath) {
-            Write-Host '未找到 LobsterAI 安装位置，请在弹出的窗口中选择 LobsterAI.exe。'
+            Write-Host '未找到 HiAi 安装位置，请在弹出的窗口中选择 HiAi.exe。'
             Add-Type -AssemblyName System.Windows.Forms
             $dialog = New-Object Windows.Forms.OpenFileDialog
-            $dialog.Title = '请选择正在使用的 LobsterAI.exe'
-            $dialog.Filter = 'LobsterAI.exe|LobsterAI.exe'
+            $dialog.Title = '请选择正在使用的 HiAi.exe'
+            $dialog.Filter = 'HiAi.exe|HiAi.exe'
             try { if ($dialog.ShowDialog() -eq 'OK') { $AppPath = $dialog.FileName } } finally { $dialog.Dispose() }
         }
         $summary.installCandidates = @($valid)
@@ -435,8 +435,8 @@ try {
         })
         $busyRoles = @($summary.runningLobsterAI | Where-Object { $_.role -in @('gateway', 'startup-helper', 'openclaw-cli') })
         if ($busyRoles.Count -gt 0) {
-            $digest.Add('注意：采集时 LobsterAI 正在运行引擎进程，测得的速度可能偏慢。')
-            Write-Host '注意：LobsterAI 正在启动引擎，结果可能偏慢。建议先从托盘退出 LobsterAI 再运行本工具。' -ForegroundColor Yellow
+            $digest.Add('注意：采集时 HiAi 正在运行引擎进程，测得的速度可能偏慢。')
+            Write-Host '注意：HiAi 正在启动引擎，结果可能偏慢。建议先从托盘退出 HiAi 再运行本工具。' -ForegroundColor Yellow
         }
         if ($AppPath -and (Test-Path -LiteralPath $AppPath -PathType Leaf)) {
             $AppPath = (Get-Item -LiteralPath $AppPath).FullName
@@ -465,15 +465,15 @@ try {
             foreach ($layers in @('HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers', 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers')) {
                 try {
                     $properties = Get-ItemProperty -LiteralPath $layers -ErrorAction Stop
-                    foreach ($property in $properties.PSObject.Properties) { if ($property.Name -match '(?i)LobsterAI') { $compat += ($property.Name + ' = ' + $property.Value) } }
+                    foreach ($property in $properties.PSObject.Properties) { if ($property.Name -match '(?i)HiAi') { $compat += ($property.Name + ' = ' + $property.Value) } }
                 } catch { }
             }
             $application.compatibilityLayers = $compat
             $summary.application = $application
-            $digest.Add(('LobsterAI {0}（OpenClaw {1}），可执行文件架构 {2}，x64 转译运行：{3}，签名：{4}' -f $application.version, $application.openclawVersion, $exeMachine, $(if ($application.x64Emulated) { '是' } else { '否' }), $application.signatureStatus))
+            $digest.Add(('HiAi {0}（OpenClaw {1}），可执行文件架构 {2}，x64 转译运行：{3}，签名：{4}' -f $application.version, $application.openclawVersion, $exeMachine, $(if ($application.x64Emulated) { '是' } else { '否' }), $application.signatureStatus))
         } else {
-            Record-CollectionError 'application selection' 'LobsterAI.exe was not found; engine timings are skipped.'
-            $digest.Add('未找到 LobsterAI.exe，已跳过引擎相关测速。')
+            Record-CollectionError 'application selection' 'HiAi.exe was not found; engine timings are skipped.'
+            $digest.Add('未找到 HiAi.exe，已跳过引擎相关测速。')
         }
     } catch { Record-CollectionError 'application' $_ }
     Write-DiagnosticJson (Join-Path $reportDir 'environment.json') $environment
@@ -673,10 +673,10 @@ try {
                 $probe = Get-Content -LiteralPath $probePath -Raw -Encoding UTF8 | ConvertFrom-Json
                 [IO.File]::WriteAllText($probePath, (Protect-DiagnosticText (Get-Content -LiteralPath $probePath -Raw -Encoding UTF8)), (New-Object Text.UTF8Encoding($false)))
                 $sections = $probe.sections
-                $digest.Add(('LobsterAI.exe 作为 Node 启动到执行第一行：{0} ms；本机进程启动：LobsterAI -e 0 = {1} ms，cmd = {2} ms，powershell = {3} ms（出现「准备模块」进度：{4}）' -f $probe.runtime.bootstrapMs, ((@($sections.spawn.electronNode | ForEach-Object { [int]$_.ms })) -join '/'), ((@($sections.spawn.cmd | ForEach-Object { [int]$_.ms })) -join '/'), ((@($sections.spawn.powershell | ForEach-Object { [int]$_.ms })) -join '/'), (@($sections.spawn.powershell | Where-Object { $_.powershellProgress }).Count -gt 0)))
+                $digest.Add(('HiAi.exe 作为 Node 启动到执行第一行：{0} ms；本机进程启动：HiAi -e 0 = {1} ms，cmd = {2} ms，powershell = {3} ms（出现「准备模块」进度：{4}）' -f $probe.runtime.bootstrapMs, ((@($sections.spawn.electronNode | ForEach-Object { [int]$_.ms })) -join '/'), ((@($sections.spawn.cmd | ForEach-Object { [int]$_.ms })) -join '/'), ((@($sections.spawn.powershell | ForEach-Object { [int]$_.ms })) -join '/'), (@($sections.spawn.powershell | Where-Object { $_.powershellProgress }).Count -gt 0)))
                 $digest.Add(('OpenClaw 用的 PowerShell 进程查询：{0} ms（OpenClaw 只等 5000 ms）；wmic：{1} ms，退出码 {2}' -f [int]$sections.spawn.powershellProcessStartQuery.ms, [int]$sections.spawn.wmicProcessStartQuery.ms, $sections.spawn.wmicProcessStartQuery.status))
-                $digest.Add(('首次读取引擎文件（每个）：LobsterAI p50 {0} ms / p90 {1} ms / 最慢 {2} ms，共 {3} 个用 {4}；PowerShell p50 {5} ms / p90 {6} ms' -f $sections.coldRead.p50Ms, $sections.coldRead.p90Ms, $sections.coldRead.maxMs, $sections.coldRead.count, (Format-Seconds $sections.coldRead.wallMs), $performance.powershellColdRead.p50Ms, $performance.powershellColdRead.p90Ms))
-                $digest.Add(('重复读取：LobsterAI 再读同一批 p50 {0} ms；LobsterAI 读 PowerShell 读过的 p50 {1} ms（CPU {2} ms / 墙钟 {3} ms）' -f $sections.repeatRead.p50Ms, $sections.crossProcessRead.p50Ms, $sections.coldRead.cpuMs, $sections.coldRead.wallMs))
+                $digest.Add(('首次读取引擎文件（每个）：HiAi p50 {0} ms / p90 {1} ms / 最慢 {2} ms，共 {3} 个用 {4}；PowerShell p50 {5} ms / p90 {6} ms' -f $sections.coldRead.p50Ms, $sections.coldRead.p90Ms, $sections.coldRead.maxMs, $sections.coldRead.count, (Format-Seconds $sections.coldRead.wallMs), $performance.powershellColdRead.p50Ms, $performance.powershellColdRead.p90Ms))
+                $digest.Add(('重复读取：HiAi 再读同一批 p50 {0} ms；HiAi 读 PowerShell 读过的 p50 {1} ms（CPU {2} ms / 墙钟 {3} ms）' -f $sections.repeatRead.p50Ms, $sections.crossProcessRead.p50Ms, $sections.coldRead.cpuMs, $sections.coldRead.wallMs))
                 foreach ($location in @($sections.writes.locations)) {
                     $digest.Add(('写入 {0}：4KB 文件创建+落盘 p50 {1} ms / p90 {2} ms；16MB 落盘 {3} MB/s' -f $location.label, $location.smallCreateWriteFsync.p50Ms, $location.smallCreateWriteFsync.p90Ms, $location.largeWriteMBps))
                 }
@@ -747,7 +747,7 @@ try {
             }
             $digest.Add(('引擎启动步骤（空数据）：' + ($parts -join '；') + '。应用里对应的超时：启动准备/状态迁移 180 秒，修复里的配置校验 60 秒。'))
         } catch { Record-CollectionError 'helpers' $_ }
-    } else { $helpers.skipped = 'LobsterAI runtime not found' }
+    } else { $helpers.skipped = 'HiAi runtime not found' }
     Write-DiagnosticJson (Join-Path $reportDir 'helper-timings.json') $helpers
 
     # ------------------------------------------------------------------ 6
@@ -773,7 +773,7 @@ try {
         $installTiming = Join-Path $userData 'install-timing.log'
         if (Test-Path -LiteralPath $installTiming) { $logIndex += Copy-LogTail $installTiming 'install-timing.log' 1048576 }
         # Per-machine installs write later phases, including the Defender exclusion result, here.
-        $machineInstallTiming = Join-Path $env:ProgramData 'LobsterAI\install-timing.log'
+        $machineInstallTiming = Join-Path $env:ProgramData 'HiAi\install-timing.log'
         if (Test-Path -LiteralPath $machineInstallTiming) { $logIndex += Copy-LogTail $machineInstallTiming 'install-timing-programdata.log' 1048576 }
         $repairRoot = Join-Path $openclawBase 'repair-backups'
         if (Test-Path -LiteralPath $repairRoot -PathType Container) {
@@ -789,9 +789,9 @@ try {
     $events = [ordered]@{}
     try {
         $since = (Get-Date).AddDays(-7)
-        $events.application = Get-EventExcerpt @{ LogName = 'Application'; StartTime = $since; Id = 1000, 1001, 1002 } '(?i)LobsterAI'
-        $events.defender = Get-EventExcerpt @{ LogName = 'Microsoft-Windows-Windows Defender/Operational'; StartTime = $since; Id = 1006, 1015, 1116, 1117, 1123, 1124, 5007 } '(?i)LobsterAI|cfmind' 800
-        $events.codeIntegrity = Get-EventExcerpt @{ LogName = 'Microsoft-Windows-CodeIntegrity/Operational'; StartTime = $since } '(?i)LobsterAI|cfmind|koffi' 800
+        $events.application = Get-EventExcerpt @{ LogName = 'Application'; StartTime = $since; Id = 1000, 1001, 1002 } '(?i)HiAi'
+        $events.defender = Get-EventExcerpt @{ LogName = 'Microsoft-Windows-Windows Defender/Operational'; StartTime = $since; Id = 1006, 1015, 1116, 1117, 1123, 1124, 5007 } '(?i)HiAi|cfmind' 800
+        $events.codeIntegrity = Get-EventExcerpt @{ LogName = 'Microsoft-Windows-CodeIntegrity/Operational'; StartTime = $since } '(?i)HiAi|cfmind|koffi' 800
     } catch { Record-CollectionError 'events' $_ }
     Write-DiagnosticJson (Join-Path $reportDir 'events.json') $events
     $summary.logFilesCollected = @($logIndex | Where-Object { $_ }).Count
@@ -808,7 +808,7 @@ try {
         Write-DiagnosticJson (Join-Path $reportDir 'collection-errors.json') @($errors.ToArray())
         Write-DiagnosticJson (Join-Path $reportDir 'summary.json') $summary
         $header = @(
-            'LobsterAI 启动性能诊断摘要',
+            'HiAi 启动性能诊断摘要',
             ('采集时间：' + $summary.startedAt + ' ~ ' + $summary.finishedAt),
             '详细数据见同目录 JSON 文件；引擎步骤在临时空数据上运行，未修改用户数据。',
             ''
@@ -818,7 +818,7 @@ try {
     if (-not $OutputDirectory) { $OutputDirectory = [Environment]::GetFolderPath('Desktop') }
     if (-not $OutputDirectory) { $OutputDirectory = [IO.Path]::GetTempPath() }
     [void](New-Item -ItemType Directory -Path $OutputDirectory -Force)
-    $zipPath = Join-Path $OutputDirectory ('LobsterAI-Performance-Diagnostics-' + $runId + '.zip')
+    $zipPath = Join-Path $OutputDirectory ('HiAi-Performance-Diagnostics-' + $runId + '.zip')
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [IO.Compression.ZipFile]::CreateFromDirectory($reportDir, $zipPath)
     # The cleanup boundary is the private directory created at the start of this run.

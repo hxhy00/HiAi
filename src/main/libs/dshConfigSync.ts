@@ -1,4 +1,4 @@
-// Renders LobsterAI provider configuration into the dsh settings file
+// Renders HiAi provider configuration into the dsh settings file
 // ($DSH_HOME/settings.yaml) so a kit-installed dsh boots with the user's
 // models already available. Ownership rules:
 //   - only providers keyed `lobsterai-<id>` are managed (rewritten each sync);
@@ -27,9 +27,9 @@ import type { ProviderConfig } from '../../shared/providers/types';
 export const DSH_MANAGED_PROVIDER_PREFIX = 'lobsterai-';
 
 // dsh groups its model picker by display name, so every synced route carries
-// this marker: without it a LobsterAI-managed provider is indistinguishable
+// this marker: without it a HiAi-managed provider is indistinguishable
 // from one the user added inside dsh.
-export const DSH_MANAGED_LABEL_PREFIX = 'LobsterAI · ';
+export const DSH_MANAGED_LABEL_PREFIX = 'HiAi · ';
 
 // Route ids for the built-in billed provider, whose requests go through the
 // local token proxy rather than a user-supplied key. One route per wire
@@ -105,7 +105,7 @@ export function deriveDshApiKeyEnvRef(routeId: string): string {
 
 export function mapApiFormatToDshProtocol(apiFormat: string | undefined): DshProviderRoute['api'] | null {
   if (apiFormat === ApiFormat.Anthropic) return 'anthropic-messages';
-  // LobsterAI's OpenAI-format providers are overwhelmingly third-party
+  // HiAi's OpenAI-format providers are overwhelmingly third-party
   // compatible endpoints; chat-completions is the universally supported wire.
   if (apiFormat === ApiFormat.OpenAI || apiFormat === undefined) return 'openai-completions';
   return null;
@@ -160,7 +160,7 @@ export function renderDshManagedSettings(
     envVars[apiKeyEnv] = apiKey;
     routes[routeId] = {
       // Prefer the canonical label ("DeepSeek") over the raw config key
-      // ("deepseek"), and mark the entry as LobsterAI-managed.
+      // ("deepseek"), and mark the entry as HiAi-managed.
       displayName:
         DSH_MANAGED_LABEL_PREFIX
         + (config.displayName?.trim() || ProviderRegistry.get(providerId)?.label || providerId),

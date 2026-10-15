@@ -298,7 +298,7 @@ describe.skipIf(!runtimeRoot)('bundled OpenClaw startup state migration', () => 
       const cli = async (args: string[]) => execFileAsync(process.execPath, [cliPath, ...args], {
         cwd: runtimeRoot, env, windowsHide: true, timeout: 60_000, maxBuffer: 4 * 1024 * 1024,
       });
-      // This is LobsterAI's pre-fork CLI order. Its checkpoint does not certify
+      // This is HiAi's pre-fork CLI order. Its checkpoint does not certify
       // the Gateway-only identity import; the dedicated helper must check anyway.
       await cli(['memory', 'index', '--force']);
       expect(withDatabase(db => db.prepare("SELECT app_version FROM schema_meta WHERE meta_key = 'state-migrations'").get())).toBeDefined();

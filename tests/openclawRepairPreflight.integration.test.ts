@@ -13,7 +13,7 @@ import { runStartupMigration } from '../src/main/libs/openclawStartupStateMigrat
 import { OpenClawRepairPhase } from '../src/shared/openclawEngine/repair';
 import { readRepairedGatewayHistory } from './helpers/openclawGatewayRepairSmoke';
 
-// Opt in with the pinned runtime, including the current LobsterAI repair helpers.
+// Opt in with the pinned runtime, including the current HiAi repair helpers.
 const runtimeRoot = process.env.OPENCLAW_REPAIR_TEST_RUNTIME;
 let root: string;
 let stateDir: string;

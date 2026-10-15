@@ -3,7 +3,7 @@
  *
  * Word lays out a line from the font's Windows metrics, not from the `hhea` extents a browser
  * or HarfBuzz reports, and it adds extra height to every font that advertises a CJK code page.
- * The editor engine only knows the `hhea` rule, so LobsterAI supplies Word's line box explicitly.
+ * The editor engine only knows the `hhea` rule, so HiAi supplies Word's line box explicitly.
  */
 
 /** Vertical metrics of one face, in font units. */

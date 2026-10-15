@@ -21,7 +21,7 @@
 // ═══════════════════════════════════════════════════════
 
 // ─── Provider Name ──────────────────────────────────────────────────────
-// providerName identifies the LobsterAI internal provider (config key).
+// providerName identifies the HiAi internal provider (config key).
 export const ProviderName = {
   OpenAI: 'openai',
   Gemini: 'gemini',
@@ -62,7 +62,7 @@ export const OpenClawProviderId = {
   Zai: 'zai', // OpenClaw official provider ID for Zhipu/GLM
   Volcengine: 'volcengine',
   // OpenClaw catalog provider for Volcengine Coding Plan models. Used for
-  // catalog lookups only; LobsterAI writes plan models under `volcengine`.
+  // catalog lookups only; HiAi writes plan models under `volcengine`.
   VolcenginePlan: 'volcengine-plan',
   Minimax: 'minimax',
   MinimaxPortal: 'minimax-portal',

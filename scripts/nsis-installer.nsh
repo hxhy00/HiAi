@@ -118,10 +118,10 @@ Var lobsterHiddenExecLaunchError
 ; is given. The status code stays in every variant for support.
 !define LOBSTER_LANGID_SIMPCHINESE "2052"
 !define LOBSTER_LANGID_TRADCHINESE "1028"
-!define LOBSTER_SKILL_BACKUP_ABORT_MOVE_ZH "LobsterAI 这次没有升级成功，但当前版本和数据都没有受影响，可以继续正常使用。$\r$\n$\r$\n原因：安装目录里有你自己添加的技能。升级前要先把它们备份好，这次备份没有成功，为了不丢失这些技能，升级已自动停止。$\r$\n$\r$\n请按下面的步骤处理后再升级：$\r$\n1. 打开这个文件夹：$\r$\n    $INSTDIR\resources\SKILLs$\r$\n2. 把下面这些文件夹剪切（不是复制）到 %APPDATA%\HiAi\SKILLs 里：$\r$\n    $lobsterLegacySkillNames$\r$\n3. 回到 LobsterAI，重新升级。$\r$\n$\r$\n小提示：$\r$\n• 在文件资源管理器顶部的地址栏粘贴 %APPDATA%\HiAi\SKILLs 并回车，就能打开第 2 步的文件夹。$\r$\n• 如果那里已经有同名文件夹，把安装目录里的这一份移到桌面即可。$\r$\n• 按 Ctrl+C 可以复制这段提示，方便粘贴路径。$\r$\n$\r$\n移动后这些技能照常可用，以后升级也不会再因为这个原因停止。$\r$\n错误代码：$lobsterLegacySkillsStatus"
-!define LOBSTER_SKILL_BACKUP_ABORT_RETRY_ZH "LobsterAI 这次没有升级成功，但当前版本和数据都没有受影响，可以继续正常使用。$\r$\n$\r$\n原因：升级前需要检查并备份安装目录里你自己添加的技能，这一步没有完成，为了不丢失数据，升级已自动停止。$\r$\n$\r$\n请重启电脑后再升级一次。如果还是出现这个提示，请截图本窗口联系客服，并提供这个文件：$\r$\n    $APPDATA\HiAi\install-timing.log$\r$\n$\r$\n错误代码：$lobsterLegacySkillsStatus"
-!define LOBSTER_SKILL_BACKUP_ABORT_MOVE_EN "LobsterAI was not updated. Your current version and data are unchanged, and you can keep using it.$\r$\n$\r$\nWhy: some skills you added yourself are stored in the LobsterAI installation folder. They have to be backed up before an update, the backup did not succeed, and the update stopped so those skills are not lost.$\r$\n$\r$\nTo update, move them out first:$\r$\n1. Open this folder:$\r$\n    $INSTDIR\resources\SKILLs$\r$\n2. Cut (not copy) these folders into %APPDATA%\HiAi\SKILLs:$\r$\n    $lobsterLegacySkillNames$\r$\n3. Go back to LobsterAI and update again.$\r$\n$\r$\nTips:$\r$\n• To open the folder in step 2, paste %APPDATA%\HiAi\SKILLs into the File Explorer address bar and press Enter.$\r$\n• If a folder with the same name is already there, move the one from the installation folder to your desktop instead.$\r$\n• Press Ctrl+C to copy this message, paths included.$\r$\n$\r$\nYour skills keep working after the move, and future updates will not stop for this reason again.$\r$\nError code: $lobsterLegacySkillsStatus"
-!define LOBSTER_SKILL_BACKUP_ABORT_RETRY_EN "LobsterAI was not updated. Your current version and data are unchanged, and you can keep using it.$\r$\n$\r$\nWhy: before an update, LobsterAI has to check for and back up skills you added to its installation folder. That step did not complete, so the update stopped to keep your data safe.$\r$\n$\r$\nRestart your computer and update again. If you still see this message, take a screenshot of it and contact support with this file:$\r$\n    $APPDATA\HiAi\install-timing.log$\r$\n$\r$\nError code: $lobsterLegacySkillsStatus"
+!define LOBSTER_SKILL_BACKUP_ABORT_MOVE_ZH "HiAi 这次没有升级成功，但当前版本和数据都没有受影响，可以继续正常使用。$\r$\n$\r$\n原因：安装目录里有你自己添加的技能。升级前要先把它们备份好，这次备份没有成功，为了不丢失这些技能，升级已自动停止。$\r$\n$\r$\n请按下面的步骤处理后再升级：$\r$\n1. 打开这个文件夹：$\r$\n    $INSTDIR\resources\SKILLs$\r$\n2. 把下面这些文件夹剪切（不是复制）到 %APPDATA%\HiAi\SKILLs 里：$\r$\n    $lobsterLegacySkillNames$\r$\n3. 回到 HiAi，重新升级。$\r$\n$\r$\n小提示：$\r$\n• 在文件资源管理器顶部的地址栏粘贴 %APPDATA%\HiAi\SKILLs 并回车，就能打开第 2 步的文件夹。$\r$\n• 如果那里已经有同名文件夹，把安装目录里的这一份移到桌面即可。$\r$\n• 按 Ctrl+C 可以复制这段提示，方便粘贴路径。$\r$\n$\r$\n移动后这些技能照常可用，以后升级也不会再因为这个原因停止。$\r$\n错误代码：$lobsterLegacySkillsStatus"
+!define LOBSTER_SKILL_BACKUP_ABORT_RETRY_ZH "HiAi 这次没有升级成功，但当前版本和数据都没有受影响，可以继续正常使用。$\r$\n$\r$\n原因：升级前需要检查并备份安装目录里你自己添加的技能，这一步没有完成，为了不丢失数据，升级已自动停止。$\r$\n$\r$\n请重启电脑后再升级一次。如果还是出现这个提示，请截图本窗口联系客服，并提供这个文件：$\r$\n    $APPDATA\HiAi\install-timing.log$\r$\n$\r$\n错误代码：$lobsterLegacySkillsStatus"
+!define LOBSTER_SKILL_BACKUP_ABORT_MOVE_EN "HiAi was not updated. Your current version and data are unchanged, and you can keep using it.$\r$\n$\r$\nWhy: some skills you added yourself are stored in the HiAi installation folder. They have to be backed up before an update, the backup did not succeed, and the update stopped so those skills are not lost.$\r$\n$\r$\nTo update, move them out first:$\r$\n1. Open this folder:$\r$\n    $INSTDIR\resources\SKILLs$\r$\n2. Cut (not copy) these folders into %APPDATA%\HiAi\SKILLs:$\r$\n    $lobsterLegacySkillNames$\r$\n3. Go back to HiAi and update again.$\r$\n$\r$\nTips:$\r$\n• To open the folder in step 2, paste %APPDATA%\HiAi\SKILLs into the File Explorer address bar and press Enter.$\r$\n• If a folder with the same name is already there, move the one from the installation folder to your desktop instead.$\r$\n• Press Ctrl+C to copy this message, paths included.$\r$\n$\r$\nYour skills keep working after the move, and future updates will not stop for this reason again.$\r$\nError code: $lobsterLegacySkillsStatus"
+!define LOBSTER_SKILL_BACKUP_ABORT_RETRY_EN "HiAi was not updated. Your current version and data are unchanged, and you can keep using it.$\r$\n$\r$\nWhy: before an update, HiAi has to check for and back up skills you added to its installation folder. That step did not complete, so the update stopped to keep your data safe.$\r$\n$\r$\nRestart your computer and update again. If you still see this message, take a screenshot of it and contact support with this file:$\r$\n    $APPDATA\HiAi\install-timing.log$\r$\n$\r$\nError code: $lobsterLegacySkillsStatus"
 
 ; -- Design invariant --
 ; Nothing destructive may run before the user confirms the wizard (or the
@@ -527,8 +527,8 @@ FunctionEnd
 
 ; -- Stop every process that might hold file handles in the install dir --
 ;
-; 1. LobsterAI.exe -- the main app AND the OpenClaw gateway (ELECTRON_RUN_AS_NODE)
-; 2. node.exe whose binary lives inside the LobsterAI install tree
+; 1. HiAi.exe -- the main app AND the OpenClaw gateway (ELECTRON_RUN_AS_NODE)
+; 2. node.exe whose binary lives inside the HiAi install tree
 ;    (Web Search bridge server, MCP servers spawned with detached:true)
 ; 3. any other process whose executable lives under the install root --
 ;    python-win skill/MCP servers, bundled git/ssh helpers -- matched by
@@ -550,7 +550,7 @@ FunctionEnd
 ;
 ; Shared between the installer and the uninstaller via customCheckAppRunning.
 !macro stopLobsterAIProcesses
-  DetailPrint "[Installer] Stopping running LobsterAI processes"
+  DetailPrint "[Installer] Stopping running HiAi processes"
   StrCpy $lobsterTargetProcessesStopStatus "helper-not-found"
   System::Call 'kernel32::GetCurrentProcessId()i .r4'
   StrCpy $lobsterCurrentProcessPid $4
@@ -955,7 +955,7 @@ FunctionEnd
     FileWrite $9 "$8 phase=staging-preflight-insufficient attempt_id=$lobsterInstallerAttemptId plugins_drive=$4 plugins_free_mb=$2 staging_needed_mb=$1 install_drive=$3 install_free_mb=$5 install_needed_mb=$6 action=abort-install$\r$\n"
     FileClose $9
     !insertmacro customBeforeInstallerQuit "staging-space-insufficient"
-    MessageBox MB_OK|MB_ICONEXCLAMATION "${U+78C1}${U+76D8}${U+7A7A}${U+95F4}${U+4E0D}${U+8DB3}${U+FF0C}${U+65E0}${U+6CD5}${U+5B89}${U+88C5} LobsterAI${U+3002}${U+8BF7}${U+6E05}${U+7406}${U+78C1}${U+76D8}${U+7A7A}${U+95F4}${U+540E}${U+91CD}${U+8BD5}${U+3002}$\r$\n$\r$\nThere is not enough free disk space to install LobsterAI: drive $4 has $2 MB free but staging the installation needs about $1 MB, and installing to drive $3 would need about $6 MB free there. Free up disk space and run the installer again. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+    MessageBox MB_OK|MB_ICONEXCLAMATION "${U+78C1}${U+76D8}${U+7A7A}${U+95F4}${U+4E0D}${U+8DB3}${U+FF0C}${U+65E0}${U+6CD5}${U+5B89}${U+88C5} HiAi${U+3002}${U+8BF7}${U+6E05}${U+7406}${U+78C1}${U+76D8}${U+7A7A}${U+95F4}${U+540E}${U+91CD}${U+8BD5}${U+3002}$\r$\n$\r$\nThere is not enough free disk space to install HiAi: drive $4 has $2 MB free but staging the installation needs about $1 MB, and installing to drive $3 would need about $6 MB free there. Free up disk space and run the installer again. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
     SetErrorLevel 2
     Quit
 
@@ -1072,7 +1072,7 @@ FunctionEnd
       ; Never commit a partial app: restore the previous installation first,
       ; then report. /SD keeps silent (/S) installs from blocking on the box.
       !insertmacro customBeforeInstallerQuit "payload-staging-validation-failed"
-      MessageBox MB_OK|MB_ICONEXCLAMATION "${U+5B89}${U+88C5}${U+5305}${U+6570}${U+636E}${U+4E0D}${U+5B8C}${U+6574}${U+FF1A}${U+53EF}${U+80FD}${U+662F}${U+4E34}${U+65F6}${U+76EE}${U+5F55}${U+78C1}${U+76D8}${U+7A7A}${U+95F4}${U+4E0D}${U+8DB3}${U+6216}${U+5B89}${U+88C5}${U+5305}${U+4E0B}${U+8F7D}${U+4E0D}${U+5B8C}${U+6574}${U+3002}${U+8BF7}${U+6E05}${U+7406}${U+78C1}${U+76D8}${U+7A7A}${U+95F4}${U+540E}${U+91CD}${U+8BD5}${U+FF0C}${U+6216}${U+91CD}${U+65B0}${U+4E0B}${U+8F7D}${U+5B89}${U+88C5}${U+5305}${U+3002}$\r$\n$\r$\nThe LobsterAI installation stopped because the unpacked installer data is incomplete ($1). This usually means the drive holding the temporary directory ran out of space during extraction, or the installer download was truncated. Free up disk space on the temp drive or download the installer again. No partial application was committed. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+      MessageBox MB_OK|MB_ICONEXCLAMATION "${U+5B89}${U+88C5}${U+5305}${U+6570}${U+636E}${U+4E0D}${U+5B8C}${U+6574}${U+FF1A}${U+53EF}${U+80FD}${U+662F}${U+4E34}${U+65F6}${U+76EE}${U+5F55}${U+78C1}${U+76D8}${U+7A7A}${U+95F4}${U+4E0D}${U+8DB3}${U+6216}${U+5B89}${U+88C5}${U+5305}${U+4E0B}${U+8F7D}${U+4E0D}${U+5B8C}${U+6574}${U+3002}${U+8BF7}${U+6E05}${U+7406}${U+78C1}${U+76D8}${U+7A7A}${U+95F4}${U+540E}${U+91CD}${U+8BD5}${U+FF0C}${U+6216}${U+91CD}${U+65B0}${U+4E0B}${U+8F7D}${U+5B89}${U+88C5}${U+5305}${U+3002}$\r$\n$\r$\nThe HiAi installation stopped because the unpacked installer data is incomplete ($1). This usually means the drive holding the temporary directory ran out of space during extraction, or the installer download was truncated. Free up disk space on the temp drive or download the installer again. No partial application was committed. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
       SetErrorLevel 2
       Quit
     ${EndIf}
@@ -1430,7 +1430,7 @@ FunctionEnd
       !insertmacro GetTimestamp $8
       FileWrite $9 "$8 phase=install-failed-before-mutation attempt_id=$lobsterInstallerAttemptId failure_kind=process-stop-failed raw_status=$lobsterTargetProcessesStopStatus exit=$R2 action=old-install-untouched$\r$\n"
       FileClose $9
-      MessageBox MB_OK|MB_ICONEXCLAMATION "The LobsterAI update stopped before replacing the previous version because the old application processes could not be confirmed stopped. Please close LobsterAI and retry. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+      MessageBox MB_OK|MB_ICONEXCLAMATION "The HiAi update stopped before replacing the previous version because the old application processes could not be confirmed stopped. Please close HiAi and retry. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
       SetErrorLevel 2
       Quit
     TargetProcessesStopped:
@@ -1805,7 +1805,7 @@ FunctionEnd
       !insertmacro GetTimestamp $8
       FileWrite $9 "$8 phase=old-install-rename-verification-abort attempt_id=$lobsterInstallerAttemptId outcome=recovery-required rollback_status=$lobsterOldInstallRollbackStatus rollback_error=$lobsterOldInstallRollbackError source=$lobsterOldInstallOriginalPath backup=$lobsterOldInstallBackupPath$\r$\n"
       FileClose $9
-      MessageBox MB_OK|MB_ICONEXCLAMATION "The LobsterAI installation stopped because the previous installation move could not be verified and automatic recovery did not complete. No recovery copy was deleted. Restart Windows before retrying. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+      MessageBox MB_OK|MB_ICONEXCLAMATION "The HiAi installation stopped because the previous installation move could not be verified and automatic recovery did not complete. No recovery copy was deleted. Restart Windows before retrying. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
       SetErrorLevel 3
       Quit
 
@@ -1818,7 +1818,7 @@ FunctionEnd
       !insertmacro GetTimestamp $8
       FileWrite $9 "$8 phase=old-install-rename-verification-abort attempt_id=$lobsterInstallerAttemptId outcome=restored rollback_status=$lobsterOldInstallRollbackStatus relaunch_status=$lobsterOldAppRelaunchStatus source=$lobsterOldInstallOriginalPath$\r$\n"
       FileClose $9
-      MessageBox MB_OK|MB_ICONEXCLAMATION "The LobsterAI installation stopped because the previous installation move could not be verified. The previous version was restored. Please retry the installation. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+      MessageBox MB_OK|MB_ICONEXCLAMATION "The HiAi installation stopped because the previous installation move could not be verified. The previous version was restored. Please retry the installation. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
       SetErrorLevel 2
       Quit
 
@@ -1947,7 +1947,7 @@ FunctionEnd
   ; Runs after every old-install root has either been skipped or fully
   ; uninstalled, immediately before installApplicationFiles. This ordering is
   ; important for transition upgrades: already-installed legacy uninstallers
-  ; remove LobsterAI exclusions at the end of their --updated flow.
+  ; remove HiAi exclusions at the end of their --updated flow.
   !macro customAfterUninstallOldVersions
     DetailPrint "[Installer] Applying Windows Defender install-scope exclusion"
     !insertmacro ResolveTrustedPowerShell
@@ -2590,7 +2590,7 @@ FunctionEnd
   ; in /S installs unless a silent default is declared, and the in-app update
   ; must never block on an orphan dialog.
   StrCmp $R3 "system-tar" TarExtractElectron
-  MessageBox MB_OK|MB_ICONEXCLAMATION "The LobsterAI installation stopped because resource extraction completed without all required runtime resources ($R5). The installer will not commit a partial application. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+  MessageBox MB_OK|MB_ICONEXCLAMATION "The HiAi installation stopped because resource extraction completed without all required runtime resources ($R5). The installer will not commit a partial application. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
   Goto TarExtractFailed
 
   TarExtractProcessFailed:
@@ -2599,7 +2599,7 @@ FunctionEnd
     !insertmacro GetTimestamp $8
     FileWrite $2 "$8 phase=tar-extract-error attempt_id=$lobsterInstallerAttemptId extractor=$R3 exit=$R2 raw_marker=$R4 elapsed_ms=$5 reason=process-start-failed$\r$\n"
     FileClose $2
-    MessageBox MB_OK|MB_ICONEXCLAMATION "The LobsterAI installation stopped because the resource extractor could not be started (exit=$R2). The installer will not commit a partial application. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+    MessageBox MB_OK|MB_ICONEXCLAMATION "The HiAi installation stopped because the resource extractor could not be started (exit=$R2). The installer will not commit a partial application. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
     Goto TarExtractFailed
 
   TarExtractTimeout:
@@ -2608,7 +2608,7 @@ FunctionEnd
     !insertmacro GetTimestamp $8
     FileWrite $2 "$8 phase=tar-extract-error attempt_id=$lobsterInstallerAttemptId extractor=$R3 exit=$R2 raw_marker=$R4 elapsed_ms=$5 reason=timeout$\r$\n"
     FileClose $2
-    MessageBox MB_OK|MB_ICONEXCLAMATION "The LobsterAI installation stopped because resource extraction timed out after 10 minutes. The blocked extractor was terminated and the installer will not commit a partial application. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+    MessageBox MB_OK|MB_ICONEXCLAMATION "The HiAi installation stopped because resource extraction timed out after 10 minutes. The blocked extractor was terminated and the installer will not commit a partial application. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
     Goto TarExtractFailed
 
   TarExtractTerminationFailed:
@@ -2618,7 +2618,7 @@ FunctionEnd
     FileWrite $2 "$8 phase=tar-extract-error attempt_id=$lobsterInstallerAttemptId extractor=$R3 exit=$R2 raw_marker=$R4 elapsed_ms=$5 reason=process-termination-failed action=preserve-all-no-concurrent-rollback$\r$\n"
     FileClose $2
     System::Call 'Kernel32::SetEnvironmentVariable(t "ELECTRON_RUN_AS_NODE", t "")i'
-    MessageBox MB_OK|MB_ICONEXCLAMATION "The LobsterAI installation stopped because the extractor process could not be confirmed terminated. No automatic rollback or cleanup was attempted while that process may still be writing files. Restart Windows before retrying. Recovery files (if any): $lobsterOldInstallBackupPath. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+    MessageBox MB_OK|MB_ICONEXCLAMATION "The HiAi installation stopped because the extractor process could not be confirmed terminated. No automatic rollback or cleanup was attempted while that process may still be writing files. Restart Windows before retrying. Recovery files (if any): $lobsterOldInstallBackupPath. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
     SetErrorLevel 3
     Quit
 
@@ -2644,7 +2644,7 @@ FunctionEnd
     !insertmacro GetTimestamp $8
     FileWrite $2 "$8 phase=tar-extract-error attempt_id=$lobsterInstallerAttemptId extractor=$R3 exit=$R2 raw_marker=$R4 elapsed_ms=$5 reason=watchdog-output-validation-failed$\r$\n"
     FileClose $2
-    MessageBox MB_OK|MB_ICONEXCLAMATION "The LobsterAI installation stopped because the resource extractor watchdog returned an invalid result. The installer will not commit a partial application. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+    MessageBox MB_OK|MB_ICONEXCLAMATION "The HiAi installation stopped because the resource extractor watchdog returned an invalid result. The installer will not commit a partial application. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
     Goto TarExtractFailed
 
   TarExtractNonZero:
@@ -2653,7 +2653,7 @@ FunctionEnd
     !insertmacro GetTimestamp $8
     FileWrite $2 "$8 phase=tar-extract-error attempt_id=$lobsterInstallerAttemptId extractor=$R3 exit=$R2 raw_marker=$R4 elapsed_ms=$5 reason=numeric-child-exit$\r$\n"
     FileClose $2
-    MessageBox MB_OK|MB_ICONEXCLAMATION "The LobsterAI installation stopped because resource extraction failed (child exit code $R2). The installer will not commit a partial application. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+    MessageBox MB_OK|MB_ICONEXCLAMATION "The HiAi installation stopped because resource extraction failed (child exit code $R2). The installer will not commit a partial application. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
     Goto TarExtractFailed
 
   TarExtractSucceeded:
@@ -2828,10 +2828,10 @@ FunctionEnd
       System::Call 'Kernel32::SetEnvironmentVariable(t "ELECTRON_RUN_AS_NODE", t "")i'
       !insertmacro customRollbackOldInstall "skill-restore-failed"
       StrCmp $lobsterOldInstallRollbackStatus "success" SkillRestoreRollbackSucceeded
-        MessageBox MB_OK|MB_ICONEXCLAMATION "The LobsterAI update could not restore user skills, and automatic rollback did not complete. No recovery copy was deleted. Previous files: $lobsterOldInstallBackupPath. Partial update: $lobsterOldInstallFailedPath. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+        MessageBox MB_OK|MB_ICONEXCLAMATION "The HiAi update could not restore user skills, and automatic rollback did not complete. No recovery copy was deleted. Previous files: $lobsterOldInstallBackupPath. Partial update: $lobsterOldInstallFailedPath. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
         Goto SkillRestoreAbort
       SkillRestoreRollbackSucceeded:
-        MessageBox MB_OK|MB_ICONEXCLAMATION "The LobsterAI update could not restore user skills, so the previous version was restored. Please retry the update. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+        MessageBox MB_OK|MB_ICONEXCLAMATION "The HiAi update could not restore user skills, so the previous version was restored. Please retry the update. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
       SkillRestoreAbort:
       SetErrorLevel 2
       Quit
@@ -2848,7 +2848,7 @@ FunctionEnd
       !insertmacro GetTimestamp $8
       FileWrite $2 "$8 phase=skill-restore-degraded attempt_id=$lobsterInstallerAttemptId status=$lobsterLegacySkillsRestoreStatus action=continue-with-attempt-backup-preserved backup=$APPDATA\HiAi\skills-backup\$lobsterInstallerAttemptId$\r$\n"
       FileClose $2
-      MessageBox MB_OK|MB_ICONEXCLAMATION "LobsterAI will finish installing, but legacy user skills could not be restored automatically ($lobsterLegacySkillsRestoreStatus). The recovery backup was preserved at $APPDATA\HiAi\skills-backup\$lobsterInstallerAttemptId. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+      MessageBox MB_OK|MB_ICONEXCLAMATION "HiAi will finish installing, but legacy user skills could not be restored automatically ($lobsterLegacySkillsRestoreStatus). The recovery backup was preserved at $APPDATA\HiAi\skills-backup\$lobsterInstallerAttemptId. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
       Goto SkillRestoreValidated
 
     SkillRestoreDegradedBackupMissing:
@@ -2859,7 +2859,7 @@ FunctionEnd
       !insertmacro GetTimestamp $8
       FileWrite $2 "$8 phase=skill-restore-degraded attempt_id=$lobsterInstallerAttemptId status=$lobsterLegacySkillsRestoreStatus action=continue-no-backup-found backup=$APPDATA\HiAi\skills-backup\$lobsterInstallerAttemptId$\r$\n"
       FileClose $2
-      MessageBox MB_OK|MB_ICONEXCLAMATION "LobsterAI will finish installing, but the recovery backup for legacy user skills was not found, so no skills were restored ($lobsterLegacySkillsRestoreStatus). Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+      MessageBox MB_OK|MB_ICONEXCLAMATION "HiAi will finish installing, but the recovery backup for legacy user skills was not found, so no skills were restored ($lobsterLegacySkillsRestoreStatus). Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
       Goto SkillRestoreValidated
 
     SkillRestoreConflictPreserved:
@@ -2981,13 +2981,13 @@ FunctionEnd
     StrCmp $lobsterOldInstallRenameStatus "success" 0 NewInstallPrevalidateAbort
     !insertmacro customRollbackOldInstall "new-install-validation-failed"
     StrCmp $lobsterOldInstallRollbackStatus "success" NewInstallPrevalidateRollbackSucceeded
-      MessageBox MB_OK|MB_ICONEXCLAMATION "The LobsterAI update could not be validated, and automatic rollback did not complete. No recovery copy was deleted. Previous files: $lobsterOldInstallBackupPath. Partial update: $lobsterOldInstallFailedPath. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+      MessageBox MB_OK|MB_ICONEXCLAMATION "The HiAi update could not be validated, and automatic rollback did not complete. No recovery copy was deleted. Previous files: $lobsterOldInstallBackupPath. Partial update: $lobsterOldInstallFailedPath. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
       Goto NewInstallPrevalidateAbortAfterMessage
     NewInstallPrevalidateRollbackSucceeded:
-      MessageBox MB_OK|MB_ICONEXCLAMATION "The LobsterAI update could not be validated, so the previous version was restored. Please retry the update. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+      MessageBox MB_OK|MB_ICONEXCLAMATION "The HiAi update could not be validated, so the previous version was restored. Please retry the update. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
       Goto NewInstallPrevalidateAbortAfterMessage
     NewInstallPrevalidateAbort:
-      MessageBox MB_OK|MB_ICONEXCLAMATION "The LobsterAI installation stopped because the new application could not be validated ($lobsterNewInstallValidationReason). New registration and shortcuts were not written. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
+      MessageBox MB_OK|MB_ICONEXCLAMATION "The HiAi installation stopped because the new application could not be validated ($lobsterNewInstallValidationReason). New registration and shortcuts were not written. Details: $APPDATA\HiAi\install-timing.log" /SD IDOK
     NewInstallPrevalidateAbortAfterMessage:
     SetErrorLevel 2
     Quit
@@ -2995,10 +2995,10 @@ FunctionEnd
   NewInstallPrevalidateDone:
 !macroend
 
-; -- Let LobsterAI.exe accept its own loopback connections --
+; -- Let HiAi.exe accept its own loopback connections --
 ; Windows Defender Firewall's "Query user" default drops inbound connections,
 ; 127.0.0.1 included, to programs without an inbound allow rule. The engine
-; gateway is LobsterAI.exe listening on 127.0.0.1, so the app could not reach
+; gateway is HiAi.exe listening on 127.0.0.1, so the app could not reach
 ; it after a reboot (field case 2026-10). The rule allows TCP only between
 ; 127.0.0.1 addresses (netsh rejects ::1 and would fail the whole add), for
 ; this install's executable, so nothing becomes reachable from the network.

@@ -27,7 +27,7 @@ import {
   WINDOWS_LOOPBACK_FIREWALL_RULE_NAME,
 } from './windowsLoopbackFirewall';
 
-const programPath = String.raw`C:\Program Files\LobsterAI\LobsterAI.exe`;
+const programPath = String.raw`C:\Program Files\HiAi\HiAi.exe`;
 const powerShellPath = String.raw`C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`;
 
 afterEach(() => {
@@ -80,9 +80,9 @@ describe('buildLoopbackFirewallElevatedScript', () => {
 
   test('keeps quotes in the program path literal', () => {
     // PowerShell ends a single-quoted string at a typographic quote too.
-    const script = buildLoopbackFirewallElevatedScript('C:\\Users\\O\'Brien\\Lobster\u2019s\\LobsterAI.exe');
+    const script = buildLoopbackFirewallElevatedScript('C:\\Users\\O\'Brien\\Lobster\u2019s\\HiAi.exe');
 
-    expect(script).toContain('\'program=C:\\Users\\O\'\'Brien\\Lobster\u2019\u2019s\\LobsterAI.exe\'');
+    expect(script).toContain('\'program=C:\\Users\\O\'\'Brien\\Lobster\u2019\u2019s\\HiAi.exe\'');
   });
 });
 

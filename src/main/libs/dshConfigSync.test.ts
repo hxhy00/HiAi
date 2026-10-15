@@ -157,7 +157,7 @@ describe('plan provider (token proxy)', () => {
     expect(JSON.stringify(managed.routes)).not.toContain('loopback-proxy-token');
   });
 
-  test('marks the plan as LobsterAI-managed in the picker', () => {
+  test('marks the plan as HiAi-managed in the picker', () => {
     const managed = renderDshManagedSettings({}, { planProvider: plan });
     expect(managed.routes[DSH_PLAN_ROUTE_ID].displayName).toBe(`${DSH_MANAGED_LABEL_PREFIX}套餐`);
   });

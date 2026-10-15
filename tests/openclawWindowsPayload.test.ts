@@ -309,7 +309,7 @@ function snapshot(root: string): Record<string, string> {
 test.each(macTargets)('trims the $target app copy and preserves runtime imports and the source cache', async ({ target, native, otherNative }) => {
   const root = await fixture(target);
   const original = snapshot(root);
-  const app = path.join(tempDir(), '安装目录 with spaces #', 'LobsterAI.app');
+  const app = path.join(tempDir(), '安装目录 with spaces #', 'HiAi.app');
   const installed = path.join(app, 'Contents', 'Resources', 'cfmind');
   fs.cpSync(root, installed, { recursive: true });
   // electron-builder uses hard links for resource files on CI.
@@ -369,7 +369,7 @@ function measureSize(root: string): number {
 test.each(macTargets)('rejects incomplete $target native payloads before deleting files', async ({ target, native }) => {
   const root = await fixture(target);
   for (const nativeRoot of nativeRoots) {
-    const app = path.join(tempDir(), 'LobsterAI.app');
+    const app = path.join(tempDir(), 'HiAi.app');
     const installed = path.join(app, 'Contents', 'Resources', 'cfmind');
     fs.cpSync(root, installed, { recursive: true });
     fs.unlinkSync(path.join(installed, nativeRoot, native, 'fs-safe-native.node'));
@@ -397,7 +397,7 @@ test.each(macTargets)('leaves unreviewed OpenClaw versions untouched on $target'
   const root = await fixture(target);
   const host = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   manifest(root, 'package.json', { ...host, version: '2026.8.2' });
-  const app = path.join(tempDir(), 'LobsterAI.app');
+  const app = path.join(tempDir(), 'HiAi.app');
   const installed = path.join(app, 'Contents', 'Resources', 'cfmind');
   fs.cpSync(root, installed, { recursive: true });
   const before = snapshot(installed);
@@ -414,7 +414,7 @@ test.each([
 ])('aborts macOS pruning without partial deletion on $name', async ({ corrupt }) => {
   const target = OpenClawPayloadTarget.MacArm64;
   const root = await fixture(target);
-  const app = path.join(tempDir(), 'LobsterAI.app');
+  const app = path.join(tempDir(), 'HiAi.app');
   const installed = path.join(app, 'Contents', 'Resources', 'cfmind');
   fs.cpSync(root, installed, { recursive: true });
   corrupt(installed);
@@ -425,7 +425,7 @@ test.each([
 
 test('refuses to prune a linked build cache as a packaged macOS runtime', async () => {
   const root = await fixture(OpenClawPayloadTarget.MacArm64);
-  const app = path.join(tempDir(), 'LobsterAI.app');
+  const app = path.join(tempDir(), 'HiAi.app');
   const installed = path.join(app, 'Contents', 'Resources', 'cfmind');
   fs.mkdirSync(path.dirname(installed), { recursive: true });
   fs.symlinkSync(root, installed, process.platform === 'win32' ? 'junction' : 'dir');
@@ -437,10 +437,10 @@ test('refuses to prune a linked build cache as a packaged macOS runtime', async 
 test.each(macTargets)('runs $target payload pruning from the real afterPack hook', async ({ target, arch, native }) => {
   const root = await fixture(target);
   const appOutDir = tempDir();
-  const installed = path.join(appOutDir, 'LobsterAI.app', 'Contents', 'Resources', 'cfmind');
+  const installed = path.join(appOutDir, 'HiAi.app', 'Contents', 'Resources', 'cfmind');
   fs.cpSync(root, installed, { recursive: true });
   write(installed, 'node_modules/.bin/unused');
-  await afterPack({ appOutDir, arch, electronPlatformName: 'darwin', packager: { appInfo: { productFilename: 'LobsterAI' } } });
+  await afterPack({ appOutDir, arch, electronPlatformName: 'darwin', packager: { appInfo: { productFilename: 'HiAi' } } });
   expect(fs.existsSync(path.join(installed, 'gateway.asar'))).toBe(false);
   expect(fs.existsSync(path.join(installed, 'gateway-bundle.mjs'))).toBe(false);
   expect(fs.existsSync(path.join(installed, 'node_modules/.bin'))).toBe(false);
@@ -451,7 +451,7 @@ test.each(macTargets)('runs $target payload pruning from the real afterPack hook
 
 test.each([Arch.arm64, Arch.x64, Arch.universal])('preserves universal build resources in its arch=%s hook', async arch => {
   const appOutDir = tempDir();
-  const installed = path.join(appOutDir, 'LobsterAI.app', 'Contents', 'Resources', 'cfmind');
+  const installed = path.join(appOutDir, 'HiAi.app', 'Contents', 'Resources', 'cfmind');
   for (const { native } of macTargets) write(installed, `dist/native/${native}/fs-safe-native.node`);
   write(installed, 'gateway-bundle.mjs');
   const before = snapshot(installed);
@@ -459,7 +459,7 @@ test.each([Arch.arm64, Arch.x64, Arch.universal])('preserves universal build res
   await afterPack({
     appOutDir, arch, electronPlatformName: 'darwin',
     packager: {
-      platform, appInfo: { productFilename: 'LobsterAI' },
+      platform, appInfo: { productFilename: 'HiAi' },
       info: { options: { targets: new Map([[platform, new Map([[Arch.universal, ['dmg']]])]]) } },
     },
   });

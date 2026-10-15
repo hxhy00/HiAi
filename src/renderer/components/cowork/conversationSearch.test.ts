@@ -40,8 +40,8 @@ describe('conversation search', () => {
 
   test('matches Chinese and mixed-language text literally', () => {
     const matches = findConversationSearchMatches([
-      message('mixed', 'assistant', '这是 LobsterAI 的当前对话搜索。'),
-    ], 'LobsterAI 的当前对话');
+      message('mixed', 'assistant', '这是 HiAi 的当前对话搜索。'),
+    ], 'HiAi 的当前对话');
 
     expect(matches).toHaveLength(1);
   });

@@ -731,7 +731,7 @@ test('length final does not overwrite an explicit stop while history is pending'
   ))).toBe(false);
 });
 
-test('resolveOpenClawRuntimeErrorMessage surfaces a LobsterAI upstream billing failure as a model service issue', () => {
+test('resolveOpenClawRuntimeErrorMessage surfaces a HiAi upstream billing failure as a model service issue', () => {
   const metadata = {
     provider: ProviderName.LobsteraiServer,
     model: 'kimi-k2.6',
@@ -765,12 +765,12 @@ test('resolveOpenClawRuntimeErrorMessage preserves customer-managed provider bil
 });
 
 test('resolveOpenClawRuntimeErrorMessage reports proxy-relayed connection failures as network errors', () => {
-  const message = 'HTTP 502: LobsterAI proxy upstream request failed: net::ERR_HTTP2_PING_FAILED';
+  const message = 'HTTP 502: HiAi proxy upstream request failed: net::ERR_HTTP2_PING_FAILED';
   const planMetadata = {
     provider: ProviderName.LobsteraiServer,
     failoverReason: 'timeout',
     providerRuntimeFailureKind: 'timeout',
-    rawErrorPreview: '502 LobsterAI proxy upstream request failed: net::ERR_HTTP2_PING_FAILED',
+    rawErrorPreview: '502 HiAi proxy upstream request failed: net::ERR_HTTP2_PING_FAILED',
   };
   const host = new URL(getServerApiBaseUrl()).host;
   try {
@@ -809,7 +809,7 @@ test('resolveOpenClawRuntimeErrorMessage does not classify persisted cooldowns a
     .toBe(t('coworkErrorProviderCooldown'));
 });
 
-test('resolveOpenClawRuntimeErrorMessage classifies raw LobsterAI quota errors', () => {
+test('resolveOpenClawRuntimeErrorMessage classifies raw HiAi quota errors', () => {
   expect(resolveOpenClawRuntimeErrorMessage('本月积分已用完')).toContain('积分额度已用完');
 });
 
@@ -822,7 +822,7 @@ test('resolveOpenClawRuntimeErrorMessage classifies generic error from safe OAut
   })).toContain('OAuth 授权已失效');
 });
 
-test('resolveOpenClawRuntimeErrorMessage keeps LobsterAI HTTP 403 as model access denial', () => {
+test('resolveOpenClawRuntimeErrorMessage keeps HiAi HTTP 403 as model access denial', () => {
   expect(resolveOpenClawRuntimeErrorMessage('LLM request failed.', {
     provider: 'lobsterai-server',
     model: 'MiniMax-M3',
@@ -1050,7 +1050,7 @@ test('resolveOpenClawOutputLimitErrorMessage only explains output-limit stops', 
 });
 
 test('resolveOpenClawOutputLimitErrorMessage points at Max Output Tokens only for configurable models', () => {
-  // LobsterAI plan models have no output-limit setting to change.
+  // HiAi plan models have no output-limit setting to change.
   expect(resolveOpenClawOutputLimitErrorMessage('length', CoworkErrorModelSource.LobsterAIPlan))
     .toBe(t('coworkErrorOutputLimitReached'));
   expect(resolveOpenClawOutputLimitErrorMessage('length', undefined))
@@ -1194,10 +1194,10 @@ test('outbound prompt injects continuity capsule bridge before the current reque
 
   const prompt = await internal.buildOutboundPrompt('session-1', '继续');
 
-  expect(prompt).toContain('[LobsterAI continuity context after context compaction]');
+  expect(prompt).toContain('[HiAi continuity context after context compaction]');
   expect(prompt).toContain('Improve compaction continuity.');
   expect(prompt).toContain('src/main/libs/agentEngine/openclawRuntimeAdapter.ts');
-  expect(prompt.indexOf('[LobsterAI continuity context after context compaction]')).toBeLessThan(
+  expect(prompt.indexOf('[HiAi continuity context after context compaction]')).toBeLessThan(
     prompt.indexOf('[Current user request]'),
   );
 });
@@ -1242,10 +1242,10 @@ test('outbound prompt injects full capsule first and mini capsule on later turns
   const firstPrompt = await internal.buildOutboundPrompt('session-1', '继续');
   const secondPrompt = await internal.buildOutboundPrompt('session-1', '再继续');
 
-  expect(firstPrompt).toContain('[LobsterAI continuity context after context compaction]');
+  expect(firstPrompt).toContain('[HiAi continuity context after context compaction]');
   expect(firstPrompt).toContain('Touched files:');
   expect(firstPrompt).toContain('src/main/libs/agentEngine/openclawRuntimeAdapter.ts');
-  expect(secondPrompt).toContain('[LobsterAI brief continuity context after context compaction]');
+  expect(secondPrompt).toContain('[HiAi brief continuity context after context compaction]');
   expect(secondPrompt).toContain('Improve compaction continuity.');
   expect(secondPrompt).toContain('Inject capsule bridge.');
   expect(secondPrompt).not.toContain('Touched files:');
@@ -1294,9 +1294,9 @@ test('outbound prompt injects workspace rehydration bridge before the current re
 
   const prompt = await internal.buildOutboundPrompt('session-1', '继续');
 
-  expect(prompt).toContain('[LobsterAI workspace state after context compaction]');
+  expect(prompt).toContain('[HiAi workspace state after context compaction]');
   expect(prompt).toContain('src/main/libs/agentEngine/coworkWorkspaceRehydration.ts');
-  expect(prompt.indexOf('[LobsterAI workspace state after context compaction]')).toBeLessThan(
+  expect(prompt.indexOf('[HiAi workspace state after context compaction]')).toBeLessThan(
     prompt.indexOf('[Current user request]'),
   );
 });
@@ -1344,8 +1344,8 @@ test('outbound prompt injects workspace rehydration bridge once per compaction',
   const firstPrompt = await internal.buildOutboundPrompt('session-1', '继续');
   const secondPrompt = await internal.buildOutboundPrompt('session-1', '再继续');
 
-  expect(firstPrompt).toContain('[LobsterAI workspace state after context compaction]');
-  expect(secondPrompt).not.toContain('[LobsterAI workspace state after context compaction]');
+  expect(firstPrompt).toContain('[HiAi workspace state after context compaction]');
+  expect(secondPrompt).not.toContain('[HiAi workspace state after context compaction]');
 });
 
 test('outbound prompt injects top-k evidence bridge before the current request', async () => {
@@ -1404,9 +1404,9 @@ test('outbound prompt injects top-k evidence bridge before the current request',
 
   const prompt = await internal.buildOutboundPrompt('session-1', '继续处理 src/pages/Bakery.tsx 的 npm test failed');
 
-  expect(prompt).toContain('[LobsterAI retrieved evidence after context compaction]');
+  expect(prompt).toContain('[HiAi retrieved evidence after context compaction]');
   expect(prompt).toContain('npm test failed in src/pages/Bakery.tsx');
-  expect(prompt.indexOf('[LobsterAI retrieved evidence after context compaction]')).toBeLessThan(
+  expect(prompt.indexOf('[HiAi retrieved evidence after context compaction]')).toBeLessThan(
     prompt.indexOf('[Current user request]'),
   );
 });
@@ -1448,7 +1448,7 @@ test('outbound prompt skips continuity capsule bridge before compaction', async 
 
   const prompt = await internal.buildOutboundPrompt('session-1', 'hello');
 
-  expect(prompt).not.toContain('[LobsterAI continuity context after context compaction]');
+  expect(prompt).not.toContain('[HiAi continuity context after context compaction]');
 });
 
 test('context usage ignores non-checkpoint compactionCount', () => {
@@ -5597,10 +5597,10 @@ test('reconcileWithHistory: content mismatch — triggers replace', async () => 
 });
 
 test('subagent history sync preserves visible local user text instead of raw outbound prompt', async () => {
-  const rawOutboundPrompt = `[LobsterAI system instructions]
+  const rawOutboundPrompt = `[HiAi system instructions]
 hidden setup
 
-[Context bridge from previous LobsterAI conversation]
+[Context bridge from previous HiAi conversation]
 previous context
 
 [Current user request]

@@ -15,7 +15,7 @@ const originalResourcesPath = process.resourcesPath;
 vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => process.cwd()),
-    getName: vi.fn(() => 'LobsterAI'),
+    getName: vi.fn(() => 'HiAi'),
     getPath: vi.fn((name: string) => (name === 'userData' ? TEST_USER_DATA : '')),
     isPackaged: false,
   },
@@ -288,7 +288,7 @@ describe('resolveComputerUseRuntimePaths', () => {
     });
   });
 
-  test('configures the Windows helper with LobsterAI branding', () => {
+  test('configures the Windows helper with HiAi branding', () => {
     writeWindowsRuntimeFixture();
 
     const server = resolveComputerUseMcpServer({
@@ -314,9 +314,9 @@ describe('resolveComputerUseRuntimePaths', () => {
     expect(server?.env?.[ComputerUseMcpEnv.LogLevel]).toBe('info');
     expect(server?.env?.[ComputerUseMcpEnv.LogRetentionDays]).toBe('7');
     expect(server?.env?.[ComputerUseMcpEnv.Locale]).toBe('zh');
-    expect(server?.env?.[ComputerUseMcpEnv.SelfAppName]).toBe('LobsterAI');
+    expect(server?.env?.[ComputerUseMcpEnv.SelfAppName]).toBe('HiAi');
     expect(server?.env?.[ComputerUseMcpEnv.SelfPid]).toBe(String(process.pid));
-    expect(config.strings?.usingComputer).toBe('LobsterAI正在使用你的电脑');
+    expect(config.strings?.usingComputer).toBe('HiAi正在使用你的电脑');
     expect(config.strings?.escToCancel).toBe('按 Esc 取消');
   });
 
@@ -330,7 +330,7 @@ describe('resolveComputerUseRuntimePaths', () => {
     expect(config.locale).toBe('en-US');
     expect(config.strings).toEqual({
       escToCancel: 'Press Esc to stop',
-      usingComputer: 'LobsterAI is using your computer',
+      usingComputer: 'HiAi is using your computer',
       stopped: 'Computer Use stopped',
     });
   });

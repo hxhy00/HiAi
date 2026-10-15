@@ -35,7 +35,7 @@ const MODEL_CAPACITY_OVERLOAD_PATTERN =
 
 const API_KEY_PATTERN = String.raw`(?:api\s*key|api[_-]?key|apikey)`;
 const UNAVAILABLE_NETWORK_CODE_PATTERN = String.raw`(?:ECONNREFUSED|ECONNRESET|ECONNABORTED|ENOTFOUND|ETIMEDOUT|ENETUNREACH|EHOSTUNREACH|EAI_AGAIN|UND_ERR_[A-Z_]+)`;
-// Chromium network errors from Electron net.fetch, e.g. relayed by the LobsterAI token proxy.
+// Chromium network errors from Electron net.fetch, e.g. relayed by the HiAi token proxy.
 const CHROMIUM_NET_ERROR_PATTERN = String.raw`net::ERR_[A-Z0-9_]+`;
 
 const ERROR_RULES: Array<[RegExp, string]> = [
@@ -47,9 +47,9 @@ const ERROR_RULES: Array<[RegExp, string]> = [
   [/无权访问|没有权限|access denied|access.*forbidden|forbidden|permission denied|\b403\b|auth[_ ]scope/i, CoworkErrorI18nKey.ModelAccessDenied],
   // Auth: Anthropic, DeepSeek, OpenAI, Gemini, HTTP 401
   [new RegExp(`authentication[_ ](error|fails?)|${API_KEY_PATTERN}.*(invalid|expired|deleted|inactive|not[_ ]valid|not\\s+valid)|invalid.*${API_KEY_PATTERN}|incorrect.*${API_KEY_PATTERN}|unauthorized|PERMISSION_DENIED|\\b401\\b`, 'i'), CoworkErrorI18nKey.AuthInvalid],
-  // LobsterAI plan/free quota. Must precede generic 402/billing handling.
+  // HiAi plan/free quota. Must precede generic 402/billing handling.
   [LOBSTERAI_QUOTA_EXHAUSTED_PATTERN, CoworkErrorI18nKey.QuotaExhausted],
-  // LobsterAI's UPSTREAM_BALANCE_INSUFFICIENT code belongs to the model service.
+  // HiAi's UPSTREAM_BALANCE_INSUFFICIENT code belongs to the model service.
   [/\b50203\b/, CoworkErrorI18nKey.ModelServiceUnavailable],
   // Provider/model capacity failures. Must precede rate-limit matching because
   // capacity errors may also contain phrases such as "too many requests".
@@ -94,7 +94,7 @@ const ERROR_RULES: Array<[RegExp, string]> = [
 export function classifyErrorKey(error: string, provider?: string): string | null {
   for (const [pattern, key] of ERROR_RULES) {
     if (pattern.test(error)) {
-      // LobsterAI owns the upstream keys; its user quota has separate codes above.
+      // HiAi owns the upstream keys; its user quota has separate codes above.
       return key === CoworkErrorI18nKey.InsufficientBalance
         && provider?.trim() === ProviderName.LobsteraiServer
         ? CoworkErrorI18nKey.ModelServiceUnavailable

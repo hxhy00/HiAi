@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Apply version-specific LobsterAI patches to the openclaw source tree.
+ * Apply version-specific HiAi patches to the openclaw source tree.
  *
  * Patches are organised in scripts/patches/<version>/ directories, where
  * <version> matches the "openclaw.version" field in package.json (e.g.
@@ -11,7 +11,7 @@
  *   node scripts/apply-openclaw-patches.cjs [openclaw-src-dir]
  *
  * If openclaw-src-dir is not specified, OPENCLAW_SRC is used when present,
- * otherwise the source defaults to ../openclaw relative to the LobsterAI
+ * otherwise the source defaults to ../openclaw relative to the HiAi
  * project root.
  *
  * Safe to run multiple times — already-applied patches are skipped.
@@ -719,7 +719,7 @@ const v20260801StrongPatchValidators = {
     {
       file: 'src/config/zod-schema.model-api-owner.test.ts',
       snippets: [
-        'accepts the LobsterAI owner while models keep explicit transports',
+        'accepts the HiAi owner while models keep explicit transports',
         'rejects compatibility ownership at model level',
       ],
     },
@@ -947,7 +947,7 @@ const v20260801StrongPatchValidators = {
     },
     {
       file: 'src/gateway/server-methods/sessions-goal.test.ts',
-      snippets: ['keeps the LobsterAI compatibility RPC as a mutation-only Goal surface'],
+      snippets: ['keeps the HiAi compatibility RPC as a mutation-only Goal surface'],
     },
   ],
   'openclaw-shell-snapshot-electron-node-env.patch': [
@@ -1458,7 +1458,7 @@ function assertStrongPatchApplied(patchFile) {
 }
 
 // Reset openclaw source to a clean tag state before applying patches.
-// This removes stale patches left by a different LobsterAI branch that may have
+// This removes stale patches left by a different HiAi branch that may have
 // applied different patches for the same openclaw version.
 try {
   execFileSync('git', ['reset', 'HEAD', '.'], { cwd: openclawSrc, stdio: 'pipe' });

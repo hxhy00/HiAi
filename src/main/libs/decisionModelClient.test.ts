@@ -172,7 +172,7 @@ describe('buildDecisionRequest', () => {
     expect(request.url).toBe(OPENROUTER_DECISIONS_URL);
     expect(request.headers.Authorization).toBe(`Bearer ${API_KEY}`);
     expect(request.headers['HTTP-Referer']).toBe('https://lobsterai.youdao.com');
-    expect(request.headers['X-Title']).toBe('LobsterAI');
+    expect(request.headers['X-Title']).toBe('HiAi');
     expect(JSON.parse(request.body)).toEqual({
       model: OPENROUTER_JEV_MODEL,
       state: ticketInput.state,

@@ -22,7 +22,7 @@ const STEP_ICONS: Record<
   [ActivityStepKind.Command]: CommandLineIcon,
   [ActivityStepKind.Read]: DocumentTextIcon,
   // The app's own compose icon (new task / new agent), so writing a file
-  // looks like creating anything else in LobsterAI.
+  // looks like creating anything else in HiAi.
   [ActivityStepKind.Edit]: ComposeIcon,
   [ActivityStepKind.Search]: MagnifyingGlassIcon,
   [ActivityStepKind.Web]: GlobeAltIcon,

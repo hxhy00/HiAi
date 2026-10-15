@@ -67,7 +67,7 @@ describe('decision_evaluate through the loopback bridge', () => {
     await server.stop();
   });
 
-  test('exposes the tool to LobsterAI desktop sessions only', () => {
+  test('exposes the tool to HiAi desktop sessions only', () => {
     expect(factory({ sessionKey: DESKTOP_SESSION })?.name).toBe('decision_evaluate');
     expect(factory({ sessionKey: 'agent:main:dingtalk:group-1' })).toBeNull();
   });

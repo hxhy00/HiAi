@@ -16,7 +16,7 @@ test('builds one launcher that embeds the collector, helpers and the elevated pr
   const lines = text.split('\r\n');
   const batchEnd = lines.indexOf('#>');
   expect(lines.slice(0, batchEnd).join('\n')).not.toMatch(/[^\x20-\x7e\n]/);
-  expect(lines).toContain('title LobsterAI Network Filter Diagnostics');
+  expect(lines).toContain('title HiAi Network Filter Diagnostics');
   expect(lines[batchEnd + 1]).toBe('param(');
   expect(text).toContain('function Protect-DiagnosticText');
   // The elevated probe travels as data and is written out with a BOM before it runs.

@@ -16,7 +16,7 @@
 //   ELECTRON_RUN_AS_NODE=1 <electron> scripts/verify-dsh-picker-path-read.cjs <runtime-dir>
 //
 // It asserts the installed runtime reads the path in a shape that avoids
-// koffi.view() — LobsterAI's marshalling patch up to dsh 0.1.1
+// koffi.view() — HiAi's marshalling patch up to dsh 0.1.1
 // (scripts/dsh-patches/<version>/02-picker-*.cjs), or upstream's own fix from
 // dsh 0.1.5, which copies the address into a JS Buffer and lets koffi.decode()
 // copy the string out — and that the shape survives this V8, using

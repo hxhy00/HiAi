@@ -16,7 +16,7 @@ function fixture() {
   const stateDir = path.join(root, 'state');
   const options: LockRecoveryOptions = {
     stateDir, configPath: path.join(stateDir, 'openclaw.json'), runtimeRoot: path.join(root, 'runtime'),
-    executablePath: path.join(root, 'LobsterAI.exe'), backupDir: path.join(root, 'backup'), env: {},
+    executablePath: path.join(root, 'HiAi.exe'), backupDir: path.join(root, 'backup'), env: {},
   };
   fs.mkdirSync(options.backupDir); fs.mkdirSync(resolveGatewayLockDir(stateDir), { recursive: true });
   const payload: GatewayLockPayload = {

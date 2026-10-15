@@ -366,7 +366,7 @@ export class McpBridgeServer {
 
         this.pendingAskUser.set(requestId, { requestId, resolve, timer });
 
-        // Notify LobsterAI to show the modal
+        // Notify HiAi to show the modal
         if (this.onAskUserCallback) {
           this.onAskUserCallback({
             requestId,
@@ -459,7 +459,7 @@ export class McpBridgeServer {
       if (!this.onBrowserToolCallback) {
         res.writeHead(503, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
-          content: [{ type: 'text', text: 'LobsterAI in-app browser is not ready.' }],
+          content: [{ type: 'text', text: 'HiAi in-app browser is not ready.' }],
           isError: true,
         }));
         return;
@@ -480,7 +480,7 @@ export class McpBridgeServer {
       if (!res.writableEnded) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
-          content: [{ type: 'text', text: `LobsterAI browser error: ${message}` }],
+          content: [{ type: 'text', text: `HiAi browser error: ${message}` }],
           isError: true,
         }));
       }
@@ -551,7 +551,7 @@ export class McpBridgeServer {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log('ERROR', `${editorName} tool request failed after ${Date.now() - startedAt}ms: ${message}`);
-      reply(500, { content: [{ type: 'text', text: `LobsterAI ${editorName} editor error: ${message}` }], isError: true });
+      reply(500, { content: [{ type: 'text', text: `HiAi ${editorName} editor error: ${message}` }], isError: true });
     }
   }
 

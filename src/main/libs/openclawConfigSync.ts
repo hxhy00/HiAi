@@ -112,7 +112,7 @@ export type AskUserCallbackConfig = {
 };
 
 const mapExecutionModeToSandboxMode = (
-  mode: CoworkExecutionMode,
+  _mode: CoworkExecutionMode,
 ): 'off' | 'non-main' | 'all' => 'off';
 
 /**
@@ -193,7 +193,7 @@ export const modelCompatConfigChangeRequiresRestart = (
 );
 export const OPENCLAW_BINDING_ANY_ACCOUNT_ID = '*';
 const OPENCLAW_DEFAULT_MODEL_MAX_TOKENS = 8192;
-// Output cap for LobsterAI plan models whose server metadata carries no maxTokens.
+// Output cap for HiAi plan models whose server metadata carries no maxTokens.
 // They are all reasoning models, so thinking counts against this cap and OpenClaw's
 // generic 8192 default could end a turn before any visible answer.
 const LOBSTERAI_SERVER_DEFAULT_MODEL_MAX_TOKENS = 32_768;
@@ -322,7 +322,7 @@ const MANAGED_OWNER_ALLOW_FROM = [
 const MANAGED_TOOL_DENY = [
   'web_search',
   // These drive paired OpenClaw nodes (the OpenClaw app, `openclaw node run`).
-  // LobsterAI never pairs one, so they always fail, and `computer` competes
+  // HiAi never pairs one, so they always fail, and `computer` competes
   // with the Computer Use kit's MCP tools for desktop requests.
   'computer',
   'nodes',
@@ -350,10 +350,10 @@ const MANAGED_SKILL_ENTRY_OVERRIDES: Record<string, { enabled: boolean }> = {
   'feishu-cron-reminder': {
     enabled: false,
   },
-  // LobsterAI configures MCP servers via openclaw.json mcp.servers field.
+  // HiAi configures MCP servers via openclaw.json mcp.servers field.
   // The bundled mcporter skill tries to discover MCP servers via its own CLI,
   // finds none, and produces confusing "no MCP servers" output. Disable it so
-  // users are routed through LobsterAI's MCP layer instead.
+  // users are routed through HiAi's MCP layer instead.
   'mcporter': {
     enabled: false,
   },
@@ -382,10 +382,10 @@ const MANAGED_WEB_SEARCH_POLICY_PROMPT = [
   '- Do not use `web_fetch` to fetch Google/Bing search result pages as a search substitute; use `browser` or an available search skill instead.',
   '- If you need search discovery, dynamic pages, or interactive browsing, use the built-in `browser` tool.',
   '- For login-required, JavaScript-heavy, or anti-automation pages, use `browser` instead of `web_fetch`.',
-  '- Only use the LobsterAI `web-search` skill when local command execution is available. Native channel sessions may deny `exec`, so prefer `browser` or `web_fetch` there.',
+  '- Only use the HiAi `web-search` skill when local command execution is available. Native channel sessions may deny `exec`, so prefer `browser` or `web_fetch` there.',
   '- Exception: the `imap-smtp-email` skill must always use `exec` to run its scripts, even in native channel sessions. Do not skip it because of exec restrictions.',
   '',
-  'Do not claim you searched the web unless you actually used `browser`, `web_fetch`, or the LobsterAI `web-search` skill.',
+  'Do not claim you searched the web unless you actually used `browser`, `web_fetch`, or the HiAi `web-search` skill.',
 ].join('\n');
 
 const BUNDLED_BROWSER_PLUGIN_ID = 'browser';
@@ -393,13 +393,13 @@ const BUNDLED_BROWSER_PLUGIN_ID = 'browser';
 const MANAGED_BROWSER_POLICY_PROMPT = [
   '## Browser Policy',
   '',
-  'LobsterAI does not support sandbox browser execution in this version.',
+  'HiAi does not support sandbox browser execution in this version.',
   '- For every `browser` tool call, set `target="host"` explicitly.',
-  '- Do not use `target="sandbox"` or `target="node"` unless a future LobsterAI version explicitly enables it.',
+  '- Do not use `target="sandbox"` or `target="node"` unless a future HiAi version explicitly enables it.',
   '- If a browser call fails because the sandbox browser is unavailable, retry the same action with `target="host"`.',
-  '- The `lobster-in-app` profile is LobsterAI\'s own browser bridge. If it is unavailable, report an internal LobsterAI browser startup failure; never tell the user to enable Chrome remote debugging or launch Chrome with debugging flags.',
+  '- The `lobster-in-app` profile is HiAi\'s own browser bridge. If it is unavailable, report an internal HiAi browser startup failure; never tell the user to enable Chrome remote debugging or launch Chrome with debugging flags.',
   `- When a page requires a password and \`${BrowserCredentialMcpServer.ModelToolName}\` is available, call it before asking the user to sign in manually. The tool can use an encrypted saved login without revealing its password to you.`,
-  '- If no saved login is available, ask the user to sign in directly in the visible LobsterAI browser. Never ask the user to send a password in chat, and never search files, memory, or logs for passwords.',
+  '- If no saved login is available, ask the user to sign in directly in the visible HiAi browser. Never ask the user to send a password in chat, and never search files, memory, or logs for passwords.',
 ].join('\n');
 
 const MANAGED_EXEC_SAFETY_PROMPT = [
@@ -429,9 +429,9 @@ const MANAGED_EXEC_SAFETY_PROMPT = [
  * embedding in AGENTS.md so the model knows where to create new skills.
  *
  * Example outputs:
- *   macOS:   ~/Library/Application Support/LobsterAI/SKILLs
- *   Windows: ~/AppData/Roaming/LobsterAI/SKILLs
- *   Linux:   ~/.config/LobsterAI/SKILLs
+ *   macOS:   ~/Library/Application Support/HiAi/SKILLs
+ *   Windows: ~/AppData/Roaming/HiAi/SKILLs
+ *   Linux:   ~/.config/HiAi/SKILLs
  */
 const resolveSkillCreationPath = (): string => {
   const skillsDir = path.join(app.getPath('userData'), 'SKILLs');
@@ -446,7 +446,7 @@ const resolveSkillCreationPath = (): string => {
 const buildManagedSkillCreationPrompt = (skillsDirPath: string): string => [
   '## Skill Creation',
   '',
-  'When the user asks you to create a new skill, you MUST place it under the LobsterAI skills directory:',
+  'When the user asks you to create a new skill, you MUST place it under the HiAi skills directory:',
   '',
   `  ${skillsDirPath}/<skill-name>/SKILL.md`,
   '',
@@ -475,7 +475,7 @@ const MANAGED_DELIVERABLE_LINKS_PROMPT = [
 const MANAGED_MATH_FORMAT_PROMPT = [
   '## Math Formula Formatting',
   '',
-  'The LobsterAI app chat renders TeX formulas with KaTeX.',
+  'The HiAi app chat renders TeX formulas with KaTeX.',
   '',
   '- In app chat sessions, write every mathematical formula or expression in TeX:',
   '  `$...$` inline, and `$$` on its own lines around display blocks.',
@@ -1329,8 +1329,8 @@ export type OpenClawProviderModelSource = {
 
 /**
  * Classifies an OpenClaw provider id (as reported in gateway error metadata)
- * back to the LobsterAI Settings entry it was generated from, so runtime
- * errors can tell the user whether the failing model is the LobsterAI plan,
+ * back to the HiAi Settings entry it was generated from, so runtime
+ * errors can tell the user whether the failing model is the HiAi plan,
  * a vendor coding plan, or their own custom provider.
  */
 export function resolveModelSourceForOpenClawProvider(
@@ -1448,21 +1448,6 @@ const buildCompleteAgentModelDefaults = (
   }
 
   return modelDefaults;
-};
-
-const upsertProviderModel = (
-  providerConfig: OpenClawProviderSelection['providerConfig'],
-  model: OpenClawProviderSelection['providerConfig']['models'][number],
-): void => {
-  const existingIndex = providerConfig.models.findIndex(existing => existing.id === model.id);
-  if (existingIndex >= 0) {
-    providerConfig.models[existingIndex] = {
-      ...providerConfig.models[existingIndex],
-      ...model,
-    };
-    return;
-  }
-  providerConfig.models.push(model);
 };
 
 const OPENCLAW_TRANSPORT_APIS = new Set<OpenClawTransportApi>([
@@ -1599,10 +1584,6 @@ export const findInvalidKimiK3ServerTransports = (
     }))
     .filter(model => model.apiFormat !== 'openai')
     .sort((a, b) => a.modelId.localeCompare(b.modelId))
-);
-
-const normalizeServerApiType = (apiFormat?: string): 'anthropic' | 'openai' => (
-  apiFormat === 'anthropic' ? 'anthropic' : 'openai'
 );
 
 const stripExplicitContextCacheProviderSuffix = (modelId: string, provider?: string): string => {
@@ -1990,7 +1971,7 @@ export class OpenClawConfigSync {
    * read against a "last known good" fingerprint.  One of the checks is
    * `hasConfigMeta` — if the previous good config had `meta` but the current
    * one doesn't, an anomaly is logged and the file content is persisted as a
-   * `.clobbered.<timestamp>` snapshot.  Because LobsterAI writes openclaw.json
+   * `.clobbered.<timestamp>` snapshot.  Because HiAi writes openclaw.json
    * directly (bypassing OpenClaw's own `writeConfigFile` which calls
    * `stampConfigVersion`), we need to stamp `meta` ourselves.
    */
@@ -2450,7 +2431,7 @@ export class OpenClawConfigSync {
           systemAgent: { agentId: AgentId.Main },
           authInheritance: { agentId: AgentId.Main },
           timeoutSeconds: OPENCLAW_AGENT_TIMEOUT_SECONDS,
-          // Session switches stay local; LobsterAI explicitly syncs agent defaults.
+          // Session switches stay local; HiAi explicitly syncs agent defaults.
           modelSelectionScope: OPENCLAW_MODEL_SELECTION_SCOPE,
           model: {
             primary: primaryModel,
@@ -2603,7 +2584,7 @@ export class OpenClawConfigSync {
               ...(p.config && Object.keys(p.config).length > 0 ? { config: p.config } : {}),
             }]),
           ),
-          // Disable acpx (ACP agent runtime) — LobsterAI does not use ACP and
+          // Disable acpx (ACP agent runtime) — HiAi does not use ACP and
           // the embedded probe adds ~11s to gateway startup while it waits for
           // a process that always fails.  See openclaw/openclaw#62588.
           'acpx': { enabled: false },
@@ -2683,7 +2664,7 @@ export class OpenClawConfigSync {
         };
       }
     }
-    // LobsterAI's Office editor tools edit the document open in the right-side panel live.
+    // HiAi's Office editor tools edit the document open in the right-side panel live.
     for (const [serverName, launch] of Object.entries(this.getOfficeMcpServers?.() ?? {})) {
       nativeMcpServers[serverName] = {
         command: launch.command,
@@ -2729,7 +2710,7 @@ export class OpenClawConfigSync {
     }
 
     // Sync the experimental decision model plugin. The API key never enters
-    // openclaw.json: the tool calls back into LobsterAI, which owns the key.
+    // openclaw.json: the tool calls back into HiAi, which owns the key.
     const decisionCallbackUrl = this.getDecisionCallbackUrl?.();
     if (hasDecisionPlugin && decisionCallbackUrl && this.isDecisionModelActive?.() && managedConfig.plugins) {
       const plugins = managedConfig.plugins as Record<string, unknown>;
@@ -2953,7 +2934,7 @@ export class OpenClawConfigSync {
         clientSecret: `\${${secretEnvVar}}`,
         // v3.5.x schema: dmPolicy/groupPolicy/allowFrom are valid; sessionTimeout/
         // separateSessionByConversation/groupSessionScope/sharedMemoryAcrossConversations/
-        // gatewayBaseUrl were LobsterAI-specific and are not in the plugin schema.
+        // gatewayBaseUrl were HiAi-specific and are not in the plugin schema.
         dmPolicy: inst.dmPolicy || 'open',
         allowFrom: (() => {
           const ids = inst.allowFrom?.length ? [...inst.allowFrom] : [];
@@ -3533,7 +3514,7 @@ export class OpenClawConfigSync {
   }
 
   /**
-   * Ensures exec-approvals.json under the LobsterAI-managed openclaw home has
+   * Ensures exec-approvals.json under the HiAi-managed openclaw home has
    * security=full + ask=off so the gateway never triggers approval-pending
    * for any command. The path must match the OPENCLAW_HOME env var passed to
    * the gateway process so both sides read/write the same file.
@@ -3737,13 +3718,13 @@ export class OpenClawConfigSync {
   }
 
   /**
-   * Resolve the LobsterAI SKILLs installation directory for OpenClaw's
+   * Resolve the HiAi SKILLs installation directory for OpenClaw's
    * `skills.load.extraDirs` configuration.
    *
    * Cross-platform paths (via Electron app.getPath('userData')):
-   *   macOS:   ~/Library/Application Support/LobsterAI/SKILLs
-   *   Windows: %APPDATA%/LobsterAI/SKILLs
-   *   Linux:   ~/.config/LobsterAI/SKILLs
+   *   macOS:   ~/Library/Application Support/HiAi/SKILLs
+   *   Windows: %APPDATA%/HiAi/SKILLs
+   *   Linux:   ~/.config/HiAi/SKILLs
    */
   private resolveSkillsExtraDirs(): string[] {
     const userDataSkillsDir = path.join(app.getPath('userData'), 'SKILLs');
@@ -3766,8 +3747,8 @@ export class OpenClawConfigSync {
   }
 
   /**
-   * Build per-skill `enabled` overrides from the LobsterAI SkillManager state,
-   * so that skills disabled in the LobsterAI UI are also hidden from OpenClaw.
+   * Build per-skill `enabled` overrides from the HiAi SkillManager state,
+   * so that skills disabled in the HiAi UI are also hidden from OpenClaw.
    *
    * Entries must be keyed by the skill's frontmatter `name`, not the
    * directory-derived `id`: OpenClaw resolves these overrides through
@@ -3794,10 +3775,10 @@ export class OpenClawConfigSync {
    * Sync AGENTS.md to the OpenClaw workspace directory.
    * Embeds the skills routing prompt and system prompt so that OpenClaw's
    * native channel connectors (DingTalk, Feishu, etc.) can discover and
-   * invoke LobsterAI skills.
+   * invoke HiAi skills.
    */
   private syncAgentsMd(workspaceDir: string, coworkConfig: CoworkConfig): string | undefined {
-    const MARKER = '<!-- LobsterAI managed: do not edit below this line -->';
+    const MARKER = '<!-- HiAi managed: do not edit below this line -->';
 
     try {
       ensureDir(workspaceDir);

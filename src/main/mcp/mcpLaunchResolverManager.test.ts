@@ -4,7 +4,7 @@ import { expect, test, vi } from 'vitest';
 vi.mock('electron', () => ({
   app: {
     getAppPath: () => process.cwd(),
-    getName: () => 'LobsterAI',
+    getName: () => 'HiAi',
     getPath: () => process.cwd(),
     isPackaged: false,
   },
@@ -69,7 +69,7 @@ test('isRecoverableNodeRuntimeResolutionError detects Windows node shim ENOENT',
     resolverKind: McpLaunchResolverKind.Npx,
     sourceFingerprint: 'fingerprint',
     status: McpLaunchResolutionStatus.Failed,
-    error: 'spawn C:\\Users\\demo\\AppData\\Roaming\\LobsterAI\\cowork\\bin\\node ENOENT',
+    error: 'spawn C:\\Users\\demo\\AppData\\Roaming\\HiAi\\cowork\\bin\\node ENOENT',
     updatedAt: Date.now(),
   })).toBe(true);
 

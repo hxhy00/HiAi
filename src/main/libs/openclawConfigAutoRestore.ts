@@ -4,7 +4,7 @@ import { writeConfigDiagnostic } from './openclawConfigObservation';
  * OpenClaw rewrites its config at read time when the file looks clobbered
  * (e.g. a >50% size drop against its last-known-good baseline, which a
  * sign-out causes by removing the plan model catalog) or invalid. It reports
- * this only as one warning line, and the gateway then runs a config LobsterAI
+ * this only as one warning line, and the gateway then runs a config HiAi
  * did not author: models and providers the user can no longer select.
  */
 
@@ -47,7 +47,7 @@ export function parseOpenClawConfigAutoRestore(output: string): OpenClawConfigAu
 const MAX_AUTO_RESTORE_RESYNCS = 3;
 
 /**
- * Re-apply LobsterAI's config once per distinct restore. With the aligned
+ * Re-apply HiAi's config once per distinct restore. With the aligned
  * backup the restore rewrote identical bytes and the resync is a no-op;
  * otherwise config delivery replaces the restored file (restarting when the
  * gateway refuses the shrink). A repeated restore means the host write does
@@ -73,13 +73,13 @@ export function createOpenClawConfigAutoRestoreHandler(deps: {
     if (repeated || exhausted) {
       console.error(
         `[OpenClaw] Gateway restored its config from ${event.source} again (${event.reasons}); `
-          + 'not resyncing to avoid a restart loop. The gateway may use models LobsterAI no longer offers.',
+          + 'not resyncing to avoid a restart loop. The gateway may use models HiAi no longer offers.',
       );
       return;
     }
     handled.add(signature);
     console.warn(
-      `[OpenClaw] Gateway restored its config from ${event.source} (${event.reasons}); re-applying LobsterAI config.`,
+      `[OpenClaw] Gateway restored its config from ${event.source} (${event.reasons}); re-applying HiAi config.`,
     );
     deps.resync(OPENCLAW_CONFIG_AUTO_RESTORE_SYNC_REASON);
   };

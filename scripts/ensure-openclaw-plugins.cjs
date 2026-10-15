@@ -611,7 +611,7 @@ function buildPluginInstallEnv(plugin) {
 
 function buildOpenClawPluginInstallArgs(installSpec) {
   // This script installs only the exact plugin versions reviewed and pinned in
-  // LobsterAI's package.json, so the build itself is the capability-consent
+  // HiAi's package.json, so the build itself is the capability-consent
   // boundary required by OpenClaw v2026.8.1.
   return ['plugins', 'install', installSpec, '--force', '--accept-capabilities'];
 }

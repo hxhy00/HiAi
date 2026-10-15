@@ -12,7 +12,7 @@ import {
 } from './openclawConfigSelfHeal';
 import type { StartupMigrationRunner } from './openclawStartupStateMigration';
 
-// Keys LobsterAI wrote before aligning with the v2026.8.1 schema; that runtime rejects them.
+// Keys HiAi wrote before aligning with the v2026.8.1 schema; that runtime rejects them.
 const retiredConfig = () => ({
   gateway: { mode: 'local' },
   tools: { loopDetection: { enabled: true, historySize: 48, warningThreshold: 6, detectors: { pingPong: true } } },

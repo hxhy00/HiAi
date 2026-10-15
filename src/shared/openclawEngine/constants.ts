@@ -51,7 +51,7 @@ export type OpenClawGatewayRepairErrorCode =
  * file via a load-time migration, but the `config.set` RPC rejects them
  * ("plugins.installs is managed by the plugin index and cannot be edited with
  * config set"). Left on disk they turn every hot config delivery into a
- * guaranteed fallback hard restart, so LobsterAI strips them both when
+ * guaranteed fallback hard restart, so HiAi strips them both when
  * writing openclaw.json and from every config.set payload.
  */
 export const OPENCLAW_PLUGIN_INDEX_MANAGED_KEYS = ['installs'] as const;

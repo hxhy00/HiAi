@@ -26,7 +26,7 @@ test.skipIf(!runtimeRoot || !archiveDir).each(NSP_CLAWGUARD.Releases)(
   '$version repairs the stale npm receipt and survives two real gateway starts', async release => {
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'nsp-startup-integration-'));
     if (!path.resolve(temp).startsWith(path.resolve(os.tmpdir()) + path.sep)) throw new Error('Unexpected fixture path');
-    const userDataDir = path.join(temp, 'AppData', 'LobsterAI');
+    const userDataDir = path.join(temp, 'AppData', 'HiAi');
     const stateDir = path.join(userDataDir, 'openclaw', 'state');
     const configPath = path.join(stateDir, 'openclaw.json');
     const pluginDir = path.join(userDataDir, 'third-party-extensions', id);

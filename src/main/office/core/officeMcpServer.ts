@@ -5,7 +5,7 @@ import type { OfficeEditorSpec } from '../../../shared/office/core/officeEditor'
 
 /**
  * A dependency-free MCP stdio server run with Electron's Node. It lists one editor's tools and
- * forwards each call to LobsterAI's authenticated loopback bridge, which drives the live editor.
+ * forwards each call to HiAi's authenticated loopback bridge, which drives the live editor.
  */
 
 export interface OfficeMcpLaunchOptions {
@@ -48,7 +48,7 @@ function errorResult(message) {
 }
 
 async function callBridge(name, args) {
-  if (!bridgeUrl || !bridgeSecret) return errorResult('The LobsterAI ' + editorName + ' bridge is not configured.');
+  if (!bridgeUrl || !bridgeSecret) return errorResult('The HiAi ' + editorName + ' bridge is not configured.');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
   try {
@@ -60,12 +60,12 @@ async function callBridge(name, args) {
     });
     const payload = await response.json().catch(() => null);
     if (!payload || !Array.isArray(payload.content)) {
-      return errorResult('The LobsterAI ' + editorName + ' bridge returned HTTP ' + response.status + '.');
+      return errorResult('The HiAi ' + editorName + ' bridge returned HTTP ' + response.status + '.');
     }
     return payload;
   } catch (error) {
     writeDiagnostic('bridge-request-failed tool=' + name + ' error=' + (error instanceof Error ? error.message : String(error)));
-    return errorResult('LobsterAI is not reachable: ' + (error instanceof Error ? error.message : String(error)));
+    return errorResult('HiAi is not reachable: ' + (error instanceof Error ? error.message : String(error)));
   } finally {
     clearTimeout(timer);
   }
@@ -91,7 +91,7 @@ async function handleRequest(message) {
     const name = message.params?.name;
     result = typeof name === 'string' && tools.some((tool) => tool.name === name)
       ? await callBridge(name, message.params?.arguments || {})
-      : errorResult('Unknown LobsterAI ' + editorName + ' tool.');
+      : errorResult('Unknown HiAi ' + editorName + ' tool.');
   } else if (message.method === 'ping') {
     result = {};
   } else {

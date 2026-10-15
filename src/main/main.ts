@@ -4902,7 +4902,7 @@ const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
   if (isDev) {
-    console.warn('[Main] Development startup skipped: another LobsterAI instance is already running. Quit that instance and restart electron:dev to load the current source.');
+    console.warn('[Main] Development startup skipped: another HiAi instance is already running. Quit that instance and restart electron:dev to load the current source.');
   }
   app.quit();
 } else {
@@ -6335,7 +6335,7 @@ if (!gotTheLock) {
       tracker.lastPollAt = now;
 
       try {
-        // Poll the owning local provider instead of the LobsterAI server.
+        // Poll the owning local provider instead of the HiAi server.
         const pollProvider = tracker.mediaType === 'video' ? getVideoMediaProvider() : getImageMediaProvider();
         const pollTarget = resolveHydratedMediaTaskTarget(taskId, pollProvider);
         if (!pollProvider || !pollTarget) {
@@ -7370,7 +7370,7 @@ if (!gotTheLock) {
         return { success: false, error: 'Invalid media type' };
       }
       // Models come from the user's own provider config, so this no longer
-      // depends on a LobsterAI account or the server catalog.
+      // depends on a HiAi account or the server catalog.
       const provider = type === 'image' ? getImageMediaProvider() : getVideoMediaProvider();
       const models = (provider?.resolver.listModels() ?? []).map(model => ({
         ...model,
@@ -7645,7 +7645,7 @@ if (!gotTheLock) {
       console.error('[DataMigration] backup failed:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to back up LobsterAI data',
+        error: error instanceof Error ? error.message : 'Failed to back up HiAi data',
       };
     }
   });
@@ -7704,11 +7704,11 @@ if (!gotTheLock) {
         success,
         scheduledRestart: rendererReleased,
         rollbackPath: restoreResult?.rollbackPath,
-        error: success ? undefined : restoreResult?.error || 'Failed to import LobsterAI data backup',
+        error: success ? undefined : restoreResult?.error || 'Failed to import HiAi data backup',
       };
     } catch (error) {
       isCleanupInProgress = false;
-      const message = error instanceof Error ? error.message : 'Failed to import LobsterAI data backup';
+      const message = error instanceof Error ? error.message : 'Failed to import HiAi data backup';
       console.error('[DataMigration] restore scheduling failed:', error);
       if (rendererReleased) {
         dialog.showErrorBox(t('dataMigrationRestoreDialogTitle'), message);
@@ -7768,7 +7768,7 @@ if (!gotTheLock) {
       return { success: true, state: await action() };
     } catch (error) {
       console.error('[AgentBrowserHost] In-app browser action failed:', error);
-      const message = error instanceof Error ? error.message : 'LobsterAI in-app browser action failed.';
+      const message = error instanceof Error ? error.message : 'HiAi in-app browser action failed.';
       return {
         success: false,
         state: {
@@ -7869,7 +7869,7 @@ if (!gotTheLock) {
           const host = getAgentBrowserHost();
           const currentState = host.getState();
           const currentTab = currentState.tabs.find(tab => tab.pageId === currentState.selectedPageId);
-          if (!currentTab) throw new Error('No LobsterAI browser page is open.');
+          if (!currentTab) throw new Error('No HiAi browser page is open.');
           const nextFactor = action === AgentBrowserHostMenuAction.ZoomOut
             ? currentTab.zoomFactor - AgentBrowserZoom.Step
             : action === AgentBrowserHostMenuAction.ZoomIn

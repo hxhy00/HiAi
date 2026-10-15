@@ -12,7 +12,7 @@ afterEach(() => tempDirs.splice(0).forEach(dir => fs.rmSync(dir, { recursive: tr
 describe('OpenClaw native log export', () => {
   test('includes the Windows runtime temp directory even when a legacy drive-root directory exists', () => {
     expect(getOpenClawDailyLogCandidates({
-      platform: 'win32', tmpDir: 'C:\\Users\\user\\AppData\\Local\\Temp', runtimeRoot: 'D:\\LobsterAI\\cfmind',
+      platform: 'win32', tmpDir: 'C:\\Users\\user\\AppData\\Local\\Temp', runtimeRoot: 'D:\\HiAi\\cfmind',
     })).toEqual(['C:\\Users\\user\\AppData\\Local\\Temp\\openclaw', 'D:\\tmp\\openclaw']);
   });
 

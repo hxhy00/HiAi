@@ -18,7 +18,7 @@ import { WordImageButton, WordTableButton, WordTableMenu } from './WordInsertCon
 const t = (key: string) => i18nService.t(key);
 const Slot = { Style: 'styles.style', Font: 'font.family', Size: 'font.size', Undo: 'history.undo', Redo: 'history.redo' } as const;
 /** Families the font resolver registers for stand-in faces; they are not the document's fonts. */
-const PRIVATE_FAMILY_PREFIX = 'LobsterAI Word ';
+const PRIVATE_FAMILY_PREFIX = 'HiAi Word ';
 const BUTTONS = [
   { slot: Slot.Undo, icon: ArrowUturnLeftIcon, label: 'officeUndo' },
   { slot: Slot.Redo, icon: ArrowUturnRightIcon, label: 'officeRedo' },

@@ -8,7 +8,7 @@
 //
 // Two detections, in order of reliability:
 //   1. a writer lock we maintain inside the shared home — authoritative for
-//      LobsterAI-owned instances, including stale locks from a hard kill;
+//      HiAi-owned instances, including stale locks from a hard kill;
 //   2. an HTTP probe of the standalone's documented default port — best
 //      effort, since a standalone on a custom port is undetectable.
 // When a foreign writer is found the caller falls back to the isolated home:

@@ -18,7 +18,7 @@ import { safelyReplaceTextFileSync } from './safeFileReplace';
  *
  * The bundled CLI's own `config validate --json` names those keys precisely, so
  * removing exactly what it reports as unrecognized repairs data from any older
- * version without LobsterAI having to track OpenClaw's schema retirements.
+ * version without HiAi having to track OpenClaw's schema retirements.
  */
 
 const CONFIG_VALIDATE_TIMEOUT_MS = 60_000;

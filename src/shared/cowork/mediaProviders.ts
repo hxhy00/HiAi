@@ -3,7 +3,7 @@
  *
  * These entries are filled in by hand on the settings page (baseUrl / apiKey /
  * modelId per entry). The model list the media tools expose is derived purely
- * from this config, with no network round-trip and no LobsterAI server
+ * from this config, with no network round-trip and no HiAi server
  * involvement.
  *
  * This module must stay free of Electron/Node imports so both the main process

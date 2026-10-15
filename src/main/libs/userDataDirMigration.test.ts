@@ -3,12 +3,15 @@ import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
+import { APP_NAME, LEGACY_APP_DIR_NAME } from '../appConstants';
 import { migrateLegacyUserDataDir, renameLegacySqliteFiles } from './userDataDirMigration';
 
 let appDataPath: string;
 
-const legacyDir = () => path.join(appDataPath, 'LobsterAI');
-const currentDir = () => path.join(appDataPath, 'HiAi');
+// The two profiles must differ, otherwise the migration is a no-op by design
+// and every case below would collapse into 'skipped-same-name'.
+const legacyDir = () => path.join(appDataPath, LEGACY_APP_DIR_NAME);
+const currentDir = () => path.join(appDataPath, APP_NAME);
 
 const writeFileIn = (dir: string, rel: string, content: string): void => {
   const target = path.join(dir, rel);
@@ -19,7 +22,7 @@ const writeFileIn = (dir: string, rel: string, content: string): void => {
 const readFileIn = (dir: string, rel: string): string =>
   fs.readFileSync(path.join(dir, rel), 'utf8');
 
-const migrate = (legacyDirName = 'LobsterAI', currentDirName = 'HiAi') =>
+const migrate = (legacyDirName = LEGACY_APP_DIR_NAME, currentDirName = APP_NAME) =>
   migrateLegacyUserDataDir({ appDataPath, legacyDirName, currentDirName });
 
 beforeEach(() => {
