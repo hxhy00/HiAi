@@ -1396,8 +1396,7 @@ const McpManager: React.FC = () => {
         <div className={MCP_LIST_CONTAINER_CLASS} aria-hidden="true">
           {Array.from({ length: 6 }).map((_, idx) => (
             <div key={idx} className="animate-pulse flex items-center gap-3 px-4 py-3">
-              <div className="h-8 w-8 rounded-lg bg-surface-raised" />
-              <div className="space-y-1.5">
+              <div className="min-w-0 flex-1 space-y-1.5">
                 <div className="h-3.5 w-32 rounded bg-surface-raised" />
                 <div className="h-3 w-48 rounded bg-surface-raised" />
               </div>
