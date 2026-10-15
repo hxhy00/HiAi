@@ -90,7 +90,7 @@
 
 ## 6. 架构方案
 
-- `TaskList.tsx`：`cardGridClass` 改为单列容器，`TaskCard` 改行式渲染。
+- `TaskList.tsx`：任务列表改用单列容器（`MANAGEMENT_LIST_CONTAINER_CLASS`），`TaskCard` 改行式渲染；原 `cardGridClass` 保留给模板画廊并更名为 `templateGalleryGridClass`（见 §7.1）。
 - `SkillsManager.tsx`：内联卡片渲染改为列表行。
 - `McpManager.tsx`：卡片网格改列表行（`McpCard` 改行式渲染）。
 - `KitsManager.tsx`：**不改**（仅删说明文案）。
@@ -112,6 +112,30 @@
 8. MCP 页为列表展示，信息与操作与原卡片等价。
 9. 中英文界面均无遗漏旧文案。
 10. 改动文件在 CI 同款 eslint（`--max-warnings 0`）下通过；typecheck / `npm run build` 通过。
+
+### 7.1 验收结果（2026-10-15）
+
+| 编号 | 结果 |
+| --- | --- |
+| 1 | ✅ 通过（`skillsDescription` / `kitDescription` / `mcpDescription` / `scheduledTasksPageSubtitle` 四键在 `src` 内零残留，仅设计文档自身提及） |
+| 2 | ✅ 通过（`TaskList` 的任务卡片走 `ManagementListRow`，容器为 `MANAGEMENT_LIST_CONTAINER_CLASS`） |
+| 3 | ✅ 通过（技能页市场 / 内置 / 我的三个 tab 均为列表行） |
+| 4 | ✅ 通过（`KitsManager` 保持卡片网格与卡片骨架屏，未被误改） |
+| 5 | ✅ 通过（名称 + 副标题 + 徽标 + 操作按钮齐全；`ManagementListRow` 的行结构统一承载） |
+| 6 | ✅ 通过（三处骨架屏均为行式双行文字占位，无图标块） |
+| 7 | ✅ 通过（搜索 / tab / 过滤 / 点击行为未改动） |
+| 8 | ✅ 通过（MCP 已安装与市场 tab 均为列表行，`McpIconTile` 已删除） |
+| 9 | ✅ 通过（中英文界面均无旧说明文案） |
+| 10 | ✅ 通过（改动文件 `eslint --max-warnings 0` 零告警；`npx tsc --noEmit` 与 `npm run build` 均成功；`npm test` 无回归） |
+
+**收尾清理（2026-10-15）**：
+
+- `ManagementListRow` 的 `icon` prop 及其渲染分支已删除——4 个调用点均未传该 prop，属死代码，且与 §4「管理页不需要图标」的决定一致。
+- `TaskList` 的 `cardGridClass` 重命名为 `templateGalleryGridClass`（该常量只服务模板画廊，与已列表化的任务列表无关，原名易被误读为卡片遗留）；`taskListClass` 别名移除，两处调用改用 `MANAGEMENT_LIST_CONTAINER_CLASS`。
+
+**代码与本文档的已知偏差**（不影响验收）：
+
+- §6 所述「`TaskList.tsx`：`cardGridClass` 改为单列容器」的实际实现是**新增**列表容器常量，`cardGridClass` 保留给模板画廊，故仅做了重命名澄清而非删除。
 
 ## 8. 已确认决定
 
