@@ -296,7 +296,6 @@ const translations: Record<LanguageType, Record<string, string>> = {
     about: '关于',
     aboutVersion: '版本',
     aboutContactEmail: '联系邮箱',
-    aboutServiceTerms: '服务条款',
     aboutExportLogs: '导出日志',
     aboutExportingLogs: '导出中...',
     aboutExportLogsFailed: '导出日志失败',
@@ -4137,16 +4136,6 @@ const translations: Record<LanguageType, Record<string, string>> = {
     scheduledTasksDataAnomalyWarning:
       '定时任务「{name}」存在异常数据，已自动修正显示，建议重新编辑该任务',
 
-    // 首次启动欢迎页（协议 + 登录合并）
-    welcomeTitle: '登录到 HiAi',
-    welcomePromo: '登录即送百万Token',
-    welcomeLogin: '登录',
-    welcomeCustomModel: '自定义模型',
-    welcomeAgreementNotice: '继续即表示您已阅读并同意{link}',
-    welcomeAgreementLinkText: '《网易有道HiAi服务协议》',
-    welcomeCopyright: '© {year} 网易有道',
-    welcomeLoginWaiting: '请在浏览器中完成登录',
-    welcomeLoginFailed: '登录发起失败，请重试',
     githubCopilotAuth: 'GitHub 账号认证',
     githubCopilotSignIn: '使用 GitHub 登录',
     githubCopilotSignOut: '退出登录',
@@ -4580,7 +4569,6 @@ const translations: Record<LanguageType, Record<string, string>> = {
     about: 'About',
     aboutVersion: 'Version',
     aboutContactEmail: 'Contact Email',
-    aboutServiceTerms: 'Terms of Service',
     aboutExportLogs: 'Export Logs',
     aboutExportingLogs: 'Exporting...',
     aboutExportLogsFailed: 'Failed to export logs',
@@ -8660,16 +8648,6 @@ const translations: Record<LanguageType, Record<string, string>> = {
     scheduledTasksDataAnomalyWarning:
       'Scheduled task "{name}" has abnormal data. Display has been auto-corrected. Consider re-editing this task',
 
-    // First-launch welcome screen (terms + login merged)
-    welcomeTitle: 'Log in to HiAi',
-    welcomePromo: 'Log in for 1M free tokens',
-    welcomeLogin: 'Log in',
-    welcomeCustomModel: 'Custom Model',
-    welcomeAgreementNotice: 'By continuing, you agree to the {link}',
-    welcomeAgreementLinkText: 'NetEase Youdao HiAi Terms of Service',
-    welcomeCopyright: '© {year} NetEase Youdao',
-    welcomeLoginWaiting: 'Complete the sign-in in your browser',
-    welcomeLoginFailed: 'Could not start sign-in. Please try again.',
     githubCopilotAuth: 'GitHub Account Authentication',
     githubCopilotSignIn: 'Sign in with GitHub',
     githubCopilotSignOut: 'Sign Out',

@@ -1201,7 +1201,7 @@ const composeExportCanvas = async (
 
   ctx.fillStyle = subtitleColor;
   ctx.font = `400 ${taglineFontSize}px ${fontStack}`;
-  ctx.fillText('国内大厂首个开源桌面级 Agent，网易有道出品', textX, footerCenterY + brandFontSize / 2 + 3);
+  ctx.fillText('开源桌面级 Agent', textX, footerCenterY + brandFontSize / 2 + 3);
 
   ctx.restore(); // card clip
 
