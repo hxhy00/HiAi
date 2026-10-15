@@ -9,6 +9,7 @@
  * same response, so the task is already terminal when `generate` resolves.
  */
 import type { SqliteStore } from '../../sqliteStore';
+import { IMAGE_PARAMETER_SPEC } from './parameterSpecs';
 import { findMediaEntry, listMediaEntries } from './store';
 import {
   type MediaGenerateInput,
@@ -144,6 +145,7 @@ export const createOpenAIImageAdapter = (options: OpenAIImageAdapterOptions): Me
       modelId: entry.modelId,
       displayName: entry.displayName,
       providerKey: entry.key,
+      parameterSpec: IMAGE_PARAMETER_SPEC,
       ...(entry.capabilities ? { capabilities: entry.capabilities } : {}),
     }))
   );

@@ -335,12 +335,24 @@ skill 里（等于又制造一个配置源）。已核查代码，结论：
 3. **参数白名单全局硬编码在 `main.ts`**（`handleMediaGenerationCallback` 的参数
    归一化段），不区分 provider，agent 无从得知「哪个模型支持哪些参数」。
 
-因此 FR-9 的实施顺序为：**先让 `action=list` 输出结构化参数能力，再改写 skill**。
-具体子项（待细化）：
+### 7.2.1 已实现（2026-10-15）
 
-- adapter 填充真实 `parameterSpec`（至少按 kind 给出参数表）；
-- 或将 `capabilities` 从自由文本升级为结构化字段并向后兼容旧字符串；
-- `action=list` 的文案随之调整，让 agent 明确知道每个模型可用的参数集合。
+`parameterSpec` 按 **kind** 给通用参数表，不新增数据字段：
+
+- 新增 `src/main/libs/mediaProvider/parameterSpecs.ts`，导出 `IMAGE_PARAMETER_SPEC`
+  与 `VIDEO_PARAMETER_SPEC`，字段类型为
+  `{ type, required?, description, example? }`。
+- 两个 adapter 的 `listModels()` 各自挂上对应 kind 的参数表，字段不再是死字段。
+- `action=list` 的文本重排为「模型清单（名称 + modelId + capabilities）」+
+  **一份**参数表（`formatMediaParameterSpec` 输出 `- name (type, required): 说明`）。
+  参数表按 kind 去重、只输出一次，避免配了 N 个模型就重复 N 份。
+- 参数表的字段与取值说明与 OpenClaw 插件的工具 schema
+  （`openclaw-extensions/lobster-media-generation/index.ts`）逐项对齐；该schema 里
+  多处「Valid values depend on model; use action=list to check」的承诺至此成立。
+
+按 kind 而非按模型给的理由：按模型给需要先在设置页加一个字段才能覆盖最常见的
+情况，而同一 kind 在不同供应商下的行为一致，用户另有说明时可用 `capabilities`
+补充。若后续确需按模型覆盖，再在此基础上扩展。
 
 ### 7.3 已有工具能力对火山参数的覆盖度（已核查）
 
@@ -362,3 +374,19 @@ skill 里（等于又制造一个配置源）。已核查代码，结论：
 白名单中的 `cameraFixed`、`returnLastFrame` 本就是为火山 Seedance 预留的。
 **结论：seedance skill 的脚本能力已被工具完全覆盖，改造后它只剩「知识」价值**
 （模型列表、音画同步等场景写法、Pro/Lite 限流差异），这部分适合搬进 SKILL.md。
+
+### 7.4 已实现：两个 skill 改造为工具使用指导层（2026-10-15）
+
+- 删除 `SKILLs/seedream/scripts/` 与 `SKILLs/seedance/scripts/`（各 3 个脚本：
+  `.sh` / `.ps1` / `.js`），不再自带 API 调用实现。
+- 两个 `SKILL.md` 重写为工具使用指导层，版本升到 `2.0.0`：
+  - 前置条件改为「先在设置页配置模型」，`action=list` 返回空时引导用户去配置，
+    而不是让agent 自己找密钥；
+  - 明确禁止用脚本 / `curl` / 环境变量直连 API；
+  - 流程固定为 `action=list` → `action=generate` →（异步时）`action=status` /
+    `action=cancel`，并说明视频任务必然异步、不要自行轮询；
+  - 保留原有知识：模型清单与限流、场景用法（T2I / I2I / 多图融合 / 组图、
+    首尾帧过渡 / 音画同步）、镜头语言提示词、提示词最佳实践、排错表；
+  - 参数表不复制进 skill（由 7.2.1 的 `action=list` 提供），只在文中列出最常用参数
+    并指向 `action=list`。
+- 全仓已无`ARK_API_KEY` / `SKILLS_ROOT` / 旧脚本名在这两个 skill 中的残留引用。

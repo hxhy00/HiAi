@@ -11,6 +11,7 @@
  * once the task reports Success.
  */
 import type { SqliteStore } from '../../sqliteStore';
+import { VIDEO_PARAMETER_SPEC } from './parameterSpecs';
 import { findMediaEntry, listMediaEntries } from './store';
 import { forgetMediaTaskTarget, rememberMediaTaskTarget } from './taskRegistry';
 import {
@@ -241,6 +242,7 @@ export const createMiniMaxVideoAdapter = (options: MiniMaxVideoAdapterOptions): 
       modelId: entry.modelId,
       displayName: entry.displayName,
       providerKey: entry.key,
+      parameterSpec: VIDEO_PARAMETER_SPEC,
       ...(entry.capabilities ? { capabilities: entry.capabilities } : {}),
     }))
   );

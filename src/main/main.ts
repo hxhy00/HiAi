@@ -406,6 +406,10 @@ import {
   writeMediaProvidersConfig,
 } from './libs/mediaProvider';
 import {
+  formatMediaParameterSpec,
+  mediaParameterSpecFor,
+} from './libs/mediaProvider/parameterSpecs';
+import {
   migrateAgentModelRefs,
   resolveQualifiedAgentModelRef,
   resolveServerModelRefForRun,
@@ -5712,18 +5716,28 @@ if (!gotTheLock) {
         const mediaProvider = mediaType === 'image' ? getImageMediaProvider() : getVideoMediaProvider();
         const localModels = mediaProvider?.resolver.listModels() ?? [];
         console.log(`[MediaGeneration] loaded ${localModels.length} local ${mediaType} models from user config.`);
-        let text = localModels.length > 0
-          ? `Available ${mediaType} models:\n\n${localModels.map(m => {
-              let line = `### ${m.displayName} (model: "${m.modelId}")`;
-              if (m.capabilities) line += `\n${m.capabilities}`;
-              if (m.parameterSpec) line += `\nSupported parameters:\n${JSON.stringify(m.parameterSpec, null, 2)}`;
-              return line;
-            }).join('\n\n')}`
-          : `No ${mediaType} models available.`;
+        if (localModels.length === 0) {
+          return {
+            content: [{
+              type: 'text',
+              text: `No ${mediaType} models available.\n\nAsk the user to add a ${mediaType} model in Settings before generating.`,
+            }],
+            details: { status: 'succeeded', models: [] },
+          };
+        }
+        // The parameter table is identical for every model of a kind, so it is
+        // printed once after the model list instead of being repeated per model.
+        const parameterTable = formatMediaParameterSpec(
+          mediaParameterSpecFor(mediaType),
+        );
+        let text = `Available ${mediaType} models:\n\n${localModels.map(m => {
+          let line = `### ${m.displayName} (model: "${m.modelId}")`;
+          if (m.capabilities) line += `\n${m.capabilities}`;
+          return line;
+        }).join('\n\n')}`;
+        text += `\n\n---\nParameters accepted by ${mediaType} models (omit any of them that the request does not need):\n\n${parameterTable}`;
         if (resolvedModelFromSelection) {
           text += `\n\n---\n**Note:** The user has already selected model "${resolvedModelFromSelection}" for this session. You MUST use this model for the generate action. Do NOT choose a different model.`;
-        } else if (localModels.length === 0) {
-          text += `\n\nAsk the user to add a ${mediaType} model in Settings before generating.`;
         }
         return { content: [{ type: 'text', text }], details: { status: 'succeeded', models: localModels } };
       }

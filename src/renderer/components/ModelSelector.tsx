@@ -59,9 +59,14 @@ interface ModelSelectorProps {
 }
 
 const DROPDOWN_MAX_HEIGHT = 380; // list max-h-72 plus the tab area and current-model footer
-// Wide enough for the longest plan model name plus its tag, thinking level,
-// multiplier and check columns, so names stay readable instead of truncating.
-const DROPDOWN_WIDTH = 360;
+// Wide enough for a long model name plus its tag, thinking level, multiplier and
+// check columns, so names stay readable instead of truncating. Narrower than a
+// full provider list needs: the trigger is at most 280px, so a much wider panel
+// reads as an oversized sheet rather than a menu anchored to it.
+const DROPDOWN_WIDTH = 320;
+// The compact trigger is only 220px wide (agent toolbar, task form), so its
+// panel gets a matching width instead of inheriting the roomy default.
+const COMPACT_DROPDOWN_WIDTH = 288;
 const MODEL_ITEM_HEIGHT = 36; // py-2 row with a 20px line
 const LIST_VERTICAL_PADDING = 8; // scroll container py-1
 const LIST_MAX_HEIGHT = 288; // default cap for the scrollable model list (18rem)
@@ -376,12 +381,16 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   thinkingLevel,
 }) => {
   const dispatch = useDispatch();
+  // The panel tracks the trigger it hangs off: a compact trigger gets a compact
+  // panel. Resolved once per render and used as a dep by the measuring callbacks
+  // so a `compact` switch re-measures instead of keeping a stale width.
+  const dropdownWidth = compact ? COMPACT_DROPDOWN_WIDTH : DROPDOWN_WIDTH;
   const [isOpen, setIsOpen] = React.useState(false);
   const [resolvedDirection, setResolvedDirection] = React.useState<'up' | 'down'>('down');
   const [portalStyle, setPortalStyle] = React.useState<React.CSSProperties>({});
   const [inPlacePlacement, setInPlacePlacement] = React.useState(() => ({
     alignEnd: alignDropdownToTriggerEnd,
-    width: DROPDOWN_WIDTH,
+    width: dropdownWidth,
   }));
   const [listMaxHeight, setListMaxHeight] = React.useState<number>(LIST_MAX_HEIGHT);
   const [moreModelsExpanded, setMoreModelsExpanded] = React.useState(false);
@@ -505,7 +514,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     const nextStyle: React.CSSProperties = {
       left,
       position: 'fixed',
-      width: DROPDOWN_WIDTH,
+      width: dropdownWidth,
       zIndex: 10000,
     };
 
@@ -516,7 +525,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     }
 
     setPortalStyle(nextStyle);
-  }, [alignDropdownToTriggerEnd]);
+  }, [alignDropdownToTriggerEnd, dropdownWidth]);
 
   const updateInPlacePlacement = React.useCallback(() => {
     const container = containerRef.current;
@@ -527,16 +536,16 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     const placement = resolvePopoverPlacement(container, {
       preferredAlign: alignDropdownToTriggerEnd ? 'right' : 'left',
       estimatedHeight: DROPDOWN_MAX_HEIGHT,
-      desiredWidth: DROPDOWN_WIDTH,
+      desiredWidth: dropdownWidth,
     });
     const next = {
       alignEnd: placement.alignSide === 'right',
-      width: placement.maxWidth ?? DROPDOWN_WIDTH,
+      width: placement.maxWidth ?? dropdownWidth,
     };
     setInPlacePlacement(current => (
       current.alignEnd === next.alignEnd && current.width === next.width ? current : next
     ));
-  }, [alignDropdownToTriggerEnd]);
+  }, [alignDropdownToTriggerEnd, dropdownWidth]);
 
   React.useEffect(() => {
     if (!isOpen) return;
