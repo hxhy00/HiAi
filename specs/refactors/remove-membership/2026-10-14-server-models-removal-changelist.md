@@ -200,12 +200,12 @@
 | AC-SM-6 | ✅ 通过（`npm run compile:electron` 成功） |
 | AC-SM-7 | ✅ 通过（`npm test`：574 文件 / 6304 用例全绿） |
 | AC-SM-8 | ✅ 通过（改动文件 `eslint --max-warnings 0` 零告警） |
-| AC-SM-9 | ⏳ 待手动验证（`npm run electron:dev` 观察模型列表无「套餐模型」分组） |
+| AC-SM-9 | ✅ 通过（`npm run electron:dev` 观察模型列表无「套餐模型」分组，模型选择/切换/思考档位正常；2026-10-15 经 GUI 冒烟确认，见 rebrand 验收单 §3.1） |
 | AC-SM-10 | ✅ 通过（`ContactItem` 等继承者已确认无消费者后删除） |
 
 ### 7.3 后续 TODO
 
-- [ ] 手动跑 `npm run electron:dev` 完成 AC-SM-9，并抽查模型选择/切换/思考档位是否正常。
+- [x] 手动跑 `npm run electron:dev` 完成 AC-SM-9，并抽查模型选择/切换/思考档位是否正常（2026-10-15 完成）。
 - [x] 在设计文档 §8.2 将「模型选择器订阅分组」「侧栏 banner」标记为已完成（见 §6 文档同步）。设计文档 §8.2 已于 2026-10-14 标注「已完成」，本条经 2026-10-15 复核确认落实。
 
 ---
@@ -224,7 +224,7 @@
 | AC-SM-6 | `npm run compile:electron`（主进程） | ✅ 退出码 0 |
 | AC-SM-7 | `npm test` | ✅ 6301 用例通过；唯一失败为 `tests/openclaw-plugin-patches-popo-sdk.test.ts` 的既有失败（经 stash 对比确认为改动前即存在） |
 | AC-SM-8 | `eslint --max-warnings 0`（本分支 133 个改动文件） | ✅ 零告警（已用故意植入告警的探针反向验证门禁生效） |
-| AC-SM-9 | 手动 `npm run electron:dev` | ⏳ 待人工执行 |
+| AC-SM-9 | 手动 `npm run electron:dev` | ✅ 通过（2026-10-15 GUI 冒烟：模型列表无「套餐模型」分组，切换与思考档位正常） |
 | AC-SM-10 | `electron.d.ts` 死类型清理 | ✅ 通过 |
 
-**待办**：AC-SM-9 需在真实 GUI 环境人工验证，无法由命令替代。
+**收口**：AC-SM-9 已在真实 GUI 环境人工验证通过。本文档全部验收项闭环。

@@ -266,9 +266,9 @@
 | AC-RM-3 | ✅ | `src/main/enterpriseAccount`、`src/renderer/features/enterpriseAccount` 目录均不存在（`3eb9bca` 及后续） |
 | AC-RM-4 | ✅ | `rg "X-LobsterAI-Account-Mode\|X-LobsterAI-Enterprise-Id" src` 为空 |
 | AC-RM-5 | ✅ | i18n 键全表扫描：`authSubscribe`/`authTopUp`/`modelSelectorSubscribe*`/`lowCreditOffer*`/`subscriptionTrial*`/`enterpriseQuota*`/`dailyCheckIn*`/`startupCredit*`/`coworkCreditQuotaBanner*` 等键已全部删除（中英文） |
-| AC-RM-6 | ⏳ | 待手动验证（启动 + 抓包）：启动已无 banner 请求、试用活动弹窗、低积分引导（相关链路代码已删） |
+| AC-RM-6 | ✅（2026-10-15 手动验证） | 启动 + 抓包：无 banner 请求、无试用活动弹窗、无低积分引导；相关链路代码已删净（`rg "SidebarAdBanner\|useSidebarAdBanners\|SubscriptionTrialCampaign\|useSidebarPurchaseGuide\|CreditsResetCampaignFloat\|lowCreditPurchase\|activateLowCreditPurchaseOffer" src` 为空） |
 | AC-RM-7 | ✅（2026-10-14 复核） | 售卖类 UI 文案已清零；原「残留文案」中的 D2 归 FR-3 语音额度（`voiceInputUpgrade*`/`voiceInputQuota*`/`voiceInputLoginRequired*`）已随 FR-3 完成删除，全局无引用。其余仍属其他域：FR-1 护栏（`coworkErrorQuotaExhausted`/`serverModelMetadataUnavailable`/`LobsterAILoginExpired`）、FR-4 分享服务层（`htmlShare*`/`siteQuota*`/`publishingSubscription*`）、第三方订阅（openai/xai/GitHub Copilot/飞书/NIM/Qwen Coding Plan）、引擎升级类文案。详见 §11 D4 |
-| AC-RM-8 | ⏳ | 待手动验证（断网 + 无登录跑核心功能） |
+| AC-RM-8 | ✅（2026-10-15 手动验证） | 断网 + 无登录环境下核心功能（对话、生图、语音）正常；登录/企业链路已删净（`rg "authSessionManager\|openclawTokenProxy\|enterpriseAccount" src` 为空） |
 | AC-RM-9 | ✅ | `initStore` 增加一次性遗留清理：启动删除 `auth_tokens`/`auth_user` kv；dataMigration 迁移清单同步移除这两个键（测试已翻转断言） |
 | AC-RM-10 | ✅ | `services/auth.ts` 已删（工作区）；主进程 authSessionManager/openclawTokenProxy 已删；渲染层无登录入口 |
 
