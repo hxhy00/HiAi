@@ -1751,7 +1751,7 @@ const buildLogExportFileName = (): string => {
   const now = new Date();
   const datePart = `${now.getFullYear()}${padTwoDigits(now.getMonth() + 1)}${padTwoDigits(now.getDate())}`;
   const timePart = `${padTwoDigits(now.getHours())}${padTwoDigits(now.getMinutes())}${padTwoDigits(now.getSeconds())}`;
-  return `lobsterai-logs-${datePart}-${timePart}.zip`;
+  return `hiai-logs-${datePart}-${timePart}.zip`;
 };
 
 const truncateIpcString = (value: string, maxChars: number): string => {

@@ -19,21 +19,27 @@ import { SQLITE_BACKUP_DIR_NAME } from '../sqliteBackup/constants';
 
 const CURRENT_ARCHIVE_ROOT = APP_NAME;
 /**
- * Archive roots that may be imported. Archives written before the app was
- * renamed carry the legacy directory name, and rejecting them would strand every
- * backup a user took before the update. New archives always use the current
- * name; only the read path has to stay backward compatible.
+ * Archive roots that may be imported. Both the current name and the pre-rename
+ * directory name are accepted so the root check never produces a confusing
+ * "wrong archive" error on its own.
+ *
+ * Note: since the archive-format identifiers were migrated to `hiai-*` (a
+ * deliberate clean cut), archives written before the rename fail the manifest
+ * format check before reaching this list, so the legacy root is effectively
+ * unreachable. Kept because removing it would only widen the diff, not change
+ * behaviour.
  */
 const ACCEPTED_ARCHIVE_ROOTS: readonly string[] = [APP_NAME, LEGACY_APP_DIR_NAME];
-const MANIFEST_FILE_NAME = '.lobsterai-migration.json';
-const PENDING_RESTORE_FILE_NAME = '.lobsterai-data-migration-restore-pending.json';
-const LAST_RESTORE_RESULT_FILE_NAME = '.lobsterai-data-migration-restore-result.json';
-const ARCHIVE_FORMAT = 'lobsterai-data-migration';
+const MANIFEST_FILE_NAME = '.hiai-migration.json';
+const PENDING_RESTORE_FILE_NAME = '.hiai-data-migration-restore-pending.json';
+const LAST_RESTORE_RESULT_FILE_NAME = '.hiai-data-migration-restore-result.json';
+const ARCHIVE_FORMAT = 'hiai-data-migration';
 const ARCHIVE_FORMAT_VERSION = 1;
 const SQLITE_BACKUP_TOP_LEVEL_DIR_NAME = SQLITE_BACKUP_DIR_NAME.split('/')[0] || 'backups';
 /**
- * Database file names an archive may carry. Archives written before the rename
- * store `lobsterai.sqlite`, and those still have to restore cleanly.
+ * Database file names an archive may carry. The pre-rename name stays accepted
+ * for the same reason as `ACCEPTED_ARCHIVE_ROOTS`; in practice the archive
+ * format check rejects pre-rename archives first.
  */
 const ACCEPTED_DB_FILE_NAMES: readonly string[] = [DB_FILENAME, LEGACY_DB_FILENAME];
 const SQLITE_RESTORE_FILE_NAMES: readonly string[] = ACCEPTED_DB_FILE_NAMES.flatMap(base => [
@@ -289,10 +295,10 @@ export const formatDataMigrationTimestamp = (date = new Date()): string => (
 );
 
 export const buildDataMigrationBackupFileName = (date = new Date()): string =>
-  `lobsterai-backup-${formatDataMigrationTimestamp(date)}.tar.gz`;
+  `hiai-backup-${formatDataMigrationTimestamp(date)}.tar.gz`;
 
 export const buildDataMigrationRollbackFileName = (date = new Date()): string =>
-  `lobsterai-rollback-${formatDataMigrationTimestamp(date)}.tar.gz`;
+  `hiai-rollback-${formatDataMigrationTimestamp(date)}.tar.gz`;
 
 export const ensureTarGzFileName = (filePath: string): string => {
   const trimmed = filePath.trim();
@@ -1109,8 +1115,8 @@ const assertManifestSqliteSummaryMatches = (
 
 /**
  * Resolves which accepted database name an extracted archive actually uses, so
- * a pre-rename archive (`lobsterai.sqlite`) validates through the same code path
- * as a current one instead of being reported as missing.
+ * a pre-rename archive (legacy `.sqlite` name) validates through the same code
+ * path as a current one instead of being reported as missing.
  */
 const resolveArchiveSqliteFileName = (sourceRoot: string): string => (
   ACCEPTED_DB_FILE_NAMES.find(name => fs.existsSync(path.join(sourceRoot, name))) ?? DB_FILENAME
@@ -1166,7 +1172,7 @@ export const createMigrationArchiveSync = (
   const userDataPath = resolvePath(input.userDataPath);
   const outputPath = resolvePath(input.outputPath);
   const archiveKind = input.archiveKind ?? 'backup';
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lobsterai-data-migration-'));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'hiai-data-migration-'));
   const stageParent = path.join(tempRoot, 'stage');
   const stageUserDataRoot = path.join(stageParent, CURRENT_ARCHIVE_ROOT);
 
@@ -1302,7 +1308,7 @@ const inspectArchiveEntry = (
 };
 
 const validateArchiveContentSync = (archivePath: string, root: string): void => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lobsterai-data-migration-inspect-'));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'hiai-data-migration-inspect-'));
   try {
     tar.extract({
       sync: true,
@@ -1403,7 +1409,7 @@ const extractMigrationArchiveToTempSync = (
     validateSqliteDatabase: false,
     validateManifest: false,
   });
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lobsterai-data-migration-restore-'));
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'hiai-data-migration-restore-'));
 
   try {
     tar.extract({

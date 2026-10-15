@@ -19,7 +19,7 @@ import {
 const tempRoots: string[] = [];
 
 const makeTempDir = (): string => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lobsterai-data-migration-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hiai-data-migration-test-'));
   tempRoots.push(dir);
   return dir;
 };
@@ -235,9 +235,9 @@ const extractArchive = (archivePath: string): string => {
 
 const writeManifestFixture = (userDataPath: string): void => {
   writeFile(
-    path.join(userDataPath, '.lobsterai-migration.json'),
+    path.join(userDataPath, '.hiai-migration.json'),
     JSON.stringify({
-      format: 'lobsterai-data-migration',
+      format: 'hiai-data-migration',
       version: 1,
       archiveRoot: 'HiAi',
       sqlite: { exists: true },
@@ -289,7 +289,7 @@ test('createMigrationArchive excludes cache and log data and writes a manifest',
   createMigrationArchiveSync({ userDataPath: userData, outputPath: archivePath });
 
   const entries = listArchiveEntries(archivePath);
-  expect(entries).toContain('HiAi/.lobsterai-migration.json');
+  expect(entries).toContain('HiAi/.hiai-migration.json');
   expect(entries).toContain(`HiAi/${DB_FILENAME}`);
   expect(entries).toContain('HiAi/openclaw/state/openclaw.json');
   expect(entries).toContain('HiAi/SKILLs/demo/SKILL.md');
@@ -320,14 +320,14 @@ test('createMigrationArchive excludes cache and log data and writes a manifest',
 
   const extractRoot = extractArchive(archivePath);
   const manifest = JSON.parse(
-    fs.readFileSync(path.join(extractRoot, 'HiAi', '.lobsterai-migration.json'), 'utf8'),
+    fs.readFileSync(path.join(extractRoot, 'HiAi', '.hiai-migration.json'), 'utf8'),
   ) as {
     format?: string;
     archiveRoot?: string;
     sqlite?: { rowCounts?: Record<string, number>; tableContentChecksums?: Record<string, string> };
     openclawState?: { cronFileCount?: number; agentSessionFileCount?: number; openclawConfigExists?: boolean };
   };
-  expect(manifest.format).toBe('lobsterai-data-migration');
+  expect(manifest.format).toBe('hiai-data-migration');
   expect(manifest.archiveRoot).toBe('HiAi');
   expect(manifest.sqlite?.rowCounts?.scheduled_task_meta).toBe(1);
   expect(manifest.sqlite?.tableContentChecksums?.im_config).toBeTruthy();
@@ -416,7 +416,7 @@ test('inspectMigrationArchive still accepts an archive written before the rename
   const legacyRoot = path.join(extractRoot, 'HiAi');
   fs.renameSync(path.join(extractRoot, 'HiAi'), legacyRoot);
 
-  const manifestPath = path.join(legacyRoot, '.lobsterai-migration.json');
+  const manifestPath = path.join(legacyRoot, '.hiai-migration.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
   writeFile(manifestPath, JSON.stringify({ ...manifest, appName: 'HiAi', archiveRoot: 'HiAi' }));
 
@@ -444,7 +444,7 @@ test('inspectMigrationArchive rejects archives without a migration manifest', ()
     cwd: root,
   }, ['HiAi']);
 
-  expect(() => inspectMigrationArchiveSync(archivePath)).toThrow(/missing \.lobsterai-migration\.json/);
+  expect(() => inspectMigrationArchiveSync(archivePath)).toThrow(/missing \.hiai-migration\.json/);
 });
 
 test('inspectMigrationArchive rejects unsupported archive extensions', () => {
@@ -464,7 +464,7 @@ test('inspectMigrationArchive rejects archives whose manifest does not match sql
 
   createMigrationArchiveSync({ userDataPath: sourceUserData, outputPath: archivePath });
   const extractRoot = extractArchive(archivePath);
-  const manifestPath = path.join(extractRoot, 'HiAi', '.lobsterai-migration.json');
+  const manifestPath = path.join(extractRoot, 'HiAi', '.hiai-migration.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
     sqlite?: { checksumSha256?: string };
   };
