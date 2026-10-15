@@ -1,7 +1,7 @@
 /**
  * One-way user data directory rename.
  *
- * The app used to live under `<appData>/HiAi` and now lives under
+ * The app used to live under `<appData>/LobsterAI` and now lives under
  * `<appData>/HiAi`. Without this, an existing install would start up against an
  * empty profile: the SQLite database, OpenClaw state, skills state and every
  * other file stay behind in the old directory and the app looks freshly
@@ -42,7 +42,7 @@ const EXCLUDED_TOP_LEVEL_NAMES = new Set([
 export interface MigrateLegacyUserDataDirOptions {
   /** Parent directory that holds the per-app profile, i.e. `app.getPath('appData')`. */
   appDataPath: string;
-  /** Directory name used before the rename, e.g. `HiAi`. */
+  /** Directory name used before the rename, e.g. `LobsterAI`. */
   legacyDirName: string;
   /** Directory name used now, e.g. `HiAi`. */
   currentDirName: string;

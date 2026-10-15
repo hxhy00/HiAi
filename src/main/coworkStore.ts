@@ -73,6 +73,13 @@ const getDefaultWorkingDirectory = (): string => {
   return path.join(os.homedir(), 'hiai', 'project');
 };
 
+/**
+ * Container directory used by task sessions before the app was renamed. Kept for
+ * the pre-rename name on purpose: `listRecentCwds` strips this segment from `cwd`
+ * values already stored in SQLite, so renaming it would leave historical task
+ * sessions with un-stripped `.lobsterai-tasks/task-xxx` paths in the recent
+ * workspace list. This is a compatibility identifier, not a brand surface.
+ */
 const TASK_WORKSPACE_CONTAINER_DIR = '.lobsterai-tasks';
 
 const normalizeRecentWorkspacePath = (cwd: string): string => {
