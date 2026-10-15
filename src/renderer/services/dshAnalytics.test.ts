@@ -34,9 +34,9 @@ describe('sanitizeDshErrorDetail', () => {
   });
 
   test('replaces a macOS home (with a spaced user name) by ~ and keeps the tail', () => {
-    const error = new Error('Invalid dsh runtime manifest at /Users/jane doe/Library/Application Support/LobsterAI/dsh/manifest.json');
+    const error = new Error('Invalid dsh runtime manifest at /Users/jane doe/Library/Application Support/HiAi/dsh/manifest.json');
     expect(sanitizeDshErrorDetail(error)).toBe(
-      'Invalid dsh runtime manifest at ~/Library/Application Support/LobsterAI/dsh/manifest.json'
+      'Invalid dsh runtime manifest at ~/Library/Application Support/HiAi/dsh/manifest.json'
     );
   });
 
@@ -48,8 +48,8 @@ describe('sanitizeDshErrorDetail', () => {
   });
 
   test('replaces a windows home with either separator', () => {
-    expect(sanitizeDshErrorDetail(new Error('EPERM: C:\\Users\\Jane Doe\\AppData\\Roaming\\LobsterAI\\dsh'))).toBe(
-      'EPERM: ~\\AppData\\Roaming\\LobsterAI\\dsh'
+    expect(sanitizeDshErrorDetail(new Error('EPERM: C:\\Users\\Jane Doe\\AppData\\Roaming\\HiAi\\dsh'))).toBe(
+      'EPERM: ~\\AppData\\Roaming\\HiAi\\dsh'
     );
     expect(sanitizeDshErrorDetail(new Error('EPERM: c:/users/jane doe/AppData/Roaming'))).toBe('EPERM: ~/AppData/Roaming');
   });

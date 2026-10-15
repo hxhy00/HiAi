@@ -8,7 +8,7 @@
 
 1. `cowork_sessions.model_override` 已更新为用户新选择的模型
 2. OpenClaw 中真实 IM channel 会话仍保留旧模型
-3. OpenClaw 中额外出现了一个 `agent:main:lobsterai:<coworkSessionId>` managed 会话 key，并且新模型被写到了这个错误 key 上
+3. OpenClaw 中额外出现了一个 `agent:main:hiai:<coworkSessionId>` managed 会话 key，并且新模型被写到了这个错误 key 上
 4. IM 后续消息继续使用真实 channel key，例如 `agent:main:openclaw-weixin:<accountId>:direct:<peerId>`，因此仍然走旧模型
 
 ## 核心结论
@@ -18,7 +18,7 @@
 非 IM 会话的真实 key 本来就是 LobsterAI managed key：
 
 ```text
-agent:{agentId}:lobsterai:{coworkSessionId}
+agent:{agentId}:hiai:{coworkSessionId}
 ```
 
 所以 `sessions.patch` fallback 到 managed key 是正确的。
@@ -33,8 +33,8 @@ agent:{agentId}:{channel}:{accountId}:{peerKind}:{peerId}
 
 | 会话类型 | 当前 fallback key | 是否正确 |
 |---|---|---|
-| 普通 Cowork | `agent:main:lobsterai:<sessionId>` | 正确 |
-| IM channel | `agent:main:lobsterai:<sessionId>` | 错误 |
+| 普通 Cowork | `agent:main:hiai:<sessionId>` | 正确 |
+| IM channel | `agent:main:hiai:<sessionId>` | 错误 |
 | IM channel 真实 key | `agent:main:openclaw-weixin:<account>:direct:<peer>` | 应优先使用 |
 
 ---
@@ -220,7 +220,7 @@ npm run compile:electron
 ## 验收标准
 
 1. 在 IM 对话历史中切换模型后，OpenClaw 的真实 channel session entry 被 patch 到新模型
-2. 不再生成新的 `agent:main:lobsterai:<imCoworkSessionId>` 幽灵会话 key
+2. 不再生成新的 `agent:main:hiai:<imCoworkSessionId>` 幽灵会话 key
 3. 应用重启后，已回填 `openclaw_session_key` 的 IM 会话仍能切换模型
 4. 普通 Cowork 会话模型切换行为不回退
 5. 点击模型后按钮文本和勾选态立即变化，不等待 OpenClaw patch 返回

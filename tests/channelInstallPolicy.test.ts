@@ -39,7 +39,7 @@ const readWebArtifactName = (silentOnDoubleClick: boolean) => (
         LOBSTERAI_CHANNEL_BUILD: '1',
         LOBSTERAI_SILENT_ON_DOUBLE_CLICK: silentOnDoubleClick ? '1' : '0',
         LOBSTERAI_WEB_INSTALLER: '1',
-        LOBSTERAI_WEB_PKG_URL: 'https://cdn.example.test/LobsterAI.nsis.7z',
+        LOBSTERAI_WEB_PKG_URL: 'https://cdn.example.test/HiAi.nsis.7z',
       },
       encoding: 'utf8',
     },
@@ -169,11 +169,11 @@ describe('web installer build flags', () => {
 
     expect(plain.status).toBe(0);
     expect(plain.stdout).toContain(
-      'artifact=LobsterAI-WebSetup-${arch}-${version}-dictbind.${ext}',
+      'artifact=HiAi-WebSetup-${arch}-${version}-dictbind.${ext}',
     );
     expect(silent.status).toBe(0);
     expect(silent.stdout).toContain(
-      'artifact=LobsterAI-WebSetup-${arch}-${version}-dictbind-silent.${ext}',
+      'artifact=HiAi-WebSetup-${arch}-${version}-dictbind-silent.${ext}',
     );
   });
 
@@ -182,7 +182,7 @@ describe('web installer build flags', () => {
 
     expect(probe.status).toBe(0);
     expect(probe.stdout).toMatch(
-      /packageUrl=https:\/\/cdn\.example\.test\/releases\/dictbind\/lobsterai-[^/\s]+-x64\.nsis\.7z/,
+      /packageUrl=https:\/\/cdn\.example\.test\/releases\/dictbind\/hiai-[^/\s]+-x64\.nsis\.7z/,
     );
   });
 });

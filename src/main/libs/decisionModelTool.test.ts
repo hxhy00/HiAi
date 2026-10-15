@@ -13,7 +13,7 @@ const activeConfig: DecisionModelConfig = {
 
 const request = (args: Record<string, unknown>) => ({
   args,
-  context: { sessionKey: 'agent:main:lobsterai:session-a', toolCallId: 'call-1' },
+  context: { sessionKey: 'agent:main:hiai:session-a', toolCallId: 'call-1' },
 });
 
 const validArgs = {

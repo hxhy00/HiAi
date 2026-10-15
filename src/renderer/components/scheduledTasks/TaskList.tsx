@@ -35,8 +35,8 @@ import {
   getTaskPromptText,
 } from './utils';
 
-const cardGridClass = 'grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-3';
-const taskListClass = MANAGEMENT_LIST_CONTAINER_CLASS;
+/** Template gallery grid — the task list itself is a single-column list. */
+const templateGalleryGridClass = 'grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-3';
 const menuWidthPx = 144;
 const menuHeightEstimatePx = 156;
 const menuEdgeGapPx = 8;
@@ -332,7 +332,7 @@ const TemplateGallery: React.FC<TemplateGalleryProps> = ({
         <div className="h-px flex-1 bg-border-subtle" />
       </div>
     )}
-    <div className={cardGridClass}>
+    <div className={templateGalleryGridClass}>
       {SCHEDULED_TASK_TEMPLATES.map(template => {
         const Icon = templateIconComponents[template.icon];
         return (
@@ -441,7 +441,7 @@ const TaskList: React.FC<TaskListProps> = ({
 
   if (status === ScheduledTaskDataStatus.Loading) {
     return (
-      <div className={taskListClass} aria-hidden="true">
+      <div className={MANAGEMENT_LIST_CONTAINER_CLASS} aria-hidden="true">
         {Array.from({ length: 4 }).map((_, idx) => (
           <div key={idx} className="flex items-center gap-3 px-4 py-3">
             <div className="h-4 flex-1 rounded bg-surface-raised" />
@@ -508,7 +508,7 @@ const TaskList: React.FC<TaskListProps> = ({
           </button>
         </div>
       ) : (
-        <div className={taskListClass}>
+        <div className={MANAGEMENT_LIST_CONTAINER_CLASS}>
           {visibleTasks.map(task => (
             <TaskCard key={task.id} task={task} onRequestDelete={onRequestDelete} />
           ))}

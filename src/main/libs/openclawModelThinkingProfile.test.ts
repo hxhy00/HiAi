@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { parseThinkingProfileMap } from '../../../openclaw-extensions/lobsterai-model-compat/thinkingProfileMapping';
+import { parseThinkingProfileMap } from '../../../openclaw-extensions/hiai-model-compat/thinkingProfileMapping';
 
 describe('parseThinkingProfileMap', () => {
   test('keeps valid model profiles and drops malformed entries', () => {

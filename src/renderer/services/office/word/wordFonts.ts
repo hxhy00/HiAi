@@ -154,7 +154,7 @@ const slotWeight = (weight: number): number => (weight >= 600 ? BOLD : REGULAR);
 function privateFamily(key: string): string {
   let hash = 0x811c9dc5;
   for (const char of key) hash = Math.imul(hash ^ char.codePointAt(0)!, 0x01000193) >>> 0;
-  return `LobsterAI Word ${hash.toString(36)}`;
+  return `HiAi Word ${hash.toString(36)}`;
 }
 
 /** Nearest planned face for a slot: same slant first, then the closest weight. */

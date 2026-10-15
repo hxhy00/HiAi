@@ -14,7 +14,7 @@ const question: OpenClawQuestionItem = {
   options: [{ label: 'A (Recommended)' }, { label: 'B|||C' }], isOther: true,
 };
 const record = {
-  id: 'request', questions: [question], sessionKey: 'agent:main:lobsterai:session',
+  id: 'request', questions: [question], sessionKey: 'agent:main:hiai:session',
   expiresAtMs: 100_000, status: OpenClawQuestionStatus.Pending,
 };
 

@@ -56,7 +56,7 @@ export class OfficeAgentBridge {
     if (!this.tools.has(tool)) return Promise.resolve(failure(`Unknown ${editorName} tool "${tool}".`));
     const window = this.options.getWindow();
     if (!window || window.isDestroyed() || window.webContents.isDestroyed()) {
-      return Promise.resolve(failure(`LobsterAI's main window is not open, so the ${editorName} editor is unavailable.`));
+      return Promise.resolve(failure(`HiAi's main window is not open, so the ${editorName} editor is unavailable.`));
     }
     const requestId = randomUUID();
     return new Promise(resolve => {

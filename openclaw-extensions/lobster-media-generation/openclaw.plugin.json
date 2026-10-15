@@ -4,9 +4,9 @@
   "description": "Image/video generation and AI skin management tools powered by LobsterAI.",
   "contracts": {
     "tools": [
-      "lobsterai_image_generate",
-      "lobsterai_video_generate",
-      "lobsterai_skin_manage"
+      "hiai_image_generate",
+      "hiai_video_generate",
+      "hiai_skin_manage"
     ]
   },
   "configSchema": {

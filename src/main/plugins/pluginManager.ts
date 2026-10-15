@@ -166,7 +166,7 @@ function resolveNpmCommand(): { command: string; baseArgs: string[]; env: NodeJS
 }
 
 function buildOpenClawPluginInstallArgs(openclawMjs: string, installSpec: string): string[] {
-  // Clicking Install/Update is LobsterAI's explicit consent boundary for the
+  // Clicking Install/Update is HiAi's explicit consent boundary for the
   // selected plugin. OpenClaw v2026.8.1 requires that decision on the CLI too.
   return [openclawMjs, 'plugins', 'install', installSpec, '--force', '--accept-capabilities'];
 }
@@ -339,7 +339,7 @@ export class PluginManager {
         {
           cwd: stagingDir,
           env: installEnv,
-          // Keep LobsterAI's Windows wrapper above OpenClaw's extended archive
+          // Keep HiAi's Windows wrapper above OpenClaw's extended archive
           // scan budget so a large signed plugin can finish and clean up safely.
           timeout: OPENCLAW_PLUGIN_INSTALL_TIMEOUT_MS,
           onLog,
@@ -630,7 +630,7 @@ export class PluginManager {
 
   /**
    * Sync plugins from OpenClaw's extensions directories and config into the
-   * local SQLite store. Discovers plugins installed outside of LobsterAI
+   * local SQLite store. Discovers plugins installed outside of HiAi
    * (via AI conversation, CLI, or OpenClaw Web UI) and adds them so they
    * appear in the plugin management UI.
    */

@@ -308,7 +308,7 @@ type ExecutionBinding =
 flowchart TD
     A["输入: task.sessionKey"] --> B{sessionKey 存在?}
     B -->|No| G["origin: manual<br/>binding: new_session"]
-    B -->|Yes| C{是 managed key?<br/>agent:main:lobsterai:*}
+    B -->|Yes| C{是 managed key?<br/>agent:main:hiai:*}
     C -->|Yes| D{delivery 指向 IM 通道?}
     D -->|Yes| E["origin: im<br/>binding: im_session"]
     D -->|No| F["origin: cowork<br/>binding: ui_session"]
@@ -321,7 +321,7 @@ flowchart TD
 
 | 格式 | 示例 | 含义 |
 |------|------|------|
-| `agent:main:lobsterai:{sessionId}` | `agent:main:lobsterai:abc123` | 托管会话（UI/Cowork 创建） |
+| `agent:main:hiai:{sessionId}` | `agent:main:hiai:abc123` | 托管会话（UI/Cowork 创建） |
 | `agent:{agentId}:{platform}:{subtype}:{conversationId}` | `agent:main:feishu:direct:ou_xxx` | IM 通道会话 |
 | `cron:{jobId}` | `cron:job-456` | 隔离的 Cron 会话 |
 
@@ -618,7 +618,7 @@ OpenClaw 使用 `sessionKey` 来标识和管理会话。LobsterAI 定义了三�
 
 | 类型 | 格式 | 示例 | 用途 |
 |------|------|------|------|
-| 托管会话 | `agent:{agentId}:lobsterai:{sessionId}` | `agent:main:lobsterai:abc123` | UI/Cowork 创建的会话 |
+| 托管会话 | `agent:{agentId}:hiai:{sessionId}` | `agent:main:hiai:abc123` | UI/Cowork 创建的会话 |
 | 通道会话 | `agent:{agentId}:{platform}:{subtype}:{conversationId}` | `agent:main:feishu:direct:ou_xxx` | IM 平台的会话 |
 | Cron 会话 | `cron:{jobId}` | `cron:job-456` | 隔离 Cron 任务的独立会话 |
 

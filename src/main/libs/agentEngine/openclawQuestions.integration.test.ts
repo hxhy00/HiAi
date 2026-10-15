@@ -28,7 +28,7 @@ test('native gateway events reach the permission UI and router propagates answer
   router.on('permissionRequest', onQuestion);
   router.on('permissionResolved', onResolved);
   internals.handleGatewayEvent({ event: OpenClawQuestion.Requested, payload: {
-    id: 'native-request', sessionKey: `agent:main:lobsterai:${sessionId}`,
+    id: 'native-request', sessionKey: `agent:main:hiai:${sessionId}`,
     status: OpenClawQuestionStatus.Pending, expiresAtMs: Date.now() + 60_000,
     questions: [{ questionId: 'topic', header: 'Topic', question: 'Pick', options: [{ label: 'A' }, { label: 'B' }], isOther: true }],
   } });

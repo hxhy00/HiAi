@@ -60,7 +60,7 @@ export async function handleDecisionToolRequest(
     return {
       content: toolText({
         status: 'unavailable',
-        reason: 'The Jev decision model is turned off or not configured in LobsterAI.',
+        reason: 'The Jev decision model is turned off or not configured in HiAi.',
         guidance: DISABLED_GUIDANCE,
       }),
       isError: true,

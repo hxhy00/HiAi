@@ -5,7 +5,7 @@
 
 # Network filter collector. Compatible with Windows PowerShell 5.1.
 # For machines where connections to listening 127.0.0.1 ports are dropped
-# (LobsterAI starts its engine but never reaches it). It checks that once, then,
+# (HiAi starts its engine but never reaches it). It checks that once, then,
 # after a UAC prompt, runs network-filter-probe.ps1 elevated to read Windows
 # Filtering Platform rules and drop records and name the filters responsible.
 # Nothing is changed, removed or uploaded.
@@ -93,7 +93,7 @@ function Format-LoopbackResult {
     return ('被拦截（{0}，阶段 {1}，{2} ms）' -f $Result.code, $Result.phase, $Result.elapsedMs)
 }
 
-Write-Host 'LobsterAI 网络过滤诊断' -ForegroundColor Cyan
+Write-Host 'HiAi 网络过滤诊断' -ForegroundColor Cyan
 Write-Host '检查本机程序之间的连接是否被拦截，并读取 Windows 的网络过滤规则，找出是哪条规则拦截的。'
 Write-Host '中途会弹出“你要允许此应用对你的设备进行更改吗”，请点“是”：读取过滤规则需要管理员权限。'
 Write-Host '只读取，不修改或删除任何设置，也不会自动上传。通常需要 1～3 分钟。'
@@ -152,13 +152,13 @@ try {
     $summary.lines = $lines.ToArray()
     try {
         Write-DiagnosticJson (Join-Path $reportDir 'summary.json') $summary
-        $header = @('LobsterAI 网络过滤诊断摘要', ('采集时间：' + $summary.startedAt + ' ~ ' + $summary.finishedAt), '')
+        $header = @('HiAi 网络过滤诊断摘要', ('采集时间：' + $summary.startedAt + ' ~ ' + $summary.finishedAt), '')
         [IO.File]::WriteAllText((Join-Path $reportDir 'summary.txt'), (($header + $lines.ToArray()) -join "`r`n"), (New-Object Text.UTF8Encoding($true)))
     } catch { Write-Host ('写入摘要失败：' + $_) -ForegroundColor Yellow }
     if (-not $OutputDirectory) { $OutputDirectory = [Environment]::GetFolderPath('Desktop') }
     if (-not $OutputDirectory) { $OutputDirectory = [IO.Path]::GetTempPath() }
     [void](New-Item -ItemType Directory -Path $OutputDirectory -Force)
-    $zipPath = Join-Path $OutputDirectory ('LobsterAI-Network-Filter-Diagnostics-' + $runId + '.zip')
+    $zipPath = Join-Path $OutputDirectory ('HiAi-Network-Filter-Diagnostics-' + $runId + '.zip')
     $skippedFiles = @(New-DiagnosticZip $reportDir $zipPath)
     if ($skippedFiles.Count) { Write-Host ('有 {0} 个文件无法读取，未放进诊断包（清单见包内 zip-skipped.txt）。' -f $skippedFiles.Count) -ForegroundColor Yellow }
     # The cleanup boundary is the private directory created at the start of this run.

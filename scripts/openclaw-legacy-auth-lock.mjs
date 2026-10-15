@@ -10,7 +10,7 @@ function legacyPid(raw) {
   return Number.isSafeInteger(pid) && pid <= 0x7fffffff ? pid : null;
 }
 
-// Called only inside the stopped-Gateway migration lease. Old LobsterAI xAI
+// Called only inside the stopped-Gateway migration lease. Old HiAi xAI
 // writers used this one fixed path and stored a bare PID instead of an object.
 export async function recoverLegacyXaiAuthLock(stateDir) {
   const authPath = path.join(stateDir, 'agents', 'main', 'agent', 'auth-profiles.json');
@@ -28,7 +28,7 @@ export async function recoverLegacyXaiAuthLock(stateDir) {
   const pid = legacyPid(raw);
   if (pid === null) return [];
   if (!isPidDefinitelyDead(pid)) {
-    throw new Error(`Legacy xAI auth lock owner is still active or cannot be verified (pid=${pid}): ${lockPath}. Close the older LobsterAI/OpenClaw process and retry.`);
+    throw new Error(`Legacy xAI auth lock owner is still active or cannot be verified (pid=${pid}): ${lockPath}. Close the older HiAi/OpenClaw process and retry.`);
   }
   const backupPath = `${lockPath}.legacy-pid-${randomUUID()}.bak`;
   let backedUp = false;

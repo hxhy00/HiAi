@@ -185,10 +185,10 @@ function createPipWrappers(rootDir) {
   }
 }
 
-// Converge LobsterAI-owned pip shim files to the current templates. Guarded by
+// Converge HiAi-owned pip shim files to the current templates. Guarded by
 // an ownership marker so a real pip package (copied from a host Python or
 // installed by get-pip) is never overwritten. Returns whether the shim layout
-// is LobsterAI-owned.
+// is HiAi-owned.
 function convergePipShimFiles(rootDir) {
   const mainPath = path.join(rootDir, PIP_MODULE_MAIN_REL_PATH);
   let existingMain = null;
@@ -287,7 +287,7 @@ async function ensurePipPayload(rootDir, options = {}) {
   if (existingPipHealth.ok) {
     // The health check only tests file existence, which can hide a stale shim
     // from an earlier build (e.g. a cached resources/python-win). Converge
-    // LobsterAI-owned shim/wrapper files to the current templates before
+    // HiAi-owned shim/wrapper files to the current templates before
     // accepting the runtime as prepared.
     if (convergePipShimFiles(rootDir)) {
       createPipWrappers(rootDir);

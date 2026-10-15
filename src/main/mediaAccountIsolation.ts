@@ -4,7 +4,7 @@ export interface MediaAccountScope {
 }
 
 /**
- * Owner key used when there is no LobsterAI account. Media generation now runs
+ * Owner key used when there is no HiAi account. Media generation now runs
  * against the user's own local providers, so it must work while logged out.
  * Treating logged-out work as a single "local" owner keeps task tracking and
  * cross-account isolation intact without requiring a login.

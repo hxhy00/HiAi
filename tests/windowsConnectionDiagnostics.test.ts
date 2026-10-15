@@ -106,7 +106,7 @@ test('writes a complete report and keeps fixed-port tests off while the app runs
   expect(JSON.parse(fs.readFileSync(reportPath, 'utf8')).finishedAt).toBe(report.finishedAt);
 });
 
-test('runs from the command line like LobsterAI.exe does and prints one result line', () => {
+test('runs from the command line like HiAi.exe does and prints one result line', () => {
   const root = fixtureDirectory();
   const requestPath = path.join(root, 'request.json');
   // PowerShell writes the request; a BOM must not break it.
@@ -135,7 +135,7 @@ test('builds one launcher that embeds the collector, helpers and probe', () => {
   const batch = lines.slice(0, batchEnd);
   expect(batch[0].startsWith('<# : ')).toBe(true);
   expect(batch.join('\n')).not.toMatch(/[^\x20-\x7e\n]/);
-  expect(batch).toContain('title LobsterAI Engine Connection Diagnostics');
+  expect(batch).toContain('title HiAi Engine Connection Diagnostics');
   expect(lines[batchEnd + 1]).toBe('param(');
   expect(lines.filter((line) => line.startsWith('param(')).length).toBe(1);
   expect(text).toContain('function Protect-DiagnosticText');

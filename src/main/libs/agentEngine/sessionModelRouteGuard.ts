@@ -5,7 +5,7 @@ import { t } from '../../i18n';
  * A model the user picked must never be silently replaced by a plan model:
  * plan runs spend plan quota and fail with plan-only errors ("free quota used
  * up") that make no sense for a custom provider. This happens when the gateway
- * runs a config LobsterAI did not author, e.g. one it restored from a backup.
+ * runs a config HiAi did not author, e.g. one it restored from a backup.
  */
 
 type ModelRef = { provider: string; model: string };

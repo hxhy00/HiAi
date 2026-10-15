@@ -31,7 +31,7 @@ function setProcessTarget(target: MacRuntime): void {
 vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => process.cwd()),
-    getName: vi.fn(() => 'LobsterAI'),
+    getName: vi.fn(() => 'HiAi'),
     getPath: vi.fn((name: string) => (name === 'userData' ? TEST_USER_DATA : '')),
     isPackaged: false,
   },

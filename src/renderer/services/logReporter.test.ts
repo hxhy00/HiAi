@@ -34,7 +34,7 @@ afterEach(() => {
 test('builds a Youdao Analyzer URL with common action parameters', () => {
   const result = new URL(buildLogUrl(
     {
-      action: `${LogReporterActionPrefix.LobsterAI}skill_enabled`,
+      action: `${LogReporterActionPrefix.HiAi}skill_enabled`,
       skillId: 'xlsx',
       enabled: true,
     },
@@ -54,7 +54,7 @@ test('builds a Youdao Analyzer URL with common action parameters', () => {
   ));
 
   expect(result.origin + result.pathname).toBe(LogReporterEndpoint.YoudaoAnalyzer);
-  expect(result.searchParams.get('_npid')).toBe(LogReporterProduct.LobsterAI);
+  expect(result.searchParams.get('_npid')).toBe(LogReporterProduct.HiAi);
   expect(result.searchParams.get('_ncat')).toBe(LogReporterCategory.Actions);
   expect(result.searchParams.get('app_version')).toBe('2026.6.18');
   expect(result.searchParams.get('os_platform')).toBe('darwin');
@@ -114,7 +114,7 @@ test('does not allow event parameters to override common parameters', () => {
     },
   ));
 
-  expect(result.searchParams.get('_npid')).toBe(LogReporterProduct.LobsterAI);
+  expect(result.searchParams.get('_npid')).toBe(LogReporterProduct.HiAi);
   expect(result.searchParams.get('_ncat')).toBe(LogReporterCategory.Actions);
   expect(result.searchParams.get('app_version')).toBe('trusted-version');
   expect(result.searchParams.get('os_platform')).toBe('trusted-platform');
@@ -136,7 +136,7 @@ test('does not allow event parameters to override common parameters', () => {
 test('uses the anonymous identity and omits empty optional parameters', () => {
   const result = new URL(buildLogUrl(
     {
-      action: `${LogReporterActionPrefix.LobsterAI}app_started`,
+      action: `${LogReporterActionPrefix.HiAi}app_started`,
       optionalValue: undefined,
       nullableValue: null,
     },
@@ -160,7 +160,7 @@ test('marks anonymous events when no user is logged in', () => {
   } as ReturnType<typeof configService.getConfig>);
   const result = new URL(buildLogUrl(
     {
-      action: `${LogReporterActionPrefix.LobsterAI}app_started`,
+      action: `${LogReporterActionPrefix.HiAi}app_started`,
     },
     {
       userId: '',
@@ -290,7 +290,7 @@ test('skips sending when usage analytics is disabled', async () => {
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
-test('rejects an event without the LobsterAI action prefix before sending', async () => {
+test('rejects an event without the HiAi action prefix before sending', async () => {
   const fetchMock = vi.fn();
   vi.stubGlobal('window', {
     electron: {

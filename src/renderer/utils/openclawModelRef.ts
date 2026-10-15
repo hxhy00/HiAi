@@ -16,7 +16,7 @@ export function toOpenClawModelRef(model: ModelRefInput): string {
   return `${resolveModelOpenClawProviderId(model)}/${model.id}`;
 }
 
-/** Plan models bill the LobsterAI plan; every other provider bills the user's own account. */
+/** Plan models bill the HiAi plan; every other provider bills the user's own account. */
 export const ModelBillingSide = {
   Plan: 'plan',
   Custom: 'custom',

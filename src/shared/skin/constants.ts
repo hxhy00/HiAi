@@ -86,7 +86,7 @@ export const SkinIpc = {
 export type SkinIpc = typeof SkinIpc[keyof typeof SkinIpc];
 
 export const SkinToolName = {
-  Manage: 'lobsterai_skin_manage',
+  Manage: 'hiai_skin_manage',
 } as const;
 
 export type SkinToolName = typeof SkinToolName[keyof typeof SkinToolName];

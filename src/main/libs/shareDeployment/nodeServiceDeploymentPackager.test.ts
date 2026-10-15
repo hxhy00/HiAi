@@ -7,7 +7,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 vi.mock('electron', () => ({
   app: {
     getAppPath: () => process.cwd(),
-    getName: () => 'LobsterAI',
+    getName: () => 'HiAi',
     getPath: (name: string) => (name === 'userData' ? path.join(os.tmpdir(), 'lobsterai-test-user-data') : os.tmpdir()),
     isPackaged: false,
     isReady: () => false,

@@ -11,7 +11,7 @@ afterEach(() => { vi.restoreAllMocks(); });
 
 describe('parseOpenClawConfigAutoRestore', () => {
   test('reads the size-drop restore line, including paths with spaces', () => {
-    const chunk = 'starting…\nConfig auto-restored from backup: /Users/u/Library/Application Support/LobsterAI/openclaw/state/openclaw.json (size-drop-vs-last-good:33753->13837)\n';
+    const chunk = 'starting…\nConfig auto-restored from backup: /Users/u/Library/Application Support/HiAi/openclaw/state/openclaw.json (size-drop-vs-last-good:33753->13837)\n';
     expect(parseOpenClawConfigAutoRestore(chunk)).toEqual({
       source: OpenClawConfigRestoreSource.Backup,
       reasons: 'size-drop-vs-last-good:33753->13837',

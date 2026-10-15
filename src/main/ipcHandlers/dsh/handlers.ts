@@ -1,7 +1,7 @@
 // IPC + lifecycle wiring for the experimental DeepSeek Harness feature:
 // enable/disable flag, engine state queries, and the workbench window. dsh
 // stays independent from the main agent: it is never registered as an MCP
-// server and no task is forwarded to it through LobsterAI. Keeps all dsh
+// server and no task is forwarded to it through HiAi. Keeps all dsh
 // wiring out of main.ts except one register call.
 
 import { BrowserWindow, ipcMain } from 'electron';

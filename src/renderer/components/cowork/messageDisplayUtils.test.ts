@@ -625,7 +625,7 @@ test('step lines lead with an icon kind that follows the tool, and thinking has 
   expect(getActivityStepKind(activityToolItem('tool-6', 'web_search'))).toBe(ActivityStepKind.Web);
   expect(getActivityStepKind(activityToolItem('tool-7', 'browser'))).toBe(ActivityStepKind.Web);
   expect(getActivityStepKind(activityToolItem('tool-8', 'memory_search'))).toBe(ActivityStepKind.Search);
-  expect(getActivityStepKind(activityToolItem('tool-9', 'lobsterai_image_generate'))).toBe(ActivityStepKind.Media);
+  expect(getActivityStepKind(activityToolItem('tool-9', 'hiai_image_generate'))).toBe(ActivityStepKind.Media);
   expect(getActivityStepKind(activityToolItem('tool-10', 'sessions_spawn'))).toBe(ActivityStepKind.Agent);
   expect(getActivityStepKind(activityToolItem('tool-11', 'TodoWrite'))).toBe(ActivityStepKind.Todo);
   expect(getActivityStepKind(activityToolItem('tool-12', 'cron'))).toBe(ActivityStepKind.Schedule);
@@ -741,16 +741,16 @@ test('diff stats count added and removed lines', () => {
 
 test('media polling groups count their polls as steps', () => {
   const polls = [
-    activityToolItem('poll-1', 'lobsterai_video_generate'),
-    activityToolItem('poll-2', 'lobsterai_video_generate'),
-    activityToolItem('poll-3', 'lobsterai_video_generate'),
+    activityToolItem('poll-1', 'hiai_video_generate'),
+    activityToolItem('poll-2', 'hiai_video_generate'),
+    activityToolItem('poll-3', 'hiai_video_generate'),
   ].map(item => (item as Extract<ConsolidatedItem, { type: 'tool_group' }>).group);
 
   const mediaItem = {
     type: 'media_polling_group',
     group: {
       type: 'media_polling_group',
-      toolName: 'lobsterai_video_generate',
+      toolName: 'hiai_video_generate',
       taskId: 'task-1',
       lastStatus: 'succeeded',
       pollCount: 3,

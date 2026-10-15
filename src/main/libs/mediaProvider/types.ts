@@ -1,7 +1,7 @@
 /**
  * Media provider adapter layer.
  *
- * Replaces the former LobsterAI server round-trip for image/video generation.
+ * Replaces the former HiAi server round-trip for image/video generation.
  * `handleMediaGenerationCallback` in `main.ts` is the only caller.
  */
 

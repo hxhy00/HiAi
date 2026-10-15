@@ -4,20 +4,25 @@ import path from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('electron', () => ({ app: {}, systemPreferences: {} }));
+import { APP_USER_MODEL_ID } from '../src/main/appConstants';
 import { readWebAuthnKeychainGroup } from '../src/main/browserPasskeys/macWebAuthn';
 
 const { configureMacWebAuthnEntitlements } = require('../scripts/mac-webauthn-entitlements.cjs');
 
 describe('macOS WebAuthn packaging', () => {
   test('signs the same keychain group the runtime reads, without granting it to helpers', () => {
+    // Derived from the shared constant: this test exists to prove the group the
+    // packaging step writes is the one the runtime recognises, so a rename must
+    // move both together. A hard-coded literal here would keep passing while the
+    // real appId moved on.
     const config = {
-      appId: 'com.lobsterai.app',
+      appId: APP_USER_MODEL_ID,
       mac: { entitlements: 'build/entitlements.mac.plist', entitlementsInherit: 'build/entitlements.mac.plist' },
     };
     configureMacWebAuthnEntitlements(config, 'ABCDEFGHIJ', 'darwin');
     try {
       const plist = fs.readFileSync(config.mac.entitlements, 'utf8');
-      expect(readWebAuthnKeychainGroup(plist)).toBe('ABCDEFGHIJ.com.lobsterai.app.webauthn');
+      expect(readWebAuthnKeychainGroup(plist)).toBe(`ABCDEFGHIJ.${APP_USER_MODEL_ID}.webauthn`);
       expect(plist).toContain('<key>com.apple.security.cs.allow-jit</key>');
       expect(config.mac.entitlementsInherit).toBe('build/entitlements.mac.plist');
     } finally {

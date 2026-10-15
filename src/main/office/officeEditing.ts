@@ -83,7 +83,7 @@ export class OfficeEditing {
     const agent = this.agents.get(id);
     if (agent) return agent.call(tool, args);
     const editorName = this.formats.find(format => format.spec.id === id)?.spec.editorName ?? 'Office';
-    return Promise.resolve(failure(`The LobsterAI ${editorName} editor is not ready yet.`));
+    return Promise.resolve(failure(`The HiAi ${editorName} editor is not ready yet.`));
   }
 
   /** The MCP servers exposing the editors' tools, by server name; an editor without a bridge URL is left out. */

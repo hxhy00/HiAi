@@ -19,7 +19,7 @@ beforeEach(() => {
   Object.defineProperty(process, 'platform', { value: 'darwin' });
   mocks.app.isPackaged = true;
   mocks.canPrompt.mockReturnValue(true);
-  mocks.execFile.mockResolvedValue({ stdout: '<key>keychain-access-groups</key><array><string>ABCDEFGHIJ.com.lobsterai.app.webauthn</string></array>' });
+  mocks.execFile.mockResolvedValue({ stdout: '<key>keychain-access-groups</key><array><string>ABCDEFGHIJ.com.hiai.app.webauthn</string></array>' });
 });
 afterEach(() => { Object.defineProperty(process, 'platform', platformDescriptor); });
 
@@ -28,7 +28,7 @@ describe('macOS native passkey initialization', () => {
     const { configureMacWebAuthn } = await import('./macWebAuthn');
     expect(await configureMacWebAuthn()).toBe(true);
     expect(await configureMacWebAuthn()).toBe(true);
-    expect(mocks.configure).toHaveBeenCalledExactlyOnceWith({ touchID: { keychainAccessGroup: 'ABCDEFGHIJ.com.lobsterai.app.webauthn' } });
+    expect(mocks.configure).toHaveBeenCalledExactlyOnceWith({ touchID: { keychainAccessGroup: 'ABCDEFGHIJ.com.hiai.app.webauthn' } });
     expect(mocks.execFile).toHaveBeenCalledOnce();
   });
 

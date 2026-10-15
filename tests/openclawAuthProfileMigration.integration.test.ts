@@ -180,7 +180,7 @@ describe.skipIf(!runtimeRoot)('bundled OpenClaw auth profile migration', () => {
   });
 
   test('passes once the host bootstrap drops the meta stamp of a pre-v2026.8.1 build', async () => {
-    // LobsterAI 2026.9.4 (OpenClaw v2026.6.1) stamped both fields on every config write.
+    // HiAi 2026.9.4 (OpenClaw v2026.6.1) stamped both fields on every config write.
     const legacy = JSON.parse(configBytes);
     legacy.meta = { lastTouchedVersion: '2026.6.1', lastTouchedAt: '2026-10-10T08:14:13.654Z' };
     configBytes = JSON.stringify(legacy, null, 2);

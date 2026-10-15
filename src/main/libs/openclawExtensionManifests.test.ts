@@ -31,11 +31,11 @@ describe('OpenClaw extension manifests', () => {
     expect(readContractTools('ask-user-question')).toEqual(['AskUserQuestion']);
   });
 
-  test('declares LobsterAI media generation and skin agent tool contracts', () => {
+  test('declares HiAi media generation and skin agent tool contracts', () => {
     expect(readContractTools('lobster-media-generation')).toEqual([
-      'lobsterai_image_generate',
-      'lobsterai_video_generate',
-      'lobsterai_skin_manage',
+      'hiai_image_generate',
+      'hiai_video_generate',
+      'hiai_skin_manage',
     ]);
   });
 
@@ -48,12 +48,12 @@ describe('OpenClaw extension manifests', () => {
     expect(readPackageOpenClawExtensions('ask-user-question')).toEqual(['./index.ts']);
     expect(readPackageOpenClawExtensions('lobster-media-generation')).toEqual(['./index.ts']);
     expect(readPackageOpenClawExtensions('lobster-decision')).toEqual(['./index.ts']);
-    expect(readPackageOpenClawExtensions('lobsterai-model-compat')).toEqual(['./index.ts']);
+    expect(readPackageOpenClawExtensions('hiai-model-compat')).toEqual(['./index.ts']);
   });
 
-  test('declares a strict allowlisted model-profile config for LobsterAI compatibility', () => {
-    const manifest = readManifest('lobsterai-model-compat');
-    expect(manifest.providers).toEqual(['lobsterai-model-compat']);
+  test('declares a strict allowlisted model-profile config for HiAi compatibility', () => {
+    const manifest = readManifest('hiai-model-compat');
+    expect(manifest.providers).toEqual(['hiai-model-compat']);
     // The v2026.8.1 Gateway only imports provider plugins whose provider ids are
     // referenced by configured agent models; the "lobsterai-server" API owner hint
     // is not consulted, and runs cannot lazy-load plugins inside a prepared plugin

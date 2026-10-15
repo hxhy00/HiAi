@@ -105,7 +105,7 @@ for (const platformName of ['mac', 'win', 'linux']) {
 
 configureMacWebAuthnEntitlements(config, process.env.APPLE_TEAM_ID);
 
-// Sign every Windows binary electron-builder produces (LobsterAI.exe, the
+// Sign every Windows binary electron-builder produces (HiAi.exe, the
 // uninstaller, the installer) through the internal Youdao signing service,
 // not just the final Setup.exe: the unsigned inner exe is what security
 // software freezes on first execution. The hook skips with a warning when
@@ -119,12 +119,12 @@ delete config.extraResources;
 
 config.dmg = {
   ...(config.dmg || {}),
-  artifactName: `LobsterAI-darwin-\${arch}-\${version}-${keyfrom}.\${ext}`,
+  artifactName: `HiAi-darwin-\${arch}-\${version}-${keyfrom}.\${ext}`,
 };
 
 config.nsis = {
   ...(config.nsis || {}),
-  artifactName: `LobsterAI-Setup-\${arch}-\${version}-${keyfrom}${silentOnDoubleClick ? '-silent' : ''}.\${ext}`,
+  artifactName: `HiAi-Setup-\${arch}-\${version}-${keyfrom}${silentOnDoubleClick ? '-silent' : ''}.\${ext}`,
 };
 
 if (isWebInstallerEnabled()) {
@@ -137,7 +137,7 @@ if (isWebInstallerEnabled()) {
   };
   config.nsisWeb = {
     appPackageUrl: resolveWebPackageUrl(keyfrom),
-    artifactName: `LobsterAI-WebSetup-\${arch}-\${version}-${keyfrom}${silentOnDoubleClick ? '-silent' : ''}.\${ext}`,
+    artifactName: `HiAi-WebSetup-\${arch}-\${version}-${keyfrom}${silentOnDoubleClick ? '-silent' : ''}.\${ext}`,
   };
   console.log(`[WebInstaller] nsis-web target enabled, app package url: ${config.nsisWeb.appPackageUrl}`);
 }

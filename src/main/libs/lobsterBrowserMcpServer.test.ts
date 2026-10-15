@@ -34,7 +34,7 @@ describe('resolveLobsterBrowserMcpCommand', () => {
   test('generates a self-contained Windows launcher and private runtime descriptor', () => {
     const baseDir = createTempDirectory();
     const bridgeSecret = 'runtime-only-secret';
-    const electronNodeRuntimePath = 'D:\\龙虾\\LobsterAI 100%\\LobsterAI.exe';
+    const electronNodeRuntimePath = 'D:\\龙虾\\HiAi 100%\\HiAi.exe';
     const command = resolveLobsterBrowserMcpCommand(baseDir, {
       electronNodeRuntimePath,
       bridgeUrl: 'http://127.0.0.1:61234/browser/tool',
@@ -50,7 +50,7 @@ describe('resolveLobsterBrowserMcpCommand', () => {
     ));
 
     expect(path.extname(command)).toBe('.cmd');
-    expect(launcher).toContain('"D:\\龙虾\\LobsterAI 100%%\\LobsterAI.exe"');
+    expect(launcher).toContain('"D:\\龙虾\\HiAi 100%%\\HiAi.exe"');
     expect(launcher).toMatch(/^@echo off\r\nchcp 65001 >nul 2>&1\r\n/);
     expect(launcher.indexOf('chcp 65001')).toBeLessThan(launcher.indexOf(electronNodeRuntimePath.replaceAll('%', '%%')));
     expect(launcher).toContain('set "ELECTRON_RUN_AS_NODE=1"');
@@ -157,7 +157,7 @@ describe('resolveLobsterBrowserMcpCommand', () => {
 
   test('builds a shell-free stdio launch using Electron as Node', () => {
     const baseDir = createTempDirectory();
-    const electronNodeRuntimePath = 'C:\\Program Files\\LobsterAI\\LobsterAI.exe';
+    const electronNodeRuntimePath = 'C:\\Program Files\\HiAi\\HiAi.exe';
     const launch = resolveLobsterBrowserMcpStdioLaunch(baseDir, {
       electronNodeRuntimePath,
       bridgeUrl: 'http://127.0.0.1:61234/browser/tool',
@@ -174,7 +174,7 @@ describe('resolveLobsterBrowserMcpCommand', () => {
     expect(fs.existsSync(launch.args[0])).toBe(true);
   });
 
-  test('starts with the MCP SDK restricted environment without LobsterAI variables', async () => {
+  test('starts with the MCP SDK restricted environment without HiAi variables', async () => {
     const baseDir = createTempDirectory();
     const bridgeSecret = 'runtime-only-secret';
     const receivedSecrets: string[] = [];

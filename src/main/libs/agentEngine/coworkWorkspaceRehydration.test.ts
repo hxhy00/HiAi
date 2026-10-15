@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-
 import { expect, test } from 'vitest';
 
 import { ContinuityCapsuleSource, type CoworkContinuityCapsule } from './coworkContinuityCapsule';
@@ -64,7 +63,7 @@ test('workspace rehydration bridge includes bounded capsule and git state', asyn
     commandRunner,
   });
 
-  expect(bridge).toContain('[LobsterAI workspace state after context compaction]');
+  expect(bridge).toContain('[HiAi workspace state after context compaction]');
   expect(bridge).toContain('Recently touched files:');
   expect(bridge).toContain('src/main/libs/agentEngine/openclawRuntimeAdapter.ts');
   expect(bridge).toContain('Git status:');

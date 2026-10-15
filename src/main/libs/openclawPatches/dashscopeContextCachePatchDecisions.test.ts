@@ -10,7 +10,7 @@ import {
 } from './patchTestUtils';
 
 describe('OpenAI-compatible explicit context cache OpenClaw patch decisions', () => {
-  test('uses the standard model compat flag instead of LobsterAI-only runtime params', () => {
+  test('uses the standard model compat flag instead of HiAi-only runtime params', () => {
     expectCurrentOpenClawPatchMissing('openclaw-dashscope-context-cache.patch');
     expectPatchContains('openclaw-openai-compatible-cache-control.patch', [
       'compat: { cacheControlFormat: "anthropic" }',

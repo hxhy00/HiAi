@@ -5,7 +5,7 @@
 const path = require('node:path');
 const { buildSingleFileCollector, writeCollector } = require('./single-file-collector.cjs');
 
-const OUTPUT_NAME = 'LobsterAI-Connection-Diagnostics.cmd';
+const OUTPUT_NAME = 'HiAi-Connection-Diagnostics.cmd';
 const PROBE_VARIABLE = '$script:EmbeddedConnectionProbe';
 
 function buildConnectionCollector(sourceDir = __dirname) {
@@ -14,7 +14,7 @@ function buildConnectionCollector(sourceDir = __dirname) {
     collectorFile: 'collect-connection.ps1',
     probeFile: 'connection-probe.cjs',
     probeVariable: PROBE_VARIABLE,
-    title: 'LobsterAI Engine Connection Diagnostics',
+    title: 'HiAi Engine Connection Diagnostics',
   });
 }
 

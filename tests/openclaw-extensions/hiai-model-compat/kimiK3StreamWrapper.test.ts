@@ -7,7 +7,7 @@ import {
   ensureKimiK3ToolCallReasoningContent,
   KIMI_K3_FIXED_SAMPLING_FIELDS,
   KIMI_K3_REASONING_EFFORT,
-} from '../../../openclaw-extensions/lobsterai-model-compat/kimiK3StreamWrapper';
+} from '../../../openclaw-extensions/hiai-model-compat/kimiK3StreamWrapper';
 
 const requireRecord = (value: unknown, label: string): Record<string, unknown> => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {

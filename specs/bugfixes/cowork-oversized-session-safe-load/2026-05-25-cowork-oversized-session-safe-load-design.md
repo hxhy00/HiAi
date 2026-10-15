@@ -12,7 +12,7 @@
 |---|---|
 | LobsterAI sessionId | `d5bc36d4-57f7-4c4b-8248-f7ddc5727e12` |
 | OpenClaw sessionId | `98850bbd-4ec0-4a87-8865-7069801f3ccd` |
-| session key | `agent:pm:lobsterai:d5bc36d4-57f7-4c4b-8248-f7ddc5727e12` |
+| session key | `agent:pm:hiai:d5bc36d4-57f7-4c4b-8248-f7ddc5727e12` |
 | 任务特征 | `外挂逆向大盘 Dashboard`、`PM 外挂逆向数据` |
 
 日志显示该 session 的 OpenClaw transcript 已异常膨胀：

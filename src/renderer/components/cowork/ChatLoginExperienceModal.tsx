@@ -67,7 +67,7 @@ const ChatLoginExperienceModal: React.FC<ChatLoginExperienceModalProps> = ({
             <h1 id={titleId} className="login-introduction-heading font-semibold leading-[1.3]">
               <span className="block">{i18nService.t('chatLoginExperienceTitlePrefix')}</span>
               <span className="login-introduction-brand mt-3.5 flex items-center gap-2 font-bold tracking-[-1px]">
-                LobsterAI
+                HiAi
                 <img
                   src="logo.png"
                   alt=""

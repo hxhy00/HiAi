@@ -1316,7 +1316,7 @@ Model: deepseek/deepseek-v4-pro
 - 测试 session key：
 
 ```text
-agent:main:lobsterai:dcf99a2a-8f05-4375-a749-bf4beeb6c836
+agent:main:hiai:dcf99a2a-8f05-4375-a749-bf4beeb6c836
 ```
 
 #### 9.7.1 Memory flush / pre-compaction 路径

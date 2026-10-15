@@ -1,5 +1,5 @@
 /**
- * Agent tools that read and edit the Word document LobsterAI has open, in place. Edits go
+ * Agent tools that read and edit the Word document HiAi has open, in place. Edits go
  * through the live editor, so the user sees them immediately and can undo them as one step.
  */
 export const WordAgentTool = {
@@ -30,7 +30,7 @@ export type WordAlignment = typeof WordAlignment[keyof typeof WordAlignment];
 
 export const WORD_AGENT_TIMEOUT_MS = 60_000;
 
-/** The LobsterAI-managed MCP server that exposes these tools to OpenClaw. */
+/** The HiAi-managed MCP server that exposes these tools to OpenClaw. */
 export const WORD_AGENT_MCP_SERVER_NAME = 'lobster-word';
 
 /** Tool descriptions and schemas shared by the MCP server and the renderer's validator. */
@@ -38,7 +38,7 @@ export const WORD_AGENT_TOOL_DEFINITIONS = [
   {
     name: WordAgentTool.Read,
     description: [
-      'Open a local .docx in LobsterAI\'s Word editor (right-side panel) and read it paragraph by paragraph.',
+      'Open a local .docx in HiAi\'s Word editor (right-side panel) and read it paragraph by paragraph.',
       'Returns the document revision, each paragraph\'s id, style and text, table cell positions, and the user\'s current selection.',
       'Use this before word_edit. Prefer these tools over rewriting the .docx file when the user wants to change an existing Word document,',
       'because edits then appear live in the editor, keep all formatting the tools do not touch, and can be undone in one step.',
@@ -57,7 +57,7 @@ export const WORD_AGENT_TOOL_DEFINITIONS = [
   {
     name: WordAgentTool.Edit,
     description: [
-      'Apply edits to a .docx open in LobsterAI\'s Word editor. Edits apply in order; if any edit cannot apply, none of them is applied. Changes appear live and save automatically.',
+      'Apply edits to a .docx open in HiAi\'s Word editor. Edits apply in order; if any edit cannot apply, none of them is applied. Changes appear live and save automatically.',
       'Address paragraphs by the ids from word_read. Pass expectedRevision from word_read; if the user changed the document since, the call is refused and you must read again.',
       'Edit types: replace_text {paragraph, find, replace, occurrence?} replaces an exact phrase inside a paragraph and keeps its formatting;',
       'set_text {paragraph, text} replaces a paragraph\'s whole text; insert_paragraph {anchor: paragraph id | "start" | "end", position: "before" | "after", text, style?};',

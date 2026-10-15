@@ -1,5 +1,5 @@
 /**
- * Agent tools that read and edit the Excel workbook LobsterAI has open, in place. Edits go
+ * Agent tools that read and edit the Excel workbook HiAi has open, in place. Edits go
  * through the live editor, so the user sees them immediately and can undo each call as one step.
  */
 export const SheetAgentTool = {
@@ -41,7 +41,7 @@ export const SheetBorder = { All: 'all', Outside: 'outside', None: 'none' } as c
 
 export const SHEET_AGENT_TIMEOUT_MS = 60_000;
 
-/** The LobsterAI-managed MCP server that exposes these tools to OpenClaw. */
+/** The HiAi-managed MCP server that exposes these tools to OpenClaw. */
 export const SHEET_AGENT_MCP_SERVER_NAME = 'lobster-excel';
 
 /** Tool descriptions and schemas shared by the MCP server and the renderer's validator. */
@@ -49,7 +49,7 @@ export const SHEET_AGENT_TOOL_DEFINITIONS = [
   {
     name: SheetAgentTool.Read,
     description: [
-      'Open a local .xlsx in LobsterAI\'s Excel editor (right-side panel) and read cells.',
+      'Open a local .xlsx in HiAi\'s Excel editor (right-side panel) and read cells.',
       'Returns the workbook revision, every sheet with its used range, and the non-empty cells of the requested range keyed by address',
       '(a plain value, or {value, formula, text} when the cell has a formula or its displayed text differs), merged ranges and the user\'s current selection.',
       'Use this before excel_edit. Prefer these tools over rewriting the .xlsx file when the user wants to change an existing workbook:',
@@ -70,7 +70,7 @@ export const SHEET_AGENT_TOOL_DEFINITIONS = [
   {
     name: SheetAgentTool.Edit,
     description: [
-      'Apply edits to a .xlsx open in LobsterAI\'s Excel editor. Edits apply in order as one undoable step; if any edit is invalid, none is applied.',
+      'Apply edits to a .xlsx open in HiAi\'s Excel editor. Edits apply in order as one undoable step; if any edit is invalid, none is applied.',
       'Changes appear live, formulas recalculate, and the file saves automatically.',
       'Pass expectedRevision from excel_read; if the user changed the workbook since, the call is refused and you must read again.',
       'Every edit may name a "sheet" (default: the active sheet). Edit types:',
@@ -140,7 +140,7 @@ export const SHEET_AGENT_TOOL_DEFINITIONS = [
 export const SHEET_AGENT_PROMPT = [
   '## Editing Existing Spreadsheets',
   '',
-  `- When the user wants to change an existing \`.xlsx\` and \`${SheetAgentTool.Read}\` / \`${SheetAgentTool.Edit}\` are available, use them instead of rewriting the file with scripts: edits appear live in LobsterAI's editor, keep charts, styles and other content, recalculate formulas, and can be undone as one step.`,
+  `- When the user wants to change an existing \`.xlsx\` and \`${SheetAgentTool.Read}\` / \`${SheetAgentTool.Edit}\` are available, use them instead of rewriting the file with scripts: edits appear live in HiAi's editor, keep charts, styles and other content, recalculate formulas, and can be undone as one step.`,
   '- They also insert and delete rows and columns, add, rename, move, hide and delete sheets, and freeze panes; formulas, charts, names, conditional formats, data validation, links, notes and tables follow the moved cells like in Excel.',
   '- Use file-based tools only for what those tools cannot do (building charts or pivot tables), when the workbook is reported as read-only or an edit is refused, or to create a new workbook.',
 ].join('\n');

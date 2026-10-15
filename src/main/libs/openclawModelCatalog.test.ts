@@ -190,7 +190,7 @@ describe('with a fake OpenClaw runtime', () => {
     });
   });
 
-  describe('LobsterAI plan model max tokens', () => {
+  describe('HiAi plan model max tokens', () => {
     const selectPlanModelMaxTokens = (overrides: Partial<SelectionOptions>): number | undefined => (
       selectModelMaxTokens({
         providerName: ProviderName.LobsteraiServer,

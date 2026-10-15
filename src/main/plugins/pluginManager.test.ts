@@ -22,8 +22,8 @@ afterEach(() => {
 
 test('resolveNpmCommand delegates to shared npm runtime resolution', () => {
   const resolved = {
-    command: 'C:\\LobsterAI\\LobsterAI.exe',
-    baseArgs: ['C:\\LobsterAI\\resources\\app.asar.unpacked\\node_modules\\npm\\bin\\npm-cli.js'],
+    command: 'C:\\HiAi\\HiAi.exe',
+    baseArgs: ['C:\\HiAi\\resources\\app.asar.unpacked\\node_modules\\npm\\bin\\npm-cli.js'],
     env: { ELECTRON_RUN_AS_NODE: '1' },
     shell: false,
   };
@@ -36,11 +36,11 @@ test('resolveNpmCommand delegates to shared npm runtime resolution', () => {
 test('passes explicit capability consent to OpenClaw plugin installs', () => {
   expect(
     __pluginManagerTestUtils.buildOpenClawPluginInstallArgs(
-      'C:\\LobsterAI\\openclaw.mjs',
+      'C:\\HiAi\\openclaw.mjs',
       'C:\\staging\\plugin.tgz',
     ),
   ).toEqual([
-    'C:\\LobsterAI\\openclaw.mjs',
+    'C:\\HiAi\\openclaw.mjs',
     'plugins',
     'install',
     'C:\\staging\\plugin.tgz',

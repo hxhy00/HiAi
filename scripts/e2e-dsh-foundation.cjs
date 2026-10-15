@@ -3,7 +3,7 @@
 // End-to-end gate for the dsh feature foundation:
 //   compile -> build runtime -> pack archive -> serve it from an opaque URL
 //   (the shape a per-file CDN hands out) -> install into a fresh base
-//   -> render LobsterAI provider settings -> boot the INSTALLED runtime
+//   -> render HiAi provider settings -> boot the INSTALLED runtime
 //   -> load a profile-local external ESM plugin through the production launcher
 //   -> RPC-assert the provider/model are live (the workbench surface)
 //   -> boot again through the production launcher and keep that host live
@@ -439,7 +439,7 @@ async function main() {
   const fromManifest = resolveDshArtifactFromManifest(distDir, manifestName);
   if (fromManifest.sha256 !== artifact.sha256) fail('manifest and config descriptors disagree');
 
-  // [4/8] Start the mock LLM upstream, then render a LobsterAI provider that
+  // [4/8] Start the mock LLM upstream, then render a HiAi provider that
   // points at it — settings.yaml on disk, the API key only in the child env.
   const ANSWER = 'E2E mock upstream answer.';
   const mock = await startMockLlmServer(ANSWER);

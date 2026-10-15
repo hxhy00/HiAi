@@ -3,7 +3,7 @@ export const LogReporterEndpoint = {
 } as const;
 
 export const LogReporterProduct = {
-  LobsterAI: 'wisdom',
+  HiAi: 'wisdom',
 } as const;
 
 export const LogReporterCategory = {
@@ -11,7 +11,7 @@ export const LogReporterCategory = {
 } as const;
 
 export const LogReporterActionPrefix = {
-  LobsterAI: 'lobsterai_',
+  HiAi: 'lobsterai_',
 } as const;
 
 export const LogReporterAction = {
@@ -120,7 +120,7 @@ export const PublishingRecoveryAnalyticsOutcome = {
 export type PublishingRecoveryAnalyticsOutcome =
   typeof PublishingRecoveryAnalyticsOutcome[keyof typeof PublishingRecoveryAnalyticsOutcome];
 
-export type LogEventAction = `${typeof LogReporterActionPrefix.LobsterAI}${string}`;
+export type LogEventAction = `${typeof LogReporterActionPrefix.HiAi}${string}`;
 
 export const LogReporterEntry = {
   PromptToolsMenu: 'prompt_tools_menu',

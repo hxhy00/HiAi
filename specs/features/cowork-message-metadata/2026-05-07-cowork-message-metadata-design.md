@@ -72,7 +72,7 @@ LobsterAI 的 `openclawConfigSync.ts` 写入 `models.json` 时，只使用 `PROV
 ### 2.3 Agent Name 来源
 
 Agent 名称从 `sessionKey` 解析：
-- **Managed 会话**：`agent:{agentId}:lobsterai:{sessionId}` → `agentId` 即为 agent name（如 "main"）
+- **Managed 会话**：`agent:{agentId}:hiai:{sessionId}` → `agentId` 即为 agent name（如 "main"）
 - **IM 渠道**：`openclaw-weixin:...` 等非 managed 格式 → 默认 "main"
 - **实现**：复用已有的 `parseManagedSessionKey()` 函数
 
@@ -665,7 +665,7 @@ contextPercent = Math.round((input / contextWindow) * 100)
 
 ### 11.4 Agent Name 支持（2026-05-07）
 
-- 从 sessionKey 解析：`agent:{agentId}:lobsterai:{sessionId}` → agentId
+- 从 sessionKey 解析：`agent:{agentId}:hiai:{sessionId}` → agentId
 - IM 渠道 sessionKey 无法解析时 fallback 到 "main"
 - UI 展示在时间戳前
 

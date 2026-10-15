@@ -40,7 +40,7 @@ describe('question option presentation', () => {
     const permission = {
       requestId: 'native', sessionId: 'session', toolName: OpenClawQuestion.ToolName,
       toolInput: {
-        id: 'native', sessionKey: 'agent:main:lobsterai:session', status: OpenClawQuestionStatus.Pending,
+        id: 'native', sessionKey: 'agent:main:hiai:session', status: OpenClawQuestionStatus.Pending,
         expiresAtMs: Date.now() + 10_000,
         questions: [{ questionId: 'topic', header: 'Topic', question: 'Choose a topic', isOther: true,
           options: [{ label: 'A (Recommended)' }, { label: 'B' }] }],

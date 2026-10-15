@@ -1,8 +1,8 @@
 {
-  "id": "lobsterai-model-compat",
+  "id": "hiai-model-compat",
   "name": "LobsterAI Model Compatibility",
   "description": "Applies explicit LobsterAI-managed model runtime profiles.",
-  "providers": ["lobsterai-model-compat"],
+  "providers": ["hiai-model-compat"],
   "activation": {
     "onStartup": true,
     "onProviders": ["lobsterai-server"]

@@ -9,7 +9,7 @@
 //   - spawnJobProcess: sandboxed runner children and, new in 0.1.5, every
 //     ordinary subprocess (dsh-subprocess-local's Windows Job runner).
 //
-// LobsterAI runs dsh as the Electron executable, a GUI-subsystem process with
+// HiAi runs dsh as the Electron executable, a GUI-subsystem process with
 // no console, so each console program it starts gets a fresh, visible console
 // window. Adding STARTF_USESHOWWINDOW (1) with wShowWindow: SW_HIDE (0) keeps
 // the child headless, matching the windowsHide spawn dsh's fallback path

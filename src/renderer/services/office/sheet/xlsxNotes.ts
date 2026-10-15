@@ -29,7 +29,7 @@ const RELATIONSHIPS_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/
 /** Excel's default note box: 108pt × 59.25pt. */
 const DEFAULT_WIDTH = 144;
 const DEFAULT_HEIGHT = 79;
-const NEW_AUTHOR = 'LobsterAI';
+const NEW_AUTHOR = 'HiAi';
 /** Worksheet children that follow `<legacyDrawing>`, in schema order. */
 const AFTER_LEGACY_DRAWING = ['legacyDrawingHF', 'drawingHF', 'picture', 'oleObjects', 'controls', 'webPublishItems', 'tableParts', 'extLst'];
 

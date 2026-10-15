@@ -282,7 +282,7 @@ const getSystemMessageDisplayContent = (message: CoworkMessage, content: string)
 // ── SystemErrorTechnicalDetail ───────────────────────────────────────────────
 
 /**
- * User-facing model source label. Users only need two buckets — the LobsterAI
+ * User-facing model source label. Users only need two buckets — the HiAi
  * plan vs. a model they configured themselves; finer detail (provider name,
  * Coding Plan, OAuth) goes into the parenthesized qualifier.
  */

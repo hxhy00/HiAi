@@ -14,7 +14,7 @@
 
 | 字段 | 值 |
 |---|---|
-| OpenClaw sessionKey | `agent:test:lobsterai:bdf36d41-4f7c-48a0-a24c-ede0c130a61c` |
+| OpenClaw sessionKey | `agent:test:hiai:bdf36d41-4f7c-48a0-a24c-ede0c130a61c` |
 | OpenClaw internal sessionId | `a0e7f1f8-84e4-4625-90e2-9b1308e2ed59` |
 | 提前完成的 runId | `e8234edd-add5-4e47-8de9-bcf9b40d9755` |
 | 用户继续后的 runId | `95b56541-7e56-41ab-ab47-cd41a801f7f9` |

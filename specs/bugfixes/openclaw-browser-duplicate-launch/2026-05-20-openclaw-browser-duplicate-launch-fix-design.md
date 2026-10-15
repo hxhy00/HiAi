@@ -29,7 +29,7 @@
 
 ```text
 runId=0a55a1b0-b895-4a0f-beb3-c30467a60280
-sessionKey=agent:main:lobsterai:f90336eb-3ebc-4045-9eeb-b823a3e81e48
+sessionKey=agent:main:hiai:f90336eb-3ebc-4045-9eeb-b823a3e81e48
 ```
 
 第一次托管 Chrome 启动正常：

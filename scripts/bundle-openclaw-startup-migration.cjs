@@ -43,7 +43,7 @@ async function bundleOpenClawStartupMigration(runtimeDir, openclawSrc, selectedE
   assertOpenClawSourceUsesNativePrivateDirectory(openclawSrc);
   const outputPath = path.join(runtimeDir, path.basename(selectedEntry));
   // Rebuild even when the gateway cache is current: this entry is maintained by
-  // LobsterAI and must match the pinned upstream migration/schema implementation.
+  // HiAi and must match the pinned upstream migration/schema implementation.
   await esbuild.build({
     entryPoints: [selectedEntry],
     outfile: outputPath,

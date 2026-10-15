@@ -285,6 +285,26 @@ FR-8 的文本生成页键值修改见 FR-8 表格。
 13. 中英文案完整，无遗漏旧文案。
 14. `npm run compile:electron` 与改动文件的 CI 同款 eslint 通过。
 
+### 5.1 验收结果（2026-10-15 补录）
+
+| 编号 | 复核方式 | 结果 |
+| --- | --- | --- |
+| 1 | `i18n.ts`: `settingsTextModel: '文本生成模型'`、`mediaProviderConfigTitle: '媒体生成模型'`；tab 定义（`Settings.tsx:4635-4636`）使用这两个键；旧 tab 名仅剩「自定义模型」语境下的合法用法（`modelGroupUser` / `addCustomProvider` 等指用户自建 provider 的场景，非导航名） | ✅ |
+| 2 | `initialTab` / `initialTabRequestId` 逻辑未动，tab key（`model` / `mediaProvider`）保持原值 | ✅ |
+| 3 | `MediaProviderSettingsSection.tsx` 头部注释与结构：图片、视频两块纵向堆叠（stacked vertically），始终同时可见 | ✅ |
+| 4 | 每块内部 `flex-col md:flex-row`：左列表（`max-h-[240px] md:max-h-none` 滚动）+ 右表单，与文本生成模型布局同构 | ✅ |
+| 5–7 | 两块各自独立 state（独立选中行、独立增删），列表行为经 `mediaProviders.test.ts` 19 用例验证；切换/删除/空态逻辑未改动 | ✅ |
+| 8 | `apiKeyStored` 徽标 + `mediaProviderApiKeyKeepPlaceholder`（「留空则保持原密钥」）+ `clearApiKey`（「清除密钥」）均在位，密钥明文不回填 | ✅ |
+| 9 | 每块独立保存按钮与状态提示（`mediaProviderSaveFailed` / `mediaProviderLoadFailed` 中英齐备）；保存写入整份配置 | ✅ |
+| 10 | 左列表 `searchQuery` 过滤（按名称/模型 ID，`normalizedQuery` 匹配），清空恢复全量 | ✅ |
+| 11 | 两块统一 `min-h-[420px]`，列表列内滚动（`overflow-y-auto`） | ✅ |
+| 12 | `i18n.ts:387` `modelProviders: '文本模型提供商'` 等新文案在位 | ✅ |
+| 13 | 中英词典均含全部媒体设置键；全量 `i18n.ts` 无旧 tab 名残留 | ✅ |
+| 14 | `npx tsc --noEmit` 退出码 0；`MediaProviderSettingsSection.tsx` + `Settings.tsx` eslint `--max-warnings 0` 零告警；`npm test -- mediaProviders` 19/19 通过；主进程无改动故 `compile:electron` 沿用 remove-membership 复验结论 | ✅ |
+
+注：本特性为纯 renderer 改动，自动检查无法覆盖的视觉观感（块间距、滚动手感）
+在 AC-4/11 层面依赖同构布局实现，可在 AC-SM-9 同次的 GUI 冒烟中顺带确认。
+
 ## 6. 已确认决定
 
 2026-10-14 与用户确认：

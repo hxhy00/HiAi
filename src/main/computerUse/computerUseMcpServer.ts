@@ -203,7 +203,10 @@ const bridgeSecret = requireEnv('LOBSTER_MCP_BRIDGE_SECRET');
 const helperStateHome = requireEnv('LOBSTER_COMPUTER_USE_HOME');
 const locale = String(env.LOBSTER_COMPUTER_USE_LOCALE || 'zh').toLowerCase().startsWith('en') ? 'en' : 'zh';
 const selfPid = Number(env.LOBSTER_COMPUTER_USE_SELF_PID || 0) || null;
-const selfAppName = String(env.LOBSTER_COMPUTER_USE_SELF_APP || 'LobsterAI').trim();
+// Fallback only: the launcher passes app.getName(), so this normally tracks the
+// packaged product name. It matters because isSelfApp compares against it to keep
+// computer-use from driving this app's own windows.
+const selfAppName = String(env.LOBSTER_COMPUTER_USE_SELF_APP || 'HiAi').trim();
 
 const { McpServer } = await import(moduleUrl(sdkRoot, 'dist', 'esm', 'server', 'mcp.js'));
 const { StdioServerTransport } = await import(moduleUrl(sdkRoot, 'dist', 'esm', 'server', 'stdio.js'));
@@ -258,8 +261,8 @@ const deniedAppRe = new RegExp(deniedAppPattern, 'i');
 const STRINGS = {
   zh: {
     title: '电脑操作',
-    subtitle: 'LobsterAI 需要操作你电脑上的应用',
-    question: (app) => '允许 LobsterAI 操作「' + app + '」吗？',
+    subtitle: 'HiAi 需要操作你电脑上的应用',
+    question: (app) => '允许 HiAi 操作「' + app + '」吗？',
     allow: '允许',
     allowDescription: IS_MAC
       ? '本次会话中允许查看并操作该应用。无法在后台完成的步骤会短暂接管鼠标和键盘，按 Esc 可随时停止。'
@@ -269,12 +272,12 @@ const STRINGS = {
   },
   en: {
     title: 'Computer Use',
-    subtitle: 'LobsterAI wants to use an app on your computer',
-    question: (app) => 'Allow LobsterAI to use "' + app + '"?',
+    subtitle: 'HiAi wants to use an app on your computer',
+    question: (app) => 'Allow HiAi to use "' + app + '"?',
     allow: 'Allow',
     allowDescription: IS_MAC
-      ? 'Lets LobsterAI view and operate this app for this session. Steps that cannot run in the background briefly take over the mouse and keyboard. Press Esc to stop at any time.'
-      : 'Lets LobsterAI view and operate this app for this session. Press Esc to stop at any time.',
+      ? 'Lets HiAi view and operate this app for this session. Steps that cannot run in the background briefly take over the mouse and keyboard. Press Esc to stop at any time.'
+      : 'Lets HiAi view and operate this app for this session. Press Esc to stop at any time.',
     deny: 'Deny',
     denyDescription: 'Do not allow this app.',
   },
@@ -371,9 +374,9 @@ async function promptForApp(displayName) {
       }),
     });
   } catch (error) {
-    throw new Error('Computer Use could not show the approval prompt in LobsterAI ('
+    throw new Error('Computer Use could not show the approval prompt in HiAi ('
       + (error instanceof Error ? error.message : String(error))
-      + '). Ask the user to make sure LobsterAI is open, then retry.');
+      + '). Ask the user to make sure HiAi is open, then retry.');
   }
 
   if (!response.ok) {
@@ -392,7 +395,7 @@ async function ensureAppApproved(appLabel, details = {}) {
     throw new Error('Computer Use is not allowed to control "' + displayName + '". Password managers, terminals, system authentication dialogs, and similar sensitive apps are blocked for safety.');
   }
   if (isSelfApp(label, details.pid)) {
-    throw new Error('Computer Use cannot operate LobsterAI itself. Work with other apps, or ask the user to do this step in LobsterAI.');
+    throw new Error('Computer Use cannot operate HiAi itself. Work with other apps, or ask the user to do this step in HiAi.');
   }
   const keys = [appKey(label), bundleId ? appKey(bundleId) : ''].filter(Boolean);
   if (!keys.some(key => approvedApps.has(key))) {
@@ -795,7 +798,7 @@ registerTool('list_windows', 'List open app windows Computer Use can target, fro
   return successText(windows);
 });
 
-registerTool('check_permissions', 'Check the operating system permissions Computer Use needs (macOS: Accessibility and Screen Recording for LobsterAI).', {}, async () => {
+registerTool('check_permissions', 'Check the operating system permissions Computer Use needs (macOS: Accessibility and Screen Recording for HiAi).', {}, async () => {
   const status = await client.check_permissions();
   const guided = permissionGuidance(status);
   if (guided && guided.ready === false) {
@@ -806,7 +809,7 @@ registerTool('check_permissions', 'Check the operating system permissions Comput
 });
 
 if (typeof client.request_permissions === 'function') {
-  registerTool('request_permissions', 'Show the macOS permission prompts for LobsterAI and open the matching System Settings pane for any missing Accessibility or Screen Recording permission. Tell the user which switch to turn on, then wait for them.', {
+  registerTool('request_permissions', 'Show the macOS permission prompts for HiAi and open the matching System Settings pane for any missing Accessibility or Screen Recording permission. Tell the user which switch to turn on, then wait for them.', {
     open_settings: z.boolean().optional().default(true).describe('Open System Settings to the missing permission pane.'),
   }, async (args) => {
     const status = await client.request_permissions({ open_settings: args.open_settings !== false });

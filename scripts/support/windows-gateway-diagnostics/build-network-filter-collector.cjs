@@ -5,7 +5,7 @@
 const path = require('node:path');
 const { buildSingleFileCollector, writeCollector } = require('./single-file-collector.cjs');
 
-const OUTPUT_NAME = 'LobsterAI-Network-Filter-Diagnostics.cmd';
+const OUTPUT_NAME = 'HiAi-Network-Filter-Diagnostics.cmd';
 const PROBE_VARIABLE = '$script:EmbeddedFilterProbe';
 
 function buildNetworkFilterCollector(sourceDir = __dirname) {
@@ -14,7 +14,7 @@ function buildNetworkFilterCollector(sourceDir = __dirname) {
     collectorFile: 'collect-network-filters.ps1',
     probeFile: 'network-filter-probe.ps1',
     probeVariable: PROBE_VARIABLE,
-    title: 'LobsterAI Network Filter Diagnostics',
+    title: 'HiAi Network Filter Diagnostics',
   });
 }
 

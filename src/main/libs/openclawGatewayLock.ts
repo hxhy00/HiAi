@@ -11,19 +11,19 @@ import path from 'path';
  * The payload is JSON:
  * `{ pid, createdAt, configPath, startTime? }`.
  *
- * When LobsterAI force-kills the gateway (Windows SIGTERM is
+ * When HiAi force-kills the gateway (Windows SIGTERM is
  * TerminateProcess), the kill can land between the lock file's create and
  * payload write, leaving an EMPTY lock file behind. OpenClaw treats an
  * unreadable payload as owner "unknown" and only reclaims it after a 30s
  * mtime staleness window — while its own acquire timeout is 5s — so every
  * respawn within those 30s fails with "gateway already running; lock
- * timeout". LobsterAI is the gateway's only supervisor, so whenever it knows
+ * timeout". HiAi is the gateway's only supervisor, so whenever it knows
  * it has no live gateway child it can safely reclaim locks whose owner is
  * dead or whose payload is unreadable.
  *
  * A lock can also outlive its writer while the recorded PID still looks
  * alive: after an unclean shutdown Windows may hand that PID to a SYSTEM or
- * elevated process that neither LobsterAI nor OpenClaw can inspect, and both
+ * elevated process that neither HiAi nor OpenClaw can inspect, and both
  * then keep treating it as a live gateway. OpenClaw v2026.8.1 writers keep
  * `<lock>.sqlite` in an exclusive SQLite transaction for as long as they own
  * `<lock>`, and the OS drops that file lock when the process exits, so
