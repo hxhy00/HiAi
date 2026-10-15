@@ -18,7 +18,7 @@ import {
 import type { McpToolFilter } from '../../types/mcp';
 import { formatTokenCount } from '../../utils/tokenFormat';
 import SearchIcon from '../icons/SearchIcon';
-import { reportMcpAction } from './analytics';
+
 import { describeMcpToolFilter } from './mcpToolFilterLabels';
 
 interface McpToolPickerProps {
@@ -95,12 +95,6 @@ const McpToolPicker: React.FC<McpToolPickerProps> = ({
       setTools(result.tools);
       setLoadedKey(requestKey);
       setQuery('');
-      reportMcpAction('tool_discovery_success', {
-        source: 'mcp_form',
-        transportType: request.transportType,
-        toolCount: result.tools.length,
-        durationMs: result.durationMs,
-      });
       return;
     }
     setFailure(
@@ -111,12 +105,6 @@ const McpToolPicker: React.FC<McpToolPickerProps> = ({
         }
         : { message: i18nService.t('mcpToolsLoadFailed'), detail: result.error },
     );
-    reportMcpAction('tool_discovery_failed', {
-      source: 'mcp_form',
-      transportType: request.transportType,
-      result: 'failed',
-      errorCode: result.code,
-    });
   };
 
   const toolNames = useMemo(() => tools?.map(tool => tool.name) ?? [], [tools]);

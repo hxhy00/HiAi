@@ -5,20 +5,11 @@ import {
   type PublishingQuotaErrorData,
   PublishingResourceKind,
 } from '@shared/publishing/constants';
-import React, { useCallback, useEffect, useId, useMemo, useRef } from 'react';
+import React, { useCallback, useId, useRef } from 'react';
 
 import { i18nService } from '@/services/i18n';
 
-import {
-  createPublishingAnalyticsDialog,
-  getPublishingDialogTypeForQuota,
-  PublishingAnalyticsActionType,
-  type PublishingAnalyticsAttemptContext,
-  PublishingAnalyticsCtaId,
-  PublishingAnalyticsTarget,
-  reportPublishingDialogAction,
-  reportPublishingDialogExposure,
-} from './publishingAnalytics';
+
 import PublishingRestrictionDialogShell from './PublishingRestrictionDialogShell';
 
 interface PublishingQuotaLimitDialogProps {
@@ -27,7 +18,6 @@ interface PublishingQuotaLimitDialogProps {
   onManage: () => void;
   onSubscribe: () => void;
   onLearnBenefits?: () => void;
-  analyticsAttempt?: PublishingAnalyticsAttemptContext | null;
 }
 
 const t = (key: string): string => i18nService.t(key);
@@ -38,7 +28,6 @@ const PublishingQuotaLimitDialog: React.FC<PublishingQuotaLimitDialogProps> = ({
   onManage,
   onSubscribe,
   onLearnBenefits = onSubscribe,
-  analyticsAttempt,
 }) => {
   const titleId = useId();
   const descriptionId = useId();
@@ -54,38 +43,10 @@ const PublishingQuotaLimitDialog: React.FC<PublishingQuotaLimitDialogProps> = ({
   const message = t(messageKey)
     .replace(/\{resource\}/g, resourceLabel)
     .replace(/\{limit\}/g, String(quota.limit));
-  const analyticsDialog = useMemo(() => (
-    analyticsAttempt
-      ? createPublishingAnalyticsDialog(
-          analyticsAttempt,
-          getPublishingDialogTypeForQuota(quota),
-          quota,
-        )
-      : null
-  ), [analyticsAttempt, quota]);
-
-  useEffect(() => {
-    if (analyticsDialog) reportPublishingDialogExposure(analyticsDialog);
-  }, [analyticsDialog]);
-
-  const reportAction = useCallback((
-    actionType: PublishingAnalyticsActionType,
-    ctaId: PublishingAnalyticsCtaId,
-    target: PublishingAnalyticsTarget,
-  ) => {
-    if (analyticsDialog) {
-      reportPublishingDialogAction(analyticsDialog, { actionType, ctaId, target });
-    }
-  }, [analyticsDialog]);
 
   const handleClose = useCallback(() => {
-    reportAction(
-      PublishingAnalyticsActionType.Close,
-      PublishingAnalyticsCtaId.Close,
-      PublishingAnalyticsTarget.Dismiss,
-    );
     onClose();
-  }, [onClose, reportAction]);
+  }, [onClose]);
 
   if (isFreeTrialLimit) {
     const trialFeatureLabel = t(isFile
@@ -116,11 +77,6 @@ const PublishingQuotaLimitDialog: React.FC<PublishingQuotaLimitDialogProps> = ({
               ref={initialButtonRef}
               type="button"
               onClick={() => {
-                reportAction(
-                  PublishingAnalyticsActionType.Click,
-                  PublishingAnalyticsCtaId.Primary,
-                  PublishingAnalyticsTarget.Pricing,
-                );
                 onSubscribe();
               }}
               className="h-11 rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
@@ -130,11 +86,6 @@ const PublishingQuotaLimitDialog: React.FC<PublishingQuotaLimitDialogProps> = ({
             <button
               type="button"
               onClick={() => {
-                reportAction(
-                  PublishingAnalyticsActionType.Click,
-                  PublishingAnalyticsCtaId.Secondary,
-                  PublishingAnalyticsTarget.LearnBenefits,
-                );
                 onLearnBenefits();
               }}
               className="self-center text-sm text-muted transition-colors hover:text-foreground"
@@ -189,11 +140,6 @@ const PublishingQuotaLimitDialog: React.FC<PublishingQuotaLimitDialogProps> = ({
             ref={initialButtonRef}
             type="button"
             onClick={() => {
-              reportAction(
-                PublishingAnalyticsActionType.Click,
-                PublishingAnalyticsCtaId.Primary,
-                PublishingAnalyticsTarget.ManageCloud,
-              );
               onManage();
             }}
             className="h-9 rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground hover:bg-primary/90"

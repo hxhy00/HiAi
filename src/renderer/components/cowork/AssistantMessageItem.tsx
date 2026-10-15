@@ -10,7 +10,6 @@ import { formatMessageDateTime } from '../../utils/tokenFormat';
 import GoalIcon from '../icons/GoalIcon';
 import MessageForkIcon from '../icons/MessageForkIcon';
 import MarkdownContent from '../MarkdownContent';
-import { reportConversationMessageAction } from './conversationAnalytics';
 import ImagePreviewModal, { type ImagePreviewSource } from './ImagePreviewModal';
 import { MessageActionButton, MessageCopyButton } from './MessageActionButton';
 import {
@@ -26,17 +25,12 @@ const MESSAGE_META_CLASS_NAME = 'mt-1 flex items-center gap-2 text-[12px] font-n
 const MESSAGE_META_ACTION_CLASS_NAME = 'inline-flex h-7 w-7 shrink-0 items-center justify-center [&>svg]:h-3.5 [&>svg]:w-3.5';
 
 const ForkButton: React.FC<{
-  message: CoworkMessage;
   onFork: () => void;
-}> = ({ message, onFork }) => (
+}> = ({ onFork }) => (
   <MessageActionButton
     label={i18nService.t('coworkForkFromMessage')}
     onClick={(event) => {
       event.stopPropagation();
-      reportConversationMessageAction({
-        actionType: 'fork_from_assistant_message',
-        message,
-      });
       onFork();
     }}
     className={MESSAGE_META_ACTION_CLASS_NAME}
@@ -92,13 +86,6 @@ const AssistantMessageItem: React.FC<{
     : null;
   const showPlanConfirmationActions = planConfirmationMessageId === message.id;
   const handleImageClick = useCallback((image: ImagePreviewSource) => {
-    reportConversationMessageAction({
-      actionType: 'open_message_image',
-      message,
-      params: {
-        messageRole: 'assistant',
-      },
-    });
     setExpandedImage(image);
   }, [message]);
   useEffect(() => {
@@ -150,22 +137,12 @@ const AssistantMessageItem: React.FC<{
                 {turnUsageSlot}
                 {onFork && (
                   <ForkButton
-                    message={message}
                     onFork={() => onFork(message.id)}
                   />
                 )}
                 <MessageCopyButton
                   className={MESSAGE_META_ACTION_CLASS_NAME}
                   content={copyContent}
-                  onCopy={(result) => reportConversationMessageAction({
-                    actionType: 'copy_message',
-                    message,
-                    params: {
-                      result,
-                      copySource: 'assistant_message',
-                      copiedLength: copyContent.length,
-                    },
-                  })}
                 />
               </div>
             )}
@@ -201,22 +178,12 @@ const AssistantMessageItem: React.FC<{
           {turnUsageSlot}
           {onFork && (
             <ForkButton
-              message={message}
               onFork={() => onFork(message.id)}
             />
           )}
           <MessageCopyButton
             className={MESSAGE_META_ACTION_CLASS_NAME}
             content={copyContent}
-            onCopy={(result) => reportConversationMessageAction({
-              actionType: 'copy_message',
-              message,
-              params: {
-                result,
-                copySource: 'assistant_message',
-                copiedLength: copyContent.length,
-              },
-            })}
           />
         </div>
       )}

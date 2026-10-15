@@ -27,7 +27,6 @@ import BrowserAnnotationAttachmentBadge from './BrowserAnnotationAttachmentBadge
 import BrowserAnnotationMessageAttachments, {
   type BrowserAnnotationAttachmentOpenPayload,
 } from './BrowserAnnotationMessageAttachments';
-import { reportConversationMessageAction } from './conversationAnalytics';
 import ImagePreviewModal, { type ImagePreviewSource } from './ImagePreviewModal';
 import {
   COWORK_DETAIL_CONTENT_CLASS,
@@ -252,30 +251,14 @@ const UserMessageItem: React.FC<{
     : allImageAttachments;
   const hasCapabilityBadges = messageKitReferences.length > 0 || messageSkills.length > 0;
   const handleImagePreviewOpen = useCallback((image: ImagePreviewSource) => {
-    reportConversationMessageAction({
-      actionType: 'open_message_image',
-      message,
-    });
     setExpandedImage(image);
   }, [message]);
   const handleReEditClick = useCallback(() => {
-    reportConversationMessageAction({
-      actionType: 'reedit_user_message',
-      message,
-    });
     onReEdit?.(message);
   }, [message, onReEdit]);
   const handleFileAttachmentReveal = useCallback(() => {
-    reportConversationMessageAction({
-      actionType: 'reveal_message_file',
-      message,
-    });
   }, [message]);
   const handleOpenAnnotationAttachment = useCallback((payload: BrowserAnnotationAttachmentOpenPayload) => {
-    reportConversationMessageAction({
-      actionType: 'open_message_annotation',
-      message,
-    });
     if (onOpenAnnotation) {
       onOpenAnnotation(message, payload);
       return;
@@ -380,15 +363,6 @@ const UserMessageItem: React.FC<{
                   {modelLabel && <span>{modelLabel}</span>}
                   <CopyButton
                     content={message.content}
-                    onCopy={(result) => reportConversationMessageAction({
-                      actionType: 'copy_message',
-                      message,
-                      params: {
-                        result,
-                        copySource: 'user_message',
-                        copiedLength: message.content.length,
-                      },
-                    })}
                     visible={isHovered}
                   />
                   {onReEdit && (

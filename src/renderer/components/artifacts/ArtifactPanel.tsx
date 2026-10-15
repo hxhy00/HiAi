@@ -37,7 +37,6 @@ import { LibraryNavigationEvent } from '@shared/library/constants';
 import type { LocalWebService } from '@shared/localWebServices/constants';
 import {
   type PublishingQuotaErrorData,
-  PublishingResourceKind,
   PublishingSubscriptionRecoveryMode,
 } from '@shared/publishing/constants';
 import {
@@ -103,13 +102,6 @@ import { openLocalPathWithToast, revealLocalPathWithToast } from '@/utils/localF
 
 import CopyIcon from '../icons/CopyIcon';
 import ServiceDeploymentIcon from '../icons/ServiceDeploymentIcon';
-import {
-  ArtifactPreviewActionSource,
-  ArtifactPublishEntryPoint,
-  ArtifactRefreshTrigger,
-  getArtifactBrowserUrlType,
-  reportArtifactPreviewAction,
-} from './artifactAnalytics';
 import { useOptionalArtifactFileShare } from './ArtifactFileShareController';
 import {
   type ArtifactFileShareRequest as HtmlSharePendingRequest,
@@ -128,14 +120,6 @@ import {
   resolveBrowserToolbarPublishTarget,
 } from './artifactToolbarPublishPolicy';
 import { resolveRemovedActiveBrowserAnnotationBatch } from './browserAnnotationSession';
-import {
-  type DeploymentAnalyticsOperationContext,
-  getDeploymentAnalyticsFinalStatus,
-  reportDeploymentAccepted,
-  reportDeploymentImmediateResult,
-  reportDeploymentRejected,
-  reportDeploymentTerminal,
-} from './deploymentAnalytics';
 import FileDirectoryView from './FileDirectoryView';
 import { formatHtmlShareFailure } from './htmlShareErrorPresentation';
 import {
@@ -165,27 +149,6 @@ import NodeDeploymentPersistenceOperationStatus, {
   NodeDeploymentPersistenceOperationPhase,
   type NodeDeploymentPersistenceOperationState,
 } from './NodeDeploymentPersistenceOperationStatus';
-import {
-  createPublishingAnalyticsAttempt,
-  createPublishingAnalyticsDialog,
-  createPublishingAnalyticsOperationId,
-  getPublishingErrorCategory,
-  PublishingAnalyticsActionType,
-  type PublishingAnalyticsAttemptContext,
-  PublishingAnalyticsCtaId,
-  type PublishingAnalyticsDialogContext,
-  PublishingAnalyticsDialogType,
-  PublishingAnalyticsErrorCategory,
-  PublishingAnalyticsOperationType,
-  PublishingAnalyticsResult,
-  PublishingAnalyticsTarget,
-  reportDeploymentDialogAction,
-  reportDeploymentDialogExposure,
-  reportPublishingCopyDeployLink,
-  reportPublishingEntryAction,
-  reportPublishingOperationResult,
-  updatePublishingAnalyticsAttempt,
-} from './publishingAnalytics';
 import PublishingQuotaLimitDialog from './PublishingQuotaLimitDialog';
 import { getPublishingRecoveryFooterActions } from './publishingRecoveryFooterModel';
 import {
@@ -373,8 +336,6 @@ interface NodeDeploymentLaunchContext {
   localService: LocalWebService;
   projectDirectory?: string;
   projectCandidates?: ShareDeploymentProjectCandidate[];
-  source?: ArtifactPreviewActionSource;
-  entryPoint?: ArtifactPublishEntryPoint;
 }
 
 function isNodeDeploymentDialogForLocalService(
@@ -840,8 +801,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
   const [isNodeDeploymentLookupPending, setIsNodeDeploymentLookupPending] = useState(false);
   const [isNodeDeploymentBusy, setIsNodeDeploymentBusy] = useState(false);
   const [isNodeDeploymentAccessUpdating, setIsNodeDeploymentAccessUpdating] = useState(false);
-  const [pendingDeploymentAnalyticsOperations, setPendingDeploymentAnalyticsOperations] =
-    useState<Record<string, DeploymentAnalyticsOperationContext>>({});
   const [publishingQuotaDialog, setPublishingQuotaDialog] =
     useState<PublishingQuotaErrorData | null>(null);
   const [isHtmlShareStatusUpdating, setIsHtmlShareStatusUpdating] = useState(false);
@@ -865,13 +824,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
   const nodeDeploymentActionRunIdRef = useRef(0);
   const nodeDeploymentAccessRunIdRef = useRef(0);
   const nodeDeploymentPersistenceOperationRunIdRef = useRef(0);
-  const publishingAnalyticsAttemptRef =
-    useRef<PublishingAnalyticsAttemptContext | null>(null);
-  const deploymentAnalyticsDialogRef =
-    useRef<PublishingAnalyticsDialogContext | null>(null);
-  const deploymentAnalyticsDialogSignatureRef = useRef('');
-  const deploymentAnalyticsPollInFlightRef = useRef(new Set<string>());
-  const completedDeploymentAnalyticsOperationIdsRef = useRef(new Set<string>());
   const handledLocalServiceDeploymentRequestIdRef = useRef<number | null>(null);
   const localServiceDeploymentRequestRef = useRef(localServiceDeploymentRequest);
   const onLocalServiceDeploymentRequestConsumedRef =
@@ -929,23 +881,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     ),
     [onAddSelectedText, selectedTextEnabled],
   );
-  const reportSelectedArtifactAction = useCallback((
-    actionType: string,
-    params?: Record<string, string | number | boolean | null | undefined>,
-  ) => {
-    reportArtifactPreviewAction({
-      actionType,
-      source: ArtifactPreviewActionSource.ArtifactPanel,
-      artifact: selectedArtifact,
-      params: {
-        tabCount: artifacts.length,
-        isPanelExpanded,
-        contentView: activeTab,
-        ...params,
-      },
-    });
-  }, [activeTab, artifacts.length, isPanelExpanded, selectedArtifact]);
-
   const isResizing = useRef(false);
   const startX = useRef(0);
   const startWidth = useRef(0);
@@ -1235,22 +1170,15 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
 
   const toggleFileListDrawer = useCallback(() => {
     if (showFileListDrawer && isFileListDrawerVisible) {
-      reportSelectedArtifactAction('file_list_drawer_toggle', {
-        targetOpen: false,
-      });
       closeFileListDrawer();
       return;
     }
 
-    reportSelectedArtifactAction('file_list_drawer_toggle', {
-      targetOpen: true,
-    });
     openFileListDrawer();
   }, [
     closeFileListDrawer,
     isFileListDrawerVisible,
     openFileListDrawer,
-    reportSelectedArtifactAction,
     showFileListDrawer,
   ]);
 
@@ -1373,48 +1301,12 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     setNodeDeploymentLookup(null);
     setNodeDeploymentDialog(null);
     setNodeDeploymentPersistenceOperations({});
-    setPendingDeploymentAnalyticsOperations({});
-    deploymentAnalyticsDialogRef.current = null;
-    deploymentAnalyticsDialogSignatureRef.current = '';
-    deploymentAnalyticsPollInFlightRef.current.clear();
-    completedDeploymentAnalyticsOperationIdsRef.current.clear();
     setIsNodeDeploymentDialogOpen(false);
     setIsNodeDeploymentLookupPending(false);
     setIsNodeDeploymentBusy(false);
     setIsNodeDeploymentAccessUpdating(false);
     setIsHtmlShareStatusUpdating(false);
   }, []);
-
-  useEffect(() => {
-    if (
-      !isNodeDeploymentDialogOpen
-      || !isNodeDeploymentEditorDialogKind(nodeDeploymentDialog?.kind)
-    ) {
-      deploymentAnalyticsDialogRef.current = null;
-      deploymentAnalyticsDialogSignatureRef.current = '';
-      return;
-    }
-    const attempt = publishingAnalyticsAttemptRef.current;
-    if (!attempt || attempt.feature !== ArtifactSubscriptionFeature.Deployment) return;
-    const dialogType = nodeDeploymentDialog?.kind === NodeDeploymentDialogKind.Status
-      ? PublishingAnalyticsDialogType.DeploymentStatus
-      : PublishingAnalyticsDialogType.DeploymentEditor;
-    const resourceIdentity = nodeDeploymentDialog?.deployment?.deploymentId
-      ?? nodeDeploymentDialog?.localService?.url
-      ?? 'new';
-    const signature = `${attempt.attemptId}:${dialogType}:${resourceIdentity}`;
-    if (deploymentAnalyticsDialogSignatureRef.current === signature) return;
-
-    const context = createPublishingAnalyticsDialog(attempt, dialogType);
-    deploymentAnalyticsDialogRef.current = context;
-    deploymentAnalyticsDialogSignatureRef.current = signature;
-    reportDeploymentDialogExposure(context);
-  }, [
-    isNodeDeploymentDialogOpen,
-    nodeDeploymentDialog?.deployment?.deploymentId,
-    nodeDeploymentDialog?.kind,
-    nodeDeploymentDialog?.localService?.url,
-  ]);
 
   useEffect(() => {
     if (
@@ -1628,7 +1520,7 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
 
     cleanup = window.electron?.artifact?.onFileChanged(({ filePath: changedPath }) => {
       if (changedPath === watchedPath) {
-        handleRefreshRef.current(ArtifactRefreshTrigger.FileChange);
+        handleRefreshRef.current();
       }
     });
 
@@ -1654,15 +1546,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
   const handleSelectArtifact = useCallback(
     (id: string) => {
       const artifact = artifacts.find(item => item.id === id);
-      reportArtifactPreviewAction({
-        actionType: 'file_list_select_artifact',
-        source: 'artifact_panel',
-        artifact,
-        params: {
-          tabCount: artifacts.length,
-          entry: 'file_list',
-        },
-      });
       if (artifact && openLocalServiceArtifact(artifact)) return;
       if (artifact?.type === ArtifactTypeValue.Html && artifact.filePath && onOpenHtmlFileInBrowser) {
         onOpenHtmlFileInBrowser(artifact);
@@ -1684,15 +1567,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
   const handleSelectArtifactFromDrawer = useCallback(
     (id: string) => {
       const artifact = artifacts.find(item => item.id === id);
-      reportArtifactPreviewAction({
-        actionType: 'file_list_select_artifact',
-        source: 'artifact_panel',
-        artifact,
-        params: {
-          tabCount: artifacts.length,
-          entry: 'drawer',
-        },
-      });
       if (artifact && openLocalServiceArtifact(artifact)) {
         closeFileListDrawer();
         return;
@@ -1718,9 +1592,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
   const handleSetContentView = useCallback(
     (contentView: ArtifactContentView) => {
       if (!activePreviewTab) return;
-      reportSelectedArtifactAction('content_view_change', {
-        targetContentView: contentView,
-      });
       dispatch(
         setPreviewTabContentView({
           sessionId,
@@ -1729,15 +1600,12 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
         }),
       );
     },
-    [activePreviewTab, dispatch, reportSelectedArtifactAction, sessionId],
+    [activePreviewTab, dispatch, sessionId],
   );
 
   const handleShareSelectedArtifact = useCallback(() => {
     if (!artifactFileShare || !artifactToolbarPublishTarget) return;
-    void artifactFileShare.openShare(artifactToolbarPublishTarget.artifact, {
-      source: ArtifactPreviewActionSource.ArtifactPanel,
-      entryPoint: ArtifactPublishEntryPoint.ArtifactToolbar,
-    });
+    void artifactFileShare.openShare(artifactToolbarPublishTarget.artifact, {});
   }, [artifactFileShare, artifactToolbarPublishTarget]);
 
   const handleCopy = useCallback(async () => {
@@ -1750,7 +1618,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
           );
           if (!result?.success) {
             logArtifactFileActionFailure('copy artifact image', result?.error);
-            reportSelectedArtifactAction('copy_content', { result: 'failed' });
             window.dispatchEvent(
               new CustomEvent('app:showToast', { detail: result?.error || t('copyFailed') }),
             );
@@ -1774,7 +1641,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
               'copy artifact content',
               `file exceeds read limit; size=${result.size ?? 'unknown'}, readBytes=${result.readBytes ?? 'unknown'}`,
             );
-            reportSelectedArtifactAction('copy_content', { result: 'failed' });
             window.dispatchEvent(new CustomEvent('app:showToast', {
               detail: t('fileMenuCopyContentsTooLarge'),
             }));
@@ -1782,7 +1648,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
           }
           if (!result?.success || typeof result.content !== 'string') {
             logArtifactFileActionFailure('copy artifact content', result?.error);
-            reportSelectedArtifactAction('copy_content', { result: 'failed' });
             window.dispatchEvent(new CustomEvent('app:showToast', { detail: result?.error || t('copyFailed') }));
             return;
           }
@@ -1795,28 +1660,20 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
           }
         }
       }
-      reportSelectedArtifactAction('copy_content', { result: 'success' });
       window.dispatchEvent(new CustomEvent('app:showToast', { detail: t('messageCopied') }));
     } catch (error) {
       logArtifactFileActionFailure('copy artifact content', error);
-      reportSelectedArtifactAction('copy_content', { result: 'failed' });
       window.dispatchEvent(new CustomEvent('app:showToast', { detail: t('copyFailed') }));
     }
-  }, [reportSelectedArtifactAction, selectedArtifact]);
+  }, [selectedArtifact]);
 
   const handleRevealInFolder = useCallback(() => {
     if (!selectedArtifact?.filePath) return;
-    reportSelectedArtifactAction('reveal_in_folder', {
-      openTarget: 'folder',
-    });
     void revealLocalPathWithToast(selectedArtifact.filePath);
-  }, [reportSelectedArtifactAction, selectedArtifact]);
+  }, [selectedArtifact]);
 
   const handleOpenInBrowser = useCallback(() => {
     if (!selectedArtifact) return;
-    reportSelectedArtifactAction('open_in_browser', {
-      openTarget: selectedArtifact.type === ArtifactTypeValue.Html ? 'lobster_browser' : 'external_browser',
-    });
 
     if (
       selectedArtifact.type === ArtifactTypeValue.Html &&
@@ -1852,7 +1709,7 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     if (html) {
       window.electron?.shell?.openHtmlInBrowser(html);
     }
-  }, [onOpenHtmlFileInBrowser, reportSelectedArtifactAction, selectedArtifact]);
+  }, [onOpenHtmlFileInBrowser, selectedArtifact]);
 
   const closePublishingQuotaDialog = useCallback(() => {
     const shouldCompleteDeploymentRequest = publishingQuotaDialog
@@ -1867,12 +1724,8 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
   }, [completeLocalServiceDeploymentRequest, publishingQuotaDialog]);
 
   const openSubscriptionPage = useCallback(() => {
-    const analyticsAttempt = publishingAnalyticsAttemptRef.current;
-    const keyfrom = analyticsAttempt?.feature === ArtifactSubscriptionFeature.Deployment
-      ? PortalPricingKeyfrom.SiteDeployment
-      : PortalPricingKeyfrom.HtmlShare;
     void window.electron?.shell?.openExternal(
-      getPortalPricingUrl(keyfrom, { traceId: analyticsAttempt?.attemptId }),
+      getPortalPricingUrl(PortalPricingKeyfrom.HtmlShare),
     );
     if (publishingQuotaDialog) {
       closePublishingQuotaDialog();
@@ -1907,47 +1760,14 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     async (
       url?: string,
       shareCode?: string,
-      deployment?: ShareDeploymentRecord,
+      _deployment?: ShareDeploymentRecord,
     ) => {
       if (!url) return;
-      const analyticsAttempt = deployment
-        && publishingAnalyticsAttemptRef.current?.feature ===
-          ArtifactSubscriptionFeature.Deployment
-        ? publishingAnalyticsAttemptRef.current
-        : null;
-      const operationId = createPublishingAnalyticsOperationId();
-      const operationStartedAt = Date.now();
-      if (deployment && deploymentAnalyticsDialogRef.current) {
-        reportDeploymentDialogAction(deploymentAnalyticsDialogRef.current, {
-          actionType: PublishingAnalyticsActionType.Click,
-          ctaId: PublishingAnalyticsCtaId.Secondary,
-          target: PublishingAnalyticsTarget.CopyLink,
-          operationId,
-        });
-      }
       const copied = await copyTextToClipboard(formatShareClipboardText(url, shareCode));
       if (copied) {
         showHtmlShareCopyStatus(HtmlShareCopyStatus.Copied);
       } else {
         showHtmlShareCopyStatus(HtmlShareCopyStatus.Failed);
-      }
-      if (analyticsAttempt && deployment?.shareId) {
-        reportPublishingCopyDeployLink(analyticsAttempt, {
-          operationId,
-          exposureId: deploymentAnalyticsDialogRef.current?.exposureId,
-          siteId: deployment.shareId,
-          deploymentId: deployment.deploymentId,
-          finalStatus: getDeploymentAnalyticsFinalStatus(deployment.status),
-          rawDeploymentStatus: deployment.status,
-          accessPermission: deployment.accessMode,
-          durationMs: Date.now() - operationStartedAt,
-          result: copied
-            ? PublishingAnalyticsResult.Success
-            : PublishingAnalyticsResult.Failure,
-          ...(!copied
-            ? { errorCategory: PublishingAnalyticsErrorCategory.Unknown }
-            : {}),
-        });
       }
     },
     [formatShareClipboardText, showHtmlShareCopyStatus],
@@ -2270,8 +2090,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
       localService,
       projectDirectory: contextProjectDirectory,
       projectCandidates = [],
-      source = ArtifactPreviewActionSource.ArtifactPanel,
-      entryPoint = ArtifactPublishEntryPoint.ArtifactToolbar,
     } = launchContext;
     if (
       isHtmlSharing ||
@@ -2280,38 +2098,11 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     ) {
       return;
     }
-    const analyticsAttempt = createPublishingAnalyticsAttempt({
-      feature: ArtifactSubscriptionFeature.Deployment,
-      resourceKind: PublishingResourceKind.Site,
-      operationType: nodeDeploymentDialog?.deployment
-        ? PublishingAnalyticsOperationType.Manage
-        : PublishingAnalyticsOperationType.Unknown,
-      source,
-      entryPoint,
-      hasExistingResource: nodeDeploymentDialog
-        ? Boolean(nodeDeploymentDialog.deployment)
-        : undefined,
-    });
-    publishingAnalyticsAttemptRef.current = analyticsAttempt;
-    reportPublishingEntryAction(analyticsAttempt);
     if (
       nodeDeploymentDialog &&
       (isNodeDeploymentBusy ||
         isNodeDeploymentDialogForLocalService(nodeDeploymentDialog, localService))
     ) {
-      if (isNodeDeploymentEditorDialogKind(nodeDeploymentDialog.kind)) {
-        const dialogType = nodeDeploymentDialog.kind === NodeDeploymentDialogKind.Status
-          ? PublishingAnalyticsDialogType.DeploymentStatus
-          : PublishingAnalyticsDialogType.DeploymentEditor;
-        const dialogContext = createPublishingAnalyticsDialog(analyticsAttempt, dialogType);
-        deploymentAnalyticsDialogRef.current = dialogContext;
-        deploymentAnalyticsDialogSignatureRef.current = [
-          analyticsAttempt.attemptId,
-          dialogType,
-          nodeDeploymentDialog.deployment?.deploymentId ?? localService.url,
-        ].join(':');
-        reportDeploymentDialogExposure(dialogContext);
-      }
       setIsNodeDeploymentDialogOpen(true);
       return;
     }
@@ -2370,15 +2161,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
         existingDeployment = existing.deployment ?? null;
         rememberNodeDeployment(lookupKey, existingDeployment);
       }
-      publishingAnalyticsAttemptRef.current = updatePublishingAnalyticsAttempt(
-        analyticsAttempt,
-        {
-          operationType: existingDeployment
-            ? PublishingAnalyticsOperationType.Manage
-            : PublishingAnalyticsOperationType.Create,
-          hasExistingResource: Boolean(existingDeployment),
-        },
-      );
       const quota = await fetchSiteDeploymentQuota(
         existingDeployment?.shareId,
       );
@@ -2402,13 +2184,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
       openNodeDeploymentCreateDialog(localService, projectDirectory);
     } catch (error) {
       if (nodeDeploymentActionRunIdRef.current !== runId) return;
-      reportPublishingOperationResult(
-        publishingAnalyticsAttemptRef.current ?? analyticsAttempt,
-        {
-          result: PublishingAnalyticsResult.Failure,
-          errorCategory: getPublishingErrorCategory(error),
-        },
-      );
       clearNodeDeploymentLookupDialogTimer();
       setIsNodeDeploymentDialogOpen(true);
       setNodeDeploymentDialog({
@@ -2447,10 +2222,7 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     ) {
       return;
     }
-    void artifactFileShare.openShare(browserToolbarPublishTarget.artifact, {
-      source: ArtifactPreviewActionSource.ArtifactBrowser,
-      entryPoint: ArtifactPublishEntryPoint.BrowserToolbar,
-    });
+    void artifactFileShare.openShare(browserToolbarPublishTarget.artifact, {});
   }, [artifactFileShare, browserToolbarPublishTarget]);
 
   const handleDeployBrowserLocalService = useCallback(() => {
@@ -2477,30 +2249,10 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
         ? { projectCandidates }
         : {}),
     };
-    const currentLookup = selectedNodeDeploymentLookupKey &&
-      nodeDeploymentLookupRef.current?.sourceKey === selectedNodeDeploymentLookupKey
-      ? nodeDeploymentLookupRef.current
-      : null;
-    reportArtifactPreviewAction({
-      actionType: 'deployment_entry_click',
-      source: ArtifactPreviewActionSource.ArtifactBrowser,
-      artifact: browserLocalServiceArtifact,
-      params: {
-        entryPoint: ArtifactPublishEntryPoint.BrowserToolbar,
-        browserUrlType: getArtifactBrowserUrlType(currentLocalService.url),
-        hasArtifactContext: Boolean(
-          browserLocalServiceArtifact || browserLocalServiceContextMatches,
-        ),
-        hasProjectDirectory: Boolean(projectDirectory),
-        hasExistingDeployment: Boolean(currentLookup?.deployment),
-      },
-    });
     void handleShareLocalServiceDeployment({
       localService,
       projectDirectory,
       projectCandidates,
-      source: ArtifactPreviewActionSource.ArtifactBrowser,
-      entryPoint: ArtifactPublishEntryPoint.BrowserToolbar,
     });
   }, [
     browserAddress,
@@ -2511,7 +2263,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     browserToolbarPublishTarget,
     browserUrl,
     handleShareLocalServiceDeployment,
-    selectedNodeDeploymentLookupKey,
   ]);
 
   useEffect(() => {
@@ -2556,8 +2307,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
         localService,
         projectDirectory: request.projectDirectory,
         projectCandidates: request.projectCandidates,
-        source: ArtifactPreviewActionSource.ConversationArtifactCard,
-        entryPoint: ArtifactPublishEntryPoint.PreviewCard,
       });
     }, 0);
 
@@ -3055,47 +2804,10 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
       snapshot.deployment,
       selectedPermission,
     );
-    const analyticsAttempt =
-      publishingAnalyticsAttemptRef.current?.feature === ArtifactSubscriptionFeature.Deployment
-        ? updatePublishingAnalyticsAttempt(publishingAnalyticsAttemptRef.current, {
-            operationType: PublishingAnalyticsOperationType.UpdatePermission,
-            hasExistingResource: true,
-          })
-        : null;
-    if (analyticsAttempt) publishingAnalyticsAttemptRef.current = analyticsAttempt;
-    const operationId = createPublishingAnalyticsOperationId();
-    const operationStartedAt = Date.now();
-    if (deploymentAnalyticsDialogRef.current) {
-      reportDeploymentDialogAction(deploymentAnalyticsDialogRef.current, {
-        actionType: PublishingAnalyticsActionType.Click,
-        ctaId: PublishingAnalyticsCtaId.Primary,
-        target: PublishingAnalyticsTarget.UpdatePermission,
-        operationId,
-      });
-    }
-    const analyticsOperation: DeploymentAnalyticsOperationContext | null = analyticsAttempt
-      ? {
-          attempt: analyticsAttempt,
-          operationId,
-          operationType: PublishingAnalyticsOperationType.UpdatePermission,
-          startedAt: operationStartedAt,
-          exposureId: deploymentAnalyticsDialogRef.current?.exposureId,
-          accessPermission: selectedPermission,
-          siteId: snapshot.deployment.shareId,
-          deploymentId: snapshot.deployment.deploymentId,
-        }
-      : null;
 
     const api = window.electron?.htmlShare;
     const shareId = snapshot.deployment.shareId;
     if (!api || !shareId) {
-      if (analyticsOperation) {
-        reportDeploymentRejected(
-          analyticsOperation,
-          PublishingAnalyticsErrorCategory.ApiUnavailable,
-          snapshot.deployment,
-        );
-      }
       setNodeDeploymentDialog(previous => previous
         ? {
             ...previous,
@@ -3189,23 +2901,8 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
             }
           : previous,
       );
-      if (analyticsOperation) {
-        reportDeploymentImmediateResult(
-          analyticsOperation,
-          confirmedDeployment,
-          PublishingAnalyticsResult.Success,
-        );
-      }
     } catch (error) {
       if (nodeDeploymentAccessRunIdRef.current !== runId) return;
-      if (analyticsOperation) {
-        reportDeploymentImmediateResult(
-          analyticsOperation,
-          confirmedDeployment,
-          PublishingAnalyticsResult.Failure,
-          getPublishingErrorCategory(error),
-        );
-      }
       let authoritativeDeployment = confirmedDeployment;
       if (snapshot.localService) {
         try {
@@ -3338,16 +3035,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
 
   const closeNodeDeploymentDialog = useCallback(() => {
     if (isNodeDeploymentAccessUpdating) return;
-    const analyticsDialog = deploymentAnalyticsDialogRef.current;
-    if (analyticsDialog) {
-      reportDeploymentDialogAction(analyticsDialog, {
-        actionType: PublishingAnalyticsActionType.Close,
-        ctaId: PublishingAnalyticsCtaId.Close,
-        target: PublishingAnalyticsTarget.Dismiss,
-      });
-    }
-    deploymentAnalyticsDialogRef.current = null;
-    deploymentAnalyticsDialogSignatureRef.current = '';
     setIsNodeDeploymentDialogOpen(false);
     setNodeDeploymentDialog(previous => {
       const committedPermission = getCommittedLocalServiceDeploymentPermission(
@@ -3450,53 +3137,11 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     ) {
       return;
     }
-    const analyticsOperationType = currentDialog.deployment
-      ? PublishingAnalyticsOperationType.Redeploy
-      : PublishingAnalyticsOperationType.Create;
-    const analyticsAttempt =
-      publishingAnalyticsAttemptRef.current?.feature === ArtifactSubscriptionFeature.Deployment
-        ? updatePublishingAnalyticsAttempt(publishingAnalyticsAttemptRef.current, {
-            operationType: analyticsOperationType,
-            hasExistingResource: Boolean(currentDialog.deployment),
-          })
-        : null;
-    if (analyticsAttempt) publishingAnalyticsAttemptRef.current = analyticsAttempt;
-    const operationId = createPublishingAnalyticsOperationId();
-    const operationStartedAt = Date.now();
-    if (deploymentAnalyticsDialogRef.current) {
-      reportDeploymentDialogAction(deploymentAnalyticsDialogRef.current, {
-        actionType: PublishingAnalyticsActionType.Click,
-        ctaId: PublishingAnalyticsCtaId.Primary,
-        target: currentDialog.deployment
-          ? PublishingAnalyticsTarget.Redeploy
-          : PublishingAnalyticsTarget.CreateDeployment,
-        operationId,
-      });
-    }
-    const analyticsOperation: DeploymentAnalyticsOperationContext | null = analyticsAttempt
-      ? {
-          attempt: analyticsAttempt,
-          operationId,
-          operationType: analyticsOperationType,
-          startedAt: operationStartedAt,
-          exposureId: deploymentAnalyticsDialogRef.current?.exposureId,
-          accessPermission: selectedPermission,
-          siteId: currentDialog.deployment?.shareId,
-          deploymentId: currentDialog.deployment?.deploymentId,
-        }
-      : null;
 
     const runId = nodeDeploymentActionRunIdRef.current + 1;
     nodeDeploymentActionRunIdRef.current = runId;
     const port = Number(currentDialog.port);
     if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-      if (analyticsOperation) {
-        reportDeploymentRejected(
-          analyticsOperation,
-          PublishingAnalyticsErrorCategory.InvalidSource,
-          currentDialog.deployment ?? undefined,
-        );
-      }
       setNodeDeploymentDialog(previous => previous
         ? { ...previous, error: t('nodeDeploymentInvalidPort') }
         : previous);
@@ -3542,13 +3187,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
       });
       if (!reservation?.success || !reservation.data?.reservationId) {
         if (reservation?.code === SiteErrorCode.DeploymentQuotaExceeded) {
-          if (analyticsOperation) {
-            reportDeploymentRejected(
-              analyticsOperation,
-              PublishingAnalyticsErrorCategory.Quota,
-              currentDialog.deployment ?? undefined,
-            );
-          }
           if (showPublishingQuotaDialog(reservation.quota)) return;
           await fetchSiteDeploymentQuota(
             currentDialog.deployment?.shareId,
@@ -3601,13 +3239,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
       if (nodeDeploymentActionRunIdRef.current !== runId) return;
       if (!result?.success || !result.deployment) {
         if (result?.code === SiteErrorCode.DeploymentQuotaExceeded) {
-          if (analyticsOperation) {
-            reportDeploymentRejected(
-              analyticsOperation,
-              PublishingAnalyticsErrorCategory.Quota,
-              currentDialog.deployment ?? undefined,
-            );
-          }
           await fetchSiteDeploymentQuota(
             currentDialog.deployment?.shareId,
           );
@@ -3654,29 +3285,8 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
         accessSyncError: accessStatusError,
       }, true);
       setNodeDeploymentPersistenceRefreshVersion(version => version + 1);
-      if (analyticsOperation) {
-        const acceptedOperation: DeploymentAnalyticsOperationContext = {
-          ...analyticsOperation,
-          siteId: deployment.shareId,
-          deploymentId: deployment.deploymentId,
-        };
-        reportDeploymentAccepted(acceptedOperation, deployment);
-        if (!reportDeploymentTerminal(acceptedOperation, deployment)) {
-          setPendingDeploymentAnalyticsOperations(previous => ({
-            ...previous,
-            [acceptedOperation.operationId]: acceptedOperation,
-          }));
-        }
-      }
     } catch (error) {
       if (nodeDeploymentActionRunIdRef.current !== runId) return;
-      if (analyticsOperation) {
-        reportDeploymentRejected(
-          analyticsOperation,
-          getPublishingErrorCategory(error),
-          currentDialog.deployment ?? undefined,
-        );
-      }
       setNodeDeploymentDialog(previous => previous
         ? {
             ...previous,
@@ -3918,51 +3528,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
     rememberNodeDeployment,
     sessionId,
   ]);
-
-  useEffect(() => {
-    const operations = Object.values(pendingDeploymentAnalyticsOperations);
-    if (operations.length === 0) return undefined;
-
-    let isCancelled = false;
-    const pollPendingAnalytics = async (): Promise<void> => {
-      const api = window.electron?.shareDeployment;
-      if (!api) return;
-      await Promise.all(operations.map(async operation => {
-        const deploymentId = operation.deploymentId;
-        if (
-          !deploymentId
-          || deploymentAnalyticsPollInFlightRef.current.has(operation.operationId)
-          || completedDeploymentAnalyticsOperationIdsRef.current.has(operation.operationId)
-        ) {
-          return;
-        }
-        deploymentAnalyticsPollInFlightRef.current.add(operation.operationId);
-        try {
-          const result = await api.get(deploymentId);
-          if (isCancelled || !result?.success || !result.deployment) return;
-          if (!reportDeploymentTerminal(operation, result.deployment)) return;
-          completedDeploymentAnalyticsOperationIdsRef.current.add(operation.operationId);
-          setPendingDeploymentAnalyticsOperations(previous => {
-            if (!previous[operation.operationId]) return previous;
-            const next = { ...previous };
-            delete next[operation.operationId];
-            return next;
-          });
-        } catch {
-          // Deployment status polling is best-effort and must not affect the product flow.
-        } finally {
-          deploymentAnalyticsPollInFlightRef.current.delete(operation.operationId);
-        }
-      }));
-    };
-
-    void pollPendingAnalytics();
-    const timer = window.setInterval(() => void pollPendingAnalytics(), 3000);
-    return () => {
-      isCancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [pendingDeploymentAnalyticsOperations]);
 
   useEffect(() => {
     if (
@@ -4470,21 +4035,17 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
 
   const handleOpenWithApp = useCallback(() => {
     if (selectedArtifact?.filePath) {
-      reportSelectedArtifactAction('open_with_app', {
-        openTarget: 'external_app',
-      });
       void openLocalPathWithToast(normalizeShellFilePath(selectedArtifact.filePath));
     }
-  }, [reportSelectedArtifactAction, selectedArtifact]);
+  }, [selectedArtifact]);
 
-  const handleRefresh = useCallback(async (trigger: ArtifactRefreshTrigger = ArtifactRefreshTrigger.Manual) => {
+  const handleRefresh = useCallback(async () => {
     if (!selectedArtifact?.filePath) return;
     if (selectedArtifact.type === 'video') {
       dispatch(addArtifact({
         sessionId: selectedArtifact.sessionId,
         artifact: { ...selectedArtifact, createdAt: Date.now() },
       }));
-      reportSelectedArtifactAction('refresh_preview', { result: 'success', trigger });
       return;
     }
     try {
@@ -4497,7 +4058,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
             contentVersion: Date.now(),
           },
         }));
-        reportSelectedArtifactAction('refresh_preview', { result: 'success', trigger });
         return;
       }
 
@@ -4509,7 +4069,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
             'refresh artifact source',
             `file exceeds read limit; size=${result.size ?? 'unknown'}, readBytes=${result.readBytes ?? 'unknown'}`,
           );
-          reportSelectedArtifactAction('refresh_preview', { result: 'failed', trigger });
           window.dispatchEvent(new CustomEvent('app:showToast', {
             detail: t('artifactSourceTooLarge'),
           }));
@@ -4520,10 +4079,8 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
             sessionId: selectedArtifact.sessionId,
             artifact: { ...selectedArtifact, content: result.content, contentVersion: Date.now() },
           }));
-          reportSelectedArtifactAction('refresh_preview', { result: 'success', trigger });
         } else {
           logArtifactFileActionFailure('refresh artifact source', result?.error);
-          reportSelectedArtifactAction('refresh_preview', { result: 'failed', trigger });
           window.dispatchEvent(new CustomEvent('app:showToast', {
             detail: result?.error || t('artifactSourceLoadFailed'),
           }));
@@ -4551,22 +4108,19 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
             artifact: { ...selectedArtifact, content },
           }),
         );
-        reportSelectedArtifactAction('refresh_preview', { result: 'success', trigger });
       } else {
         logArtifactFileActionFailure('refresh artifact preview', result?.error);
-        reportSelectedArtifactAction('refresh_preview', { result: 'failed', trigger });
         window.dispatchEvent(new CustomEvent('app:showToast', {
           detail: result?.error || t('artifactSourceLoadFailed'),
         }));
       }
     } catch (error) {
       logArtifactFileActionFailure('refresh artifact preview', error);
-      reportSelectedArtifactAction('refresh_preview', { result: 'failed', trigger });
       window.dispatchEvent(new CustomEvent('app:showToast', {
         detail: t('artifactSourceLoadFailed'),
       }));
     }
-  }, [selectedArtifact, dispatch, reportSelectedArtifactAction]);
+  }, [selectedArtifact, dispatch]);
 
   const handleRefreshRef = useRef(handleRefresh);
   handleRefreshRef.current = handleRefresh;
@@ -4925,9 +4479,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
                     type="button"
                     onClick={() => setIsArtifactActionsMenuOpen(value => {
                       const nextOpen = !value;
-                      reportSelectedArtifactAction('actions_menu_toggle', {
-                        targetOpen: nextOpen,
-                      });
                       return nextOpen;
                     })}
                     className={`p-1 rounded transition-colors ${
@@ -5396,12 +4947,6 @@ const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
           onClose={closePublishingQuotaDialog}
           onSubscribe={openSubscriptionPage}
           onLearnBenefits={openSubscriptionPage}
-          analyticsAttempt={
-            publishingAnalyticsAttemptRef.current?.resourceKind ===
-              publishingQuotaDialog.resourceKind
-              ? publishingAnalyticsAttemptRef.current
-              : null
-          }
           onManage={() => {
             closePublishingQuotaDialog();
             window.dispatchEvent(new Event(LibraryNavigationEvent.OpenCloud));
@@ -6612,31 +6157,6 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
     () => getSessionLocalServices(sessionArtifacts),
     [sessionArtifacts],
   );
-  const reportBrowserAction = useCallback((
-    actionType: string,
-    params?: Record<string, string | number | boolean | null | undefined>,
-  ) => {
-    reportArtifactPreviewAction({
-      actionType,
-      source: 'artifact_browser',
-      params: {
-        browserUrlType: getArtifactBrowserUrlType(currentUrl || address),
-        hasCurrentUrl: Boolean(currentUrl),
-        isDeviceToolbarVisible,
-        browserZoomPercent: Math.round(browserZoomFactor * 100),
-        devicePreset: devicePresetId,
-        deviceScalePercent: Math.round(deviceScale * 100),
-        ...params,
-      },
-    });
-  }, [
-    address,
-    browserZoomFactor,
-    currentUrl,
-    devicePresetId,
-    deviceScale,
-    isDeviceToolbarVisible,
-  ]);
 
   const sendAnnotationCommand = useCallback((
     type: string,
@@ -7234,9 +6754,6 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
 
   const handleNavigate = useCallback(() => {
     const trimmedAddress = address.trim();
-    reportBrowserAction('browser_address_submit', {
-      browserUrlType: getArtifactBrowserUrlType(trimmedAddress),
-    });
     if (
       autoRefreshFilePath &&
       localHtmlPreviewUrl &&
@@ -7261,22 +6778,16 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
     onAddressChange,
     onCurrentUrlChange,
     onTitleChange,
-    reportBrowserAction,
   ]);
 
   const handleOpenLocalService = useCallback(
     (service: LocalWebService) => {
-      reportBrowserAction('browser_open_local_service', {
-        browserUrlType: 'localhost',
-        servicePort: service.port,
-        serviceOnline: service.online,
-      });
       onLocalServiceOpen?.(service);
       onTitleChange?.('');
       onCurrentUrlChange(service.url);
       onAddressChange(service.url);
     },
-    [onAddressChange, onCurrentUrlChange, onLocalServiceOpen, onTitleChange, reportBrowserAction],
+    [onAddressChange, onCurrentUrlChange, onLocalServiceOpen, onTitleChange],
   );
 
   const handleAddressKeyDown = useCallback(
@@ -7325,70 +6836,44 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
 
   const handleOpenExternal = useCallback(() => {
     if (!currentUrl) return;
-    reportBrowserAction('browser_open_external', {
-      browserUrlType: getArtifactBrowserUrlType(currentUrl),
-    });
     window.electron?.shell?.openExternal(currentUrl);
-  }, [currentUrl, reportBrowserAction]);
+  }, [currentUrl]);
 
   const handleToggleDeviceToolbar = useCallback(() => {
     setIsDeviceToolbarVisible(value => {
       const nextVisible = !value;
-      reportBrowserAction('browser_device_toolbar_toggle', {
-        targetOpen: nextVisible,
-      });
       return nextVisible;
     });
     setIsBrowserMenuOpen(false);
-  }, [reportBrowserAction]);
+  }, []);
 
   const handleDevicePresetChange = useCallback((value: string) => {
     const preset = BROWSER_DEVICE_PRESETS.find(item => item.id === value);
     if (!preset) return;
-    reportBrowserAction('browser_device_preset_change', {
-      targetDevicePreset: preset.id,
-      targetDeviceWidth: preset.width,
-      targetDeviceHeight: preset.height,
-    });
     setDevicePresetId(preset.id);
     setDeviceWidth(preset.width);
     setDeviceHeight(preset.height);
-  }, [reportBrowserAction]);
+  }, []);
 
   const handleDeviceWidthChange = useCallback((value: string) => {
-    reportBrowserAction('browser_device_size_change', {
-      dimension: 'width',
-      targetDeviceSize: clampBrowserDeviceSize(Number(value)),
-    });
     setDevicePresetId(BrowserDevicePresetId.Responsive);
     setDeviceWidth(clampBrowserDeviceSize(Number(value)));
-  }, [reportBrowserAction]);
+  }, []);
 
   const handleDeviceHeightChange = useCallback((value: string) => {
-    reportBrowserAction('browser_device_size_change', {
-      dimension: 'height',
-      targetDeviceSize: clampBrowserDeviceSize(Number(value)),
-    });
     setDevicePresetId(BrowserDevicePresetId.Responsive);
     setDeviceHeight(clampBrowserDeviceSize(Number(value)));
-  }, [reportBrowserAction]);
+  }, []);
 
   const handleRotateDevice = useCallback(() => {
-    reportBrowserAction('browser_device_rotate', {
-      targetDeviceWidth: deviceHeight,
-      targetDeviceHeight: deviceWidth,
-    });
     setDevicePresetId(BrowserDevicePresetId.Responsive);
     setDeviceWidth(deviceHeight);
     setDeviceHeight(deviceWidth);
-  }, [deviceHeight, deviceWidth, reportBrowserAction]);
+  }, [deviceHeight, deviceWidth]);
 
   const handleDeviceScaleChange = useCallback((value: string) => {
-    reportBrowserAction('browser_device_scale_change', {
-      targetDeviceScalePercent: Math.round(clampBrowserDeviceScale(Number(value)) * 100),
-    });
     setDeviceScale(clampBrowserDeviceScale(Number(value)));
-  }, [reportBrowserAction]);
+  }, []);
 
   const applyBrowserZoom = useCallback(
     (nextFactor: number) => {
@@ -7400,42 +6885,30 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
   );
 
   const handleZoomOut = useCallback(() => {
-    reportBrowserAction('browser_zoom_out', {
-      targetBrowserZoomPercent: Math.round(clampBrowserZoomFactor(browserZoomFactor - BrowserZoom.Step) * 100),
-    });
     applyBrowserZoom(browserZoomFactor - BrowserZoom.Step);
-  }, [applyBrowserZoom, browserZoomFactor, reportBrowserAction]);
+  }, [applyBrowserZoom, browserZoomFactor]);
 
   const handleZoomIn = useCallback(() => {
-    reportBrowserAction('browser_zoom_in', {
-      targetBrowserZoomPercent: Math.round(clampBrowserZoomFactor(browserZoomFactor + BrowserZoom.Step) * 100),
-    });
     applyBrowserZoom(browserZoomFactor + BrowserZoom.Step);
-  }, [applyBrowserZoom, browserZoomFactor, reportBrowserAction]);
+  }, [applyBrowserZoom, browserZoomFactor]);
 
   const handleResetZoom = useCallback(() => {
-    reportBrowserAction('browser_zoom_reset', {
-      targetBrowserZoomPercent: Math.round(BrowserZoom.Default * 100),
-    });
     applyBrowserZoom(BrowserZoom.Default);
-  }, [applyBrowserZoom, reportBrowserAction]);
+  }, [applyBrowserZoom]);
 
   const handleOpenBlankPage = useCallback(() => {
-    reportBrowserAction('browser_open_blank_page');
     setIsBrowserMenuOpen(false);
     lastRequestedUrlRef.current = '';
     lastRequestedWebviewRef.current = null;
     onAddressChange('');
     onCurrentUrlChange('');
     onTitleChange?.('');
-  }, [onAddressChange, onCurrentUrlChange, onTitleChange, reportBrowserAction]);
+  }, [onAddressChange, onCurrentUrlChange, onTitleChange]);
 
   const handleClearBrowserCookies = useCallback(async () => {
     setIsBrowserMenuOpen(false);
-    let success = false;
     try {
       const result = await window.electron?.artifact?.clearBrowserCookies?.();
-      success = Boolean(result?.success);
       window.dispatchEvent(
         new CustomEvent('app:showToast', {
           detail: result?.success
@@ -7449,19 +6922,13 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
           detail: t('artifactBrowserClearCookiesFailed'),
         }),
       );
-    } finally {
-      reportBrowserAction('browser_clear_cookies', {
-        result: success ? 'success' : 'failed',
-      });
     }
-  }, [reportBrowserAction]);
+  }, []);
 
   const handleClearBrowserCache = useCallback(async () => {
     setIsBrowserMenuOpen(false);
-    let success = false;
     try {
       const result = await window.electron?.artifact?.clearBrowserCache?.();
-      success = Boolean(result?.success);
       window.dispatchEvent(
         new CustomEvent('app:showToast', {
           detail: result?.success
@@ -7475,12 +6942,8 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
           detail: t('artifactBrowserClearCacheFailed'),
         }),
       );
-    } finally {
-      reportBrowserAction('browser_clear_cache', {
-        result: success ? 'success' : 'failed',
-      });
     }
-  }, [reportBrowserAction]);
+  }, []);
 
   const setTemporaryScreenshotStatus = useCallback((status: BrowserScreenshotStatus) => {
     setScreenshotStatus(status);
@@ -7503,9 +6966,6 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
         throw new Error(result?.error || 'Failed to write browser screenshot to clipboard');
       }
       setTemporaryScreenshotStatus(BrowserScreenshotStatus.Copied);
-      reportBrowserAction('browser_screenshot', {
-        result: 'success',
-      });
       window.dispatchEvent(
         new CustomEvent('app:showToast', {
           detail: t('artifactBrowserScreenshotCopied'),
@@ -7513,9 +6973,6 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
       );
     } catch {
       setTemporaryScreenshotStatus(BrowserScreenshotStatus.Error);
-      reportBrowserAction('browser_screenshot', {
-        result: 'failed',
-      });
       window.dispatchEvent(
         new CustomEvent('app:showToast', {
           detail: t('artifactBrowserScreenshotFailed'),
@@ -7524,7 +6981,7 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
     } finally {
       setIsCapturingScreenshot(false);
     }
-  }, [currentUrl, isCapturingScreenshot, reportBrowserAction, setTemporaryScreenshotStatus, webviewNode]);
+  }, [currentUrl, isCapturingScreenshot, setTemporaryScreenshotStatus, webviewNode]);
 
   const handleCaptureScreenshotFromMenu = useCallback(() => {
     setIsBrowserMenuOpen(false);
@@ -7534,13 +6991,11 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
   const handleToggleAnnotation = useCallback(async () => {
     if (!webviewNode?.send || !webviewNode.capturePage || !currentUrl) return;
     if (isAnnotating) {
-      reportBrowserAction('browser_annotate_cancel');
       const batch = annotationBatchRef.current;
       if (batch) sendAnnotationCommand(BrowserAnnotationGuestCommandType.Stop, batch);
       setIsAnnotating(false);
       return;
     }
-    reportBrowserAction('browser_annotate_start');
     const now = Date.now();
     const currentNormalizedUrl = normalizeBrowserPreviewUrlForMatch(currentUrl);
     const existing = annotationBatchRef.current?.pageUrl
@@ -7605,7 +7060,7 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
         complexText: t('artifactBrowserAnnotationComplexText'),
       },
     });
-  }, [commitAnnotationBatch, currentUrl, isAnnotating, reportBrowserAction, sendAnnotationCommand, webviewNode]);
+  }, [commitAnnotationBatch, currentUrl, isAnnotating, sendAnnotationCommand, webviewNode]);
 
   const screenshotButtonTitle =
     screenshotStatus === BrowserScreenshotStatus.Copied
@@ -7628,7 +7083,6 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
         <button
           type="button"
           onClick={() => {
-            reportBrowserAction('browser_back');
             webviewNode?.goBack?.();
           }}
           disabled={!canGoBack}
@@ -7640,7 +7094,6 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
         <button
           type="button"
           onClick={() => {
-            reportBrowserAction('browser_forward');
             webviewNode?.goForward?.();
           }}
           disabled={!canGoForward}
@@ -7652,7 +7105,6 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
         <button
           type="button"
           onClick={() => {
-            reportBrowserAction(isLoading ? 'browser_stop' : 'browser_reload');
             if (isLoading) {
               webviewNode?.stop?.();
             } else {
@@ -7759,9 +7211,6 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
             <button
               type="button"
               onClick={() => {
-                reportBrowserAction('browser_annotation_send', {
-                  annotationCount: annotationSendCount,
-                });
                 onAnnotationSend();
               }}
               className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-primary pl-2.5 pr-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45"
@@ -7777,9 +7226,6 @@ const BrowserTabContent: React.FC<BrowserTabContentProps> = ({
             type="button"
             onClick={() => setIsBrowserMenuOpen(value => {
               const nextOpen = !value;
-              reportBrowserAction('browser_more_menu_toggle', {
-                targetOpen: nextOpen,
-              });
               return nextOpen;
             })}
             className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 ${

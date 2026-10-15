@@ -38,25 +38,6 @@ interface AgentTreeNodeProps {
   onRenameTask: (task: AgentSidebarTaskNode, title: string) => Promise<void>;
   onToggleSelection: (selectionKey: string, agentId: string) => void;
   onEnterBatchMode: (task: AgentSidebarTaskNode) => void;
-  onSidebarAction?: (actionType: string, params?: {
-    agentType?: 'main' | 'custom';
-    hasActiveSubagent?: boolean;
-    isCurrentSession?: boolean;
-    isCurrentSubagent?: boolean;
-    isExpanded?: boolean;
-    isPinned?: boolean;
-    subagentStatus?: string;
-    targetPinned?: boolean;
-    taskStatus?: string;
-    visibleTaskCount?: number;
-  }) => void;
-  getTaskActionParams?: (task: AgentSidebarTaskNode, hasActiveSubagent?: boolean) => {
-    agentType: 'main' | 'custom';
-    hasActiveSubagent?: boolean;
-    isCurrentSession: boolean;
-    isPinned: boolean;
-    taskStatus: string;
-  };
 }
 
 const ACTION_MENU_VIEWPORT_PADDING = 8;
@@ -99,8 +80,6 @@ const AgentTreeNode: React.FC<AgentTreeNodeProps> = ({
   onRenameTask,
   onToggleSelection,
   onEnterBatchMode,
-  onSidebarAction,
-  getTaskActionParams,
 }) => {
   const [menuPosition, setMenuPosition] = useState<{ right: number; top: number } | null>(null);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
@@ -254,11 +233,6 @@ const AgentTreeNode: React.FC<AgentTreeNodeProps> = ({
   };
 
   const handleAgentClick = (event: React.MouseEvent) => {
-    onSidebarAction?.('agent_header_click', {
-      agentType: isMainAgent ? 'main' : 'custom',
-      isExpanded: agent.isExpanded,
-      isPinned: agent.pinned,
-    });
     onToggleExpanded(agent.id);
     handleCreateTask(event);
   };
@@ -266,11 +240,6 @@ const AgentTreeNode: React.FC<AgentTreeNodeProps> = ({
   // The disclosure only folds the task list; unlike the row it does not start a new task.
   const handleToggleExpanded = (event: React.MouseEvent) => {
     event.stopPropagation();
-    onSidebarAction?.('agent_expand_toggle', {
-      agentType: isMainAgent ? 'main' : 'custom',
-      isExpanded: agent.isExpanded,
-      isPinned: agent.pinned,
-    });
     onToggleExpanded(agent.id);
   };
 
@@ -278,11 +247,6 @@ const AgentTreeNode: React.FC<AgentTreeNodeProps> = ({
     event.stopPropagation();
     if (isMainAgent) return;
     closeMenu();
-    onSidebarAction?.('agent_delete_confirm_open', {
-      agentType: 'custom',
-      isExpanded: agent.isExpanded,
-      isPinned: agent.pinned,
-    });
     setShowConfirmDelete(true);
   };
 
@@ -342,11 +306,6 @@ const AgentTreeNode: React.FC<AgentTreeNodeProps> = ({
               }
               const position = calculateMenuPosition();
               if (position) {
-                onSidebarAction?.('agent_menu_open', {
-                  agentType: isMainAgent ? 'main' : 'custom',
-                  isExpanded: agent.isExpanded,
-                  isPinned: agent.pinned,
-                });
                 setMenuPosition(position);
               }
             }}
@@ -423,19 +382,9 @@ const AgentTreeNode: React.FC<AgentTreeNodeProps> = ({
             cancelLabel={i18nService.t('cancel')}
             confirmLabel={i18nService.t('delete')}
             onCancel={() => {
-              onSidebarAction?.('agent_delete_cancel', {
-                agentType: 'custom',
-                isExpanded: agent.isExpanded,
-                isPinned: agent.pinned,
-              });
               setShowConfirmDelete(false);
             }}
             onConfirm={() => {
-              onSidebarAction?.('agent_delete_submit', {
-                agentType: 'custom',
-                isExpanded: agent.isExpanded,
-                isPinned: agent.pinned,
-              });
               setShowConfirmDelete(false);
               void onDeleteAgent(agent);
             }}
@@ -495,8 +444,6 @@ const AgentTreeNode: React.FC<AgentTreeNodeProps> = ({
                   onRename={(title) => onRenameTask(item.task, title)}
                   onToggleSelection={() => onToggleSelection(createSessionBatchKey(item.task.id), item.task.agentId)}
                   onEnterBatchMode={() => onEnterBatchMode(item.task)}
-                  onSidebarAction={onSidebarAction}
-                  analyticsParams={getTaskActionParams?.(item.task)}
                 />
               ))}
 

@@ -16,7 +16,7 @@ import type { RunFilter, ScheduledTask, ScheduledTaskRun } from '../../../schedu
 import { i18nService } from '../../services/i18n';
 import { scheduledTaskService } from '../../services/scheduledTask';
 import { RootState } from '../../store';
-import { getFilterAnalyticsParams, getRunAnalyticsParams, getTaskAnalyticsParams, reportScheduledTaskAction } from './analytics';
+
 import DateInput from './DateInput';
 import RunSessionModal from './RunSessionModal';
 import { formatDateTime, formatDuration } from './utils';
@@ -69,7 +69,6 @@ const EMPTY_FILTER: RunFilter = {};
 
 const TaskRunHistory: React.FC<TaskRunHistoryProps> = ({ task, runs }) => {
   const taskId = task.id;
-  const availableModels = useSelector((state: RootState) => state.model.availableModels);
   const hasMore = useSelector(
     (state: RootState) => state.scheduledTask.runsHasMore[taskId] ?? false,
   );
@@ -81,10 +80,6 @@ const TaskRunHistory: React.FC<TaskRunHistoryProps> = ({ task, runs }) => {
   const displayedRuns = useMemo(
     () => (hasActiveFilter ? runs.filter(createRunFilter(filter)) : runs),
     [runs, filter, hasActiveFilter],
-  );
-  const taskAnalyticsParams = useMemo(
-    () => getTaskAnalyticsParams(task, availableModels),
-    [availableModels, task],
   );
 
   const loadInitial = useCallback(
@@ -105,12 +100,6 @@ const TaskRunHistory: React.FC<TaskRunHistoryProps> = ({ task, runs }) => {
   };
 
   const handleClearFilter = () => {
-    reportScheduledTaskAction('task_history_filter_clear', {
-      source: 'scheduled_task_history',
-      resultCount: displayedRuns.length,
-      ...taskAnalyticsParams,
-      ...getFilterAnalyticsParams(filter),
-    });
     handleFilterChange(EMPTY_FILTER);
   };
 
@@ -119,34 +108,14 @@ const TaskRunHistory: React.FC<TaskRunHistoryProps> = ({ task, runs }) => {
       ...filter,
       status: filter.status === status ? undefined : status,
     };
-    reportScheduledTaskAction('task_history_filter_status', {
-      source: 'scheduled_task_history',
-      targetStatus: status,
-      selected: nextFilter.status === status,
-      resultCount: displayedRuns.length,
-      ...taskAnalyticsParams,
-      ...getFilterAnalyticsParams(nextFilter),
-    });
     handleFilterChange(nextFilter);
   };
 
   const handleLoadMore = async () => {
-    reportScheduledTaskAction('task_history_load_more', {
-      source: 'scheduled_task_history',
-      loadedCount: runs.length,
-      ...taskAnalyticsParams,
-      ...getFilterAnalyticsParams(filter),
-    });
     await scheduledTaskService.loadRuns(taskId, 50, runs.length, filter);
   };
 
   const handleDateFilterChange = (newFilter: RunFilter) => {
-    reportScheduledTaskAction('task_history_filter_date', {
-      source: 'scheduled_task_history',
-      resultCount: displayedRuns.length,
-      ...taskAnalyticsParams,
-      ...getFilterAnalyticsParams(newFilter),
-    });
     handleFilterChange(newFilter);
   };
 
@@ -220,11 +189,6 @@ const TaskRunHistory: React.FC<TaskRunHistoryProps> = ({ task, runs }) => {
                 type="button"
                 disabled={!canView}
                 onClick={() => {
-                  reportScheduledTaskAction('task_history_view_session', {
-                    source: 'scheduled_task_history',
-                    ...taskAnalyticsParams,
-                    ...getRunAnalyticsParams(run),
-                  });
                   setViewingRun(run);
                 }}
                 className="flex w-full items-center gap-3 rounded-md px-2 py-2.5 text-left transition-colors enabled:cursor-pointer enabled:hover:bg-surface-raised/60 disabled:cursor-default"

@@ -1,7 +1,7 @@
 # 品牌迁移 HiAi 验收单
 
 日期：2026-10-15
-分支：`feature/rebrand-hiai`（基于 `main`，截至本文 32 个提交，未推送、未合并）
+分支：`feature/rebrand-hiai`（基于 `main`，截至本文 32 个提交）。**已合入 `develop`（`21074a6`）并删除分支**，与 `main` 同名提交亦已同步。
 范围：`main...feature/rebrand-hiai` 全量 diff（333 文件，+3209 / −2992）。
 
 ## 1. 问题定义
@@ -139,5 +139,6 @@ LobsterAI 更名 HiAi。改名涉及三层：
 
 - [x] AC-RB-10：GUI 冒烟完成。迁移与 scheme 两项**经用户决定跳过**（依据见 §3.1），
       不阻塞验收；如线上出现对应问题再回本单排查。
-- [ ] 分支合并：验收已全部闭环，可合回 `develop`（Git Flow）。**推送由用户手动执行**。
+- [x] 分支合并：已合回 `develop`（`21074a6 Merge branch 'feature/rebrand-hiai' into develop`），
+      本地分支已删除，远端无该分支。本条闭环。
 - §4 表格是「允许保留」的权威清单；后续若发现表中之外的旧品牌命中，按品牌残留处理并更新本单。

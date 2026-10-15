@@ -30,11 +30,7 @@ import PlusCircleIcon from '../icons/PlusCircleIcon';
 import SearchIcon from '../icons/SearchIcon';
 import TrashIcon from '../icons/TrashIcon';
 import UploadIcon from '../icons/UploadIcon';
-import {
-  getInstalledSkillAnalyticsParams,
-  getMarketplaceSkillAnalyticsParams,
-  reportSkillAction,
-} from './analytics';
+
 import { SKILL_LOAD_ISSUE_I18N_KEYS } from './skillLoadIssue';
 import SkillSecurityReport from './SkillSecurityReport';
 import { SKILL_TAB_LABEL_KEYS, SKILL_TAB_ORDER, SkillTab } from './skillTabs';
@@ -268,40 +264,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     return results;
   }, [marketplaceSkills, skillSearchQuery, activeMarketTag]);
 
-  useEffect(() => {
-    const query = skillSearchQuery.trim();
-    if (!query) return undefined;
-    const resultCount = activeTab === SkillTab.Marketplace
-      ? filteredMarketplaceSkills.length
-      : filteredSkills.length;
-    const timer = window.setTimeout(() => {
-      reportSkillAction('search', {
-        source: 'skills_manager',
-        activeTab,
-        activeMarketTag,
-        searchKeywordLength: query.length,
-        resultCount,
-      });
-    }, 600);
-    return () => window.clearTimeout(timer);
-  }, [
-    activeMarketTag,
-    activeTab,
-    filteredMarketplaceSkills.length,
-    filteredSkills.length,
-    skillSearchQuery,
-  ]);
-
-  useEffect(() => {
-    if (!securityReport) return;
-    reportSkillAction('security_report_open', {
-      source: 'skills_manager',
-      sourceType: pendingImportSource ?? 'marketplace',
-      riskLevel: securityReport.riskLevel,
-      findingsCount: securityReport.findings?.length ?? 0,
-    });
-  }, [pendingImportSource, securityReport]);
-
   const formatSkillDate = (timestamp: number) => {
     const date = new Date(timestamp);
     const locale = i18nService.getLanguage() === 'zh' ? 'zh-CN' : 'en-US';
@@ -311,35 +273,13 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
   const handleToggleSkill = async (skillId: string) => {
     const targetSkill = skills.find(skill => skill.id === skillId);
     if (!targetSkill) return;
-    const marketplaceSkill = marketplaceSkills.find(skill => skill.id === skillId);
     const targetEnabled = !targetSkill.enabled;
-    reportSkillAction('toggle_enabled', {
-      source: 'skills_manager',
-      activeTab,
-      targetEnabled,
-      ...getInstalledSkillAnalyticsParams(targetSkill, marketplaceSkill),
-    });
     try {
       const updatedSkills = await skillService.setSkillEnabled(skillId, targetEnabled);
       dispatch(setSkills(updatedSkills));
       setSkillActionError('');
-      reportSkillAction('toggle_enabled_success', {
-        source: 'skills_manager',
-        activeTab,
-        targetEnabled,
-        result: 'success',
-        ...getInstalledSkillAnalyticsParams(targetSkill, marketplaceSkill),
-      });
     } catch (error) {
       setSkillActionError(error instanceof Error ? error.message : i18nService.t('skillUpdateFailed'));
-      reportSkillAction('toggle_enabled_failed', {
-        source: 'skills_manager',
-        activeTab,
-        targetEnabled,
-        result: 'failed',
-        errorCode: 'toggle_failed',
-        ...getInstalledSkillAnalyticsParams(targetSkill, marketplaceSkill),
-      });
     }
   };
 
@@ -349,25 +289,12 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       return;
     }
     setSkillActionError('');
-    reportSkillAction('delete_confirm_open', {
-      source: 'skills_manager',
-      activeTab,
-      ...getInstalledSkillAnalyticsParams(skill, marketplaceSkills.find(item => item.id === skill.id)),
-    });
     setSkillPendingDelete(skill);
   };
 
   const handleCancelDeleteSkill = () => {
     if (isDeletingSkill) return;
     if (skillPendingDelete) {
-      reportSkillAction('delete_confirm_cancel', {
-        source: 'skills_manager',
-        activeTab,
-        ...getInstalledSkillAnalyticsParams(
-          skillPendingDelete,
-          marketplaceSkills.find(item => item.id === skillPendingDelete.id),
-        ),
-      });
     }
     setSkillPendingDelete(null);
   };
@@ -380,30 +307,11 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     if (!result.success) {
       setSkillActionError(result.error || i18nService.t('skillDeleteFailed'));
       setIsDeletingSkill(false);
-      reportSkillAction('delete_failed', {
-        source: 'skills_manager',
-        activeTab,
-        result: 'failed',
-        errorCode: 'delete_failed',
-        ...getInstalledSkillAnalyticsParams(
-          skillPendingDelete,
-          marketplaceSkills.find(item => item.id === skillPendingDelete.id),
-        ),
-      });
       return;
     }
     if (result.skills) {
       dispatch(setSkills(result.skills));
     }
-    reportSkillAction('delete_success', {
-      source: 'skills_manager',
-      activeTab,
-      result: 'success',
-      ...getInstalledSkillAnalyticsParams(
-        skillPendingDelete,
-        marketplaceSkills.find(item => item.id === skillPendingDelete.id),
-      ),
-    });
     setIsDeletingSkill(false);
     setSkillPendingDelete(null);
   };
@@ -413,12 +321,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     if (!trimmedSource) return;
     setIsDownloadingSkill(true);
     setSkillActionError('');
-    reportSkillAction('import_submit', {
-      source: 'skills_manager',
-      sourceType,
-      importTab,
-      activeTab,
-    });
     const result = await skillService.downloadSkill(trimmedSource);
     setIsDownloadingSkill(false);
     console.log('[SkillsManager] downloadSkill result:', JSON.stringify({
@@ -431,13 +333,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     }));
     if (!result.success) {
       setSkillActionError(result.error || i18nService.t('skillDownloadFailed'));
-      reportSkillAction('import_failed', {
-        source: 'skills_manager',
-        sourceType,
-        importTab,
-        result: 'failed',
-        errorCode: 'import_failed',
-      });
       return;
     }
     // Security audit returned — show report modal
@@ -452,12 +347,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       dispatch(setSkills(result.skills));
     }
     showToast(i18nService.t('skillImportSuccess'));
-    reportSkillAction('import_success', {
-      source: 'skills_manager',
-      sourceType,
-      importTab,
-      result: 'success',
-    });
     setSkillDownloadSource('');
     setIsAddSkillMenuOpen(false);
     setIsRemoteImportOpen(false);
@@ -465,11 +354,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
 
   const handleUploadSkillZip = async () => {
     if (isDownloadingSkill) return;
-    reportSkillAction('upload_zip_open', {
-      source: 'skills_manager',
-      activeTab,
-      sourceType: 'zip',
-    });
     const result = await window.electron.dialog.selectFile({
       title: i18nService.t('uploadSkillZip'),
       filters: [{ name: 'Zip', extensions: ['zip'] }],
@@ -481,11 +365,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
 
   const handleUploadSkillFolder = async () => {
     if (isDownloadingSkill) return;
-    reportSkillAction('upload_folder_open', {
-      source: 'skills_manager',
-      activeTab,
-      sourceType: 'folder',
-    });
     const result = await window.electron.dialog.selectDirectory();
     if (result.success && result.path) {
       await handleAddSkillFromSource(result.path, 'folder');
@@ -496,31 +375,17 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     setIsAddSkillMenuOpen(false);
     setSkillActionError('');
     setSkillDownloadSource('');
-    reportSkillAction('remote_import_open', {
-      source: 'skills_manager',
-      activeTab,
-      importTab,
-    });
     setIsRemoteImportOpen(true);
   };
 
   const handleCreateByChat = () => {
     setIsAddSkillMenuOpen(false);
     const skillCreator = skills.find(s => s.id === 'skill-creator');
-    reportSkillAction('create_by_chat', {
-      source: 'skills_manager',
-      activeTab,
-    });
 
     if (!skillCreator) {
       // Not installed → switch to marketplace tab and search
       setActiveTab(SkillTab.Marketplace);
       setSkillSearchQuery('skill-creator');
-      reportSkillAction('create_by_chat_missing_skill', {
-        source: 'skills_manager',
-        activeTab: SkillTab.Marketplace,
-        skillId: 'skill-creator',
-      });
       window.dispatchEvent(new CustomEvent('app:showToast', { detail: i18nService.t('skillCreatorNotInstalled') }));
       return;
     }
@@ -530,11 +395,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       const ownerTab = skillCreator.isBuiltIn ? SkillTab.BuiltIn : SkillTab.Mine;
       setActiveTab(ownerTab);
       setSkillSearchQuery('skill-creator');
-      reportSkillAction('create_by_chat_disabled_skill', {
-        source: 'skills_manager',
-        activeTab: ownerTab,
-        ...getInstalledSkillAnalyticsParams(skillCreator, marketplaceSkills.find(item => item.id === skillCreator.id)),
-      });
       window.dispatchEvent(new CustomEvent('app:showToast', { detail: i18nService.t('skillCreatorNotEnabled') }));
       return;
     }
@@ -544,25 +404,12 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
 
   const handleSyncFromOpenClaw = async () => {
     setIsSyncingFromOpenClaw(true);
-    reportSkillAction('sync_from_openclaw_submit', {
-      source: 'skills_manager',
-      detectedCount: detectedOpenClawSkills?.length ?? 0,
-    });
     try {
       await window.electron?.skills.syncFromOpenClaw();
       setDetectedOpenClawSkills(null);
       showToast(i18nService.t('skillsSyncSuccess'));
-      reportSkillAction('sync_from_openclaw_success', {
-        source: 'skills_manager',
-        result: 'success',
-      });
     } catch {
       showToast(i18nService.t('skillsSyncFailed'));
-      reportSkillAction('sync_from_openclaw_failed', {
-        source: 'skills_manager',
-        result: 'failed',
-        errorCode: 'sync_failed',
-      });
     } finally {
       setIsSyncingFromOpenClaw(false);
     }
@@ -570,10 +417,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
 
   const handleManualOpenClawSync = async () => {
     setIsAddSkillMenuOpen(false);
-    reportSkillAction('manual_openclaw_sync', {
-      source: 'skills_manager',
-      activeTab,
-    });
     const result = await window.electron?.skills.detectFromOpenClaw();
     if (result?.skills?.length > 0) {
       setDetectedOpenClawSkills(result.skills);
@@ -607,11 +450,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       }
     }
 
-    reportSkillAction('remote_import_submit', {
-      source: 'skills_manager',
-      importTab,
-      sourceType: 'remote',
-    });
     await handleAddSkillFromSource(trimmed, 'remote');
   };
 
@@ -648,11 +486,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       targetVersion: skill.version ?? null,
       activeTab,
     });
-    reportSkillAction('upgrade_submit', {
-      source: 'skills_manager',
-      activeTab,
-      ...getMarketplaceSkillAnalyticsParams(skill, installedSkill),
-    });
     setUpgradeState({
       isActive: true,
       total: 1,
@@ -672,13 +505,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
           targetVersion: skill.version ?? null,
           activeTab,
           error: result.error ?? null,
-        });
-        reportSkillAction('upgrade_failed', {
-          source: 'skills_manager',
-          activeTab,
-          result: 'failed',
-          errorCode: 'upgrade_failed',
-          ...getMarketplaceSkillAnalyticsParams(skill, installedSkill),
         });
         return;
       }
@@ -700,12 +526,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       if (result.skills) {
         dispatch(setSkills(result.skills));
       }
-      reportSkillAction('upgrade_success', {
-        source: 'skills_manager',
-        activeTab,
-        result: 'success',
-        ...getMarketplaceSkillAnalyticsParams(skill, installedSkill),
-      });
       console.log('[SkillsManager] upgrade finished', {
         skillId: skill.id,
         skillName: skill.name,
@@ -723,13 +543,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
         targetVersion: skill.version ?? null,
         activeTab,
       }, error);
-      reportSkillAction('upgrade_failed', {
-        source: 'skills_manager',
-        activeTab,
-        result: 'failed',
-        errorCode: 'upgrade_failed',
-        ...getMarketplaceSkillAnalyticsParams(skill, installedSkill),
-      });
     } finally {
       setUpgradeState(null);
     }
@@ -739,11 +552,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     if (upgradeState?.isActive || updatableSkills.length === 0) return;
     setSkillActionError('');
     upgradeCancelledRef.current = false;
-    reportSkillAction('upgrade_all_submit', {
-      source: 'skills_manager',
-      activeTab,
-      updatableCount: updatableSkills.length,
-    });
 
     const toUpdate = [...updatableSkills];
     console.log('[SkillsManager] upgrade all started', {
@@ -828,35 +636,16 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       activeTab,
       result: upgradeCancelledRef.current ? 'cancel' : 'success',
     });
-    reportSkillAction('upgrade_all_finished', {
-      source: 'skills_manager',
-      activeTab,
-      updatableCount: toUpdate.length,
-      result: upgradeCancelledRef.current ? 'cancel' : 'success',
-    });
   };
 
   const handleInstallMarketplaceSkill = async (skill: MarketplaceSkill) => {
     if (installingSkillId || !skill.url) return;
-    const installedSkill = skills.find(item => item.id === skill.id);
     setInstallingSkillId(skill.id);
     setSkillActionError('');
-    reportSkillAction('marketplace_install_submit', {
-      source: 'skills_manager',
-      activeTab,
-      ...getMarketplaceSkillAnalyticsParams(skill, installedSkill),
-    });
     try {
       const result = await skillService.downloadSkill(skill.url);
       if (!result.success) {
         setSkillActionError(result.error || i18nService.t('skillInstallFailed'));
-        reportSkillAction('marketplace_install_failed', {
-          source: 'skills_manager',
-          activeTab,
-          result: 'failed',
-          errorCode: 'install_failed',
-          ...getMarketplaceSkillAnalyticsParams(skill, installedSkill),
-        });
         return;
       }
       // Security audit returned — show report modal
@@ -869,21 +658,8 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       if (result.skills) {
         dispatch(setSkills(result.skills));
       }
-      reportSkillAction('marketplace_install_success', {
-        source: 'skills_manager',
-        activeTab,
-        result: 'success',
-        ...getMarketplaceSkillAnalyticsParams(skill, installedSkill),
-      });
     } catch {
       setSkillActionError(i18nService.t('skillInstallFailed'));
-      reportSkillAction('marketplace_install_failed', {
-        source: 'skills_manager',
-        activeTab,
-        result: 'failed',
-        errorCode: 'install_failed',
-        ...getMarketplaceSkillAnalyticsParams(skill, installedSkill),
-      });
     } finally {
       setInstallingSkillId(null);
     }
@@ -892,14 +668,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
   const handleSecurityReportAction = async (action: 'install' | 'installDisabled' | 'cancel') => {
     if (!pendingInstallId) return;
     setIsConfirmingInstall(true);
-    reportSkillAction('security_report_action', {
-      source: 'skills_manager',
-      securityAction: action,
-      sourceType: pendingImportSource ?? 'marketplace',
-      riskLevel: securityReport?.riskLevel,
-      findingsCount: securityReport?.findings?.length ?? 0,
-      result: action === 'cancel' ? 'cancel' : undefined,
-    });
     try {
       const result = await skillService.confirmInstall(pendingInstallId, action);
       if (result.success && result.skills) {
@@ -944,14 +712,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
   };
 
   const handleUseSkill = (skill: Skill) => {
-    reportSkillAction('use_skill', {
-      source: 'skills_manager',
-      activeTab,
-      ...getInstalledSkillAnalyticsParams(
-        skill,
-        marketplaceSkills.find(item => item.id === skill.id),
-      ),
-    });
     setSelectedSkill(null);
     onUseSkill?.(skill.id);
   };
@@ -1052,15 +812,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
 
   const renderInstalledSkillCard = (skill: Skill, showOriginBadge: boolean) => {
     const openInstalledDetail = () => {
-      reportSkillAction('open_installed_detail', {
-        source: 'skills_manager',
-        activeTab,
-        resultCount: filteredSkills.length,
-        ...getInstalledSkillAnalyticsParams(
-          skill,
-          marketplaceSkills.find(item => item.id === skill.id),
-        ),
-      });
       setSelectedSkill(skill);
     };
     const displayName = skillService.getLocalizedSkillName(skill.id, skill.name);
@@ -1172,15 +923,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
             <button
               type="button"
               onClick={() => {
-                reportSkillAction('clear_search', {
-                  source: 'skills_manager',
-                  activeTab,
-                  activeMarketTag,
-                  searchKeywordLength: skillSearchQuery.trim().length,
-                  resultCount: activeTab === SkillTab.Marketplace
-                    ? filteredMarketplaceSkills.length
-                    : filteredSkills.length,
-                });
                 setSkillSearchQuery('');
               }}
               className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-secondary hover:text-primary transition-colors"
@@ -1197,10 +939,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
               setIsAddSkillMenuOpen(prev => {
                 const next = !prev;
                 if (next) {
-                  reportSkillAction('add_menu_open', {
-                    source: 'skills_manager',
-                    activeTab,
-                  });
                 }
                 return next;
               });
@@ -1277,11 +1015,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                 key={tab}
                 type="button"
                 onClick={() => {
-                  reportSkillAction('tab_change', {
-                    source: 'skills_manager',
-                    activeTab,
-                    targetTab: tab,
-                  });
                   setActiveTab(tab);
                 }}
                 className={`relative px-2.5 pb-2.5 pt-0.5 ${MANAGEMENT_TITLE_TEXT} font-semibold transition-colors ${
@@ -1323,13 +1056,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
             <button
               type="button"
               onClick={() => {
-                reportSkillAction('market_tag_change', {
-                  source: 'skills_manager',
-                  activeTab,
-                  activeMarketTag,
-                  targetMarketTag: 'all',
-                  resultCount: filteredMarketplaceSkills.length,
-                });
                 setActiveMarketTag('all');
               }}
               className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
@@ -1345,13 +1071,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                 key={tag.id}
                 type="button"
                 onClick={() => {
-                  reportSkillAction('market_tag_change', {
-                    source: 'skills_manager',
-                    activeTab,
-                    activeMarketTag,
-                    targetMarketTag: tag.id,
-                    resultCount: filteredMarketplaceSkills.length,
-                  });
                   setActiveMarketTag(tag.id);
                 }}
                 className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
@@ -1396,10 +1115,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                 <button
                   type="button"
                   onClick={() => {
-                    reportSkillAction('empty_guide_action', {
-                      source: 'skills_manager',
-                      targetAction: SkillTab.Marketplace,
-                    });
                     setActiveTab(SkillTab.Marketplace);
                   }}
                   className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs text-foreground hover:bg-surface-raised transition-colors"
@@ -1410,10 +1125,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                 <button
                   type="button"
                   onClick={() => {
-                    reportSkillAction('empty_guide_action', {
-                      source: 'skills_manager',
-                      targetAction: 'upload_zip',
-                    });
                     handleUploadSkillZip();
                   }}
                   disabled={isDownloadingSkill}
@@ -1425,10 +1136,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                 <button
                   type="button"
                   onClick={() => {
-                    reportSkillAction('empty_guide_action', {
-                      source: 'skills_manager',
-                      targetAction: 'create_by_chat',
-                    });
                     handleCreateByChat();
                   }}
                   className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs text-foreground hover:bg-surface-raised transition-colors"
@@ -1474,16 +1181,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
               <div className={SKILL_LIST_CONTAINER_CLASS}>
                 {filteredMarketplaceSkills.map((skill) => {
                   const openMarketplaceDetail = () => {
-                    reportSkillAction('open_marketplace_detail', {
-                      source: 'skills_manager',
-                      activeTab,
-                      activeMarketTag,
-                      resultCount: filteredMarketplaceSkills.length,
-                      ...getMarketplaceSkillAnalyticsParams(
-                        skill,
-                        skills.find(item => item.id === skill.id),
-                      ),
-                    });
                     setSelectedMarketplaceSkill(skill);
                   };
                   const installedVer = getInstalledVersion(skill.id);
@@ -1575,14 +1272,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       {selectedMarketplaceSkill && createPortal(
         <Modal
           onClose={() => {
-            reportSkillAction('close_marketplace_detail', {
-              source: 'skills_manager',
-              activeTab,
-              ...getMarketplaceSkillAnalyticsParams(
-                selectedMarketplaceSkill,
-                skills.find(item => item.id === selectedMarketplaceSkill.id),
-              ),
-            });
             setSelectedMarketplaceSkill(null);
           }}
           overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
@@ -1594,14 +1283,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
               <button
                 type="button"
                 onClick={() => {
-                  reportSkillAction('close_marketplace_detail', {
-                    source: 'skills_manager',
-                    activeTab,
-                    ...getMarketplaceSkillAnalyticsParams(
-                      selectedMarketplaceSkill,
-                      skills.find(item => item.id === selectedMarketplaceSkill.id),
-                    ),
-                  });
                   setSelectedMarketplaceSkill(null);
                 }}
                 aria-label={i18nService.t('close')}
@@ -1704,14 +1385,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       {selectedSkill && createPortal(
         <Modal
           onClose={() => {
-            reportSkillAction('close_installed_detail', {
-              source: 'skills_manager',
-              activeTab,
-              ...getInstalledSkillAnalyticsParams(
-                selectedSkill,
-                marketplaceSkills.find(item => item.id === selectedSkill.id),
-              ),
-            });
             setSelectedSkill(null);
           }}
           overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
@@ -1724,14 +1397,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
               <button
                 type="button"
                 onClick={() => {
-                  reportSkillAction('close_installed_detail', {
-                    source: 'skills_manager',
-                    activeTab,
-                    ...getInstalledSkillAnalyticsParams(
-                      selectedSkill,
-                      marketplaceSkills.find(item => item.id === selectedSkill.id),
-                    ),
-                  });
                   setSelectedSkill(null);
                 }}
                 aria-label={i18nService.t('close')}
@@ -1892,11 +1557,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       {isRemoteImportOpen && createPortal(
         <Modal
           onClose={() => {
-            reportSkillAction('remote_import_close', {
-              source: 'skills_manager',
-              importTab,
-              sourceType: 'remote',
-            });
             setIsRemoteImportOpen(false);
             setSkillActionError('');
           }}
@@ -1910,11 +1570,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
               <button
                 type="button"
                 onClick={() => {
-                  reportSkillAction('remote_import_close', {
-                    source: 'skills_manager',
-                    importTab,
-                    sourceType: 'remote',
-                  });
                   setIsRemoteImportOpen(false);
                   setSkillActionError('');
                 }}
@@ -1930,11 +1585,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                   key={type}
                   type="button"
                   onClick={() => {
-                    reportSkillAction('remote_import_open', {
-                      source: 'skills_manager',
-                      importTab: type,
-                      sourceType: type,
-                    });
                     setImportTab(type);
                     setSkillDownloadSource('');
                     setSkillActionError('');

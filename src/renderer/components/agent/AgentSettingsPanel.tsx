@@ -2,7 +2,6 @@ import { XMarkIcon } from '@heroicons/react/24/outline';
 import { AgentLegacyIdentityCleanupStatus } from '@shared/agent';
 import type { Platform } from '@shared/platform';
 import { PlatformRegistry } from '@shared/platform';
-import { ProviderName } from '@shared/providers';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 
@@ -10,13 +9,11 @@ import { agentService } from '../../services/agent';
 import { coworkService } from '../../services/cowork';
 import { i18nService } from '../../services/i18n';
 import { imService } from '../../services/im';
-import { LogReporterAction, reportYdAnalyzer } from '../../services/logReporter';
 import { resolveThinkingLevelForModel } from '../../services/modelThinkingLevelMemory';
 import { RootState } from '../../store';
 import type { Model } from '../../store/slices/modelSlice';
 import type { Agent } from '../../types/agent';
 import type { DingTalkInstanceConfig, DiscordInstanceConfig, FeishuInstanceConfig, IMGatewayConfig, NimInstanceConfig, PopoInstanceConfig, QQInstanceConfig, TelegramInstanceConfig, WecomInstanceConfig } from '../../types/im';
-import type { Skill } from '../../types/skill';
 import { getAgentDisplayName, getAgentDisplayNameById, isDefaultAgentId } from '../../utils/agentDisplay';
 import { resolveOpenClawModelRef, toOpenClawModelRef } from '../../utils/openclawModelRef';
 import { getVisibleIMPlatforms } from '../../utils/regionFilter';
@@ -42,34 +39,6 @@ const MULTI_INSTANCE_PLATFORMS: MultiInstancePlatform[] = ['dingtalk', 'feishu',
 const isMultiInstancePlatform = (platform: Platform): platform is MultiInstancePlatform =>
   MULTI_INSTANCE_PLATFORMS.includes(platform as MultiInstancePlatform);
 
-type AgentSettingsActionType =
-  | 'open'
-  | 'close'
-  | 'tab_change'
-  | 'save_submit'
-  | 'save_success'
-  | 'save_failed'
-  | 'discard_confirm_open'
-  | 'discard_confirm_submit'
-  | 'discard_confirm_cancel';
-
-const AGENT_SETTINGS_ANALYTICS_SOURCE = 'agent_settings_panel';
-
-const serializeAnalyticsList = (values: string[]): string | undefined => {
-  const normalizedValues = values
-    .map(value => value.trim())
-    .filter(Boolean);
-  return normalizedValues.length > 0 ? normalizedValues.join(',') : undefined;
-};
-
-const getModelAnalyticsSource = (model: Model | null): 'package' | 'custom' | undefined => {
-  if (!model) return undefined;
-  if (model.providerKey === ProviderName.LobsteraiServer) {
-    return 'package';
-  }
-  return 'custom';
-};
-
 interface AgentSettingsPanelProps {
   agentId: string | null;
   onClose: () => void;
@@ -79,7 +48,6 @@ const AgentSettingsPanel: React.FC<AgentSettingsPanelProps> = ({ agentId, onClos
   const agents = useSelector((state: RootState) => state.agent.agents);
   const availableModels = useSelector((state: RootState) => state.model.availableModels);
   const defaultSelectedModel = useSelector((state: RootState) => state.model.defaultSelectedModel);
-  const skills = useSelector((state: RootState) => state.skill.skills);
   const [, setAgent] = useState<Agent | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -154,79 +122,6 @@ const AgentSettingsPanel: React.FC<AgentSettingsPanelProps> = ({ agentId, onClos
     subagentAllowAgentIds,
     systemPrompt,
     userInfo,
-    workingDirectory,
-  ]);
-
-  const getSelectedSkills = useCallback((): Skill[] => (
-    skillIds
-      .map(skillId => skills.find(skill => skill.id === skillId))
-      .filter((skill): skill is Skill => Boolean(skill))
-  ), [skillIds, skills]);
-
-  const getImPlatformsForAnalytics = useCallback((): string[] => {
-    const platforms = new Set<string>();
-    boundKeys.forEach((key) => {
-      const platform = key.split(':')[0]?.trim();
-      if (platform) {
-        platforms.add(platform);
-      }
-    });
-    return Array.from(platforms).sort();
-  }, [boundKeys]);
-
-  const reportAgentSettingsAction = useCallback((
-    actionType: AgentSettingsActionType,
-    options: {
-      activeTab?: AgentDetailTab;
-      changedFields?: string[];
-      includeConfigDetails?: boolean;
-      isDirty?: boolean;
-      result?: 'success' | 'failed';
-      targetTab?: AgentDetailTab;
-    } = {},
-  ): void => {
-    const changedFields = options.changedFields ?? [];
-    const selectedSkills = options.includeConfigDetails ? getSelectedSkills() : [];
-    const imPlatforms = options.includeConfigDetails ? getImPlatformsForAnalytics() : [];
-    console.debug(`[AgentSettingsPanel] reporting analytics action ${actionType}`);
-    void reportYdAnalyzer({
-      action: LogReporterAction.AgentSettingsAction,
-      source: AGENT_SETTINGS_ANALYTICS_SOURCE,
-      actionType,
-      agentType: isDefaultAgentId(agentId) ? 'main' : 'custom',
-      activeTab: options.activeTab ?? activeTab,
-      targetTab: options.targetTab,
-      isDirty: options.isDirty,
-      changedFieldCount: changedFields.length,
-      changedFields: changedFields.length > 0 ? changedFields.join(',') : undefined,
-      skillCount: skillIds.length,
-      imBindingCount: boundKeys.size,
-      hasModel: Boolean(model),
-      hasWorkingDirectory: workingDirectory.trim().length > 0,
-      result: options.result,
-      modelId: options.includeConfigDetails ? model?.id : undefined,
-      modelName: options.includeConfigDetails ? model?.name : undefined,
-      modelSource: options.includeConfigDetails ? getModelAnalyticsSource(model) : undefined,
-      providerKey: options.includeConfigDetails ? model?.providerKey : undefined,
-      provider: options.includeConfigDetails ? model?.provider : undefined,
-      skillIds: options.includeConfigDetails ? serializeAnalyticsList(selectedSkills.map(skill => skill.id)) : undefined,
-      skillNames: options.includeConfigDetails ? serializeAnalyticsList(selectedSkills.map(skill => skill.name)) : undefined,
-      builtInSkillCount: options.includeConfigDetails
-        ? selectedSkills.filter(skill => skill.isBuiltIn).length
-        : undefined,
-      customSkillCount: options.includeConfigDetails
-        ? selectedSkills.filter(skill => !skill.isBuiltIn).length
-        : undefined,
-      imPlatforms: options.includeConfigDetails ? serializeAnalyticsList(imPlatforms) : undefined,
-    });
-  }, [
-    activeTab,
-    agentId,
-    boundKeys.size,
-    getImPlatformsForAnalytics,
-    getSelectedSkills,
-    model,
-    skillIds.length,
     workingDirectory,
   ]);
 
@@ -310,67 +205,36 @@ const AgentSettingsPanel: React.FC<AgentSettingsPanelProps> = ({ agentId, onClos
     }
     if (openedAgentIdRef.current === agentId) return;
     openedAgentIdRef.current = agentId;
-    reportAgentSettingsAction('open', {
-      activeTab: AgentDetailTab.Identity,
-      isDirty: false,
-    });
-  }, [agentId, reportAgentSettingsAction]);
-
-  const isDirty = useCallback((): boolean => {
-    return getChangedFields().length > 0;
-  }, [getChangedFields]);
+  }, [agentId]);
 
   if (!agentId) return null;
 
   const handleClose = () => {
     const changedFields = getChangedFields();
     if (changedFields.length > 0) {
-      reportAgentSettingsAction('discard_confirm_open', {
-        changedFields,
-        isDirty: true,
-      });
       setShowUnsavedConfirm(true);
     } else {
-      reportAgentSettingsAction('close', { isDirty: false });
       onClose();
     }
   };
 
   const handleConfirmDiscard = () => {
-    reportAgentSettingsAction('discard_confirm_submit', {
-      changedFields: getChangedFields(),
-      isDirty: true,
-    });
     setShowUnsavedConfirm(false);
     onClose();
   };
 
   const handleCancelDiscard = () => {
-    reportAgentSettingsAction('discard_confirm_cancel', {
-      changedFields: getChangedFields(),
-      isDirty: true,
-    });
     setShowUnsavedConfirm(false);
   };
 
   const handleTabChange = (targetTab: AgentDetailTab) => {
     if (targetTab === activeTab) return;
-    reportAgentSettingsAction('tab_change', {
-      activeTab,
-      isDirty: isDirty(),
-      targetTab,
-    });
     setActiveTab(targetTab);
   };
 
   const handleSave = async () => {
     if (!name.trim()) return;
     const changedFields = getChangedFields();
-    reportAgentSettingsAction('save_submit', {
-      changedFields,
-      includeConfigDetails: true,
-      isDirty: changedFields.length > 0,
-    });
     setSaving(true);
     try {
       const modelRef = model ? toOpenClawModelRef(model) : '';
@@ -389,12 +253,6 @@ const AgentSettingsPanel: React.FC<AgentSettingsPanelProps> = ({ agentId, onClos
         subagentAllowAgentIds,
       });
       if (!result) {
-        reportAgentSettingsAction('save_failed', {
-          changedFields,
-          includeConfigDetails: true,
-          isDirty: changedFields.length > 0,
-          result: 'failed',
-        });
         window.dispatchEvent(new CustomEvent('app:showToast', { detail: i18nService.t('agentSaveFailed') }));
         return;
       }
@@ -410,12 +268,6 @@ const AgentSettingsPanel: React.FC<AgentSettingsPanelProps> = ({ agentId, onClos
       if (bootstrapWrites.length > 0) {
         const bootstrapSaved = await Promise.all(bootstrapWrites);
         if (bootstrapSaved.some((saved) => !saved)) {
-          reportAgentSettingsAction('save_failed', {
-            changedFields,
-            includeConfigDetails: true,
-            isDirty: changedFields.length > 0,
-            result: 'failed',
-          });
           window.dispatchEvent(new CustomEvent('app:showToast', { detail: i18nService.t('agentSaveFailed') }));
           return;
         }
@@ -454,20 +306,8 @@ const AgentSettingsPanel: React.FC<AgentSettingsPanelProps> = ({ agentId, onClos
         });
         await imService.saveAndSyncConfig();
       }
-      reportAgentSettingsAction('save_success', {
-        changedFields,
-        includeConfigDetails: true,
-        isDirty: false,
-        result: 'success',
-      });
       onClose();
     } catch {
-      reportAgentSettingsAction('save_failed', {
-        changedFields,
-        includeConfigDetails: true,
-        isDirty: changedFields.length > 0,
-        result: 'failed',
-      });
       window.dispatchEvent(new CustomEvent('app:showToast', { detail: i18nService.t('agentSaveFailed') }));
     } finally {
       setSaving(false);

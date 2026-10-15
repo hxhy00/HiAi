@@ -15,7 +15,6 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import { i18nService } from '../../services/i18n';
 import { imService } from '../../services/im';
-import { LogReporterAction, reportYdAnalyzer } from '../../services/logReporter';
 import { RootState } from '../../store';
 import { clearError,setDingTalkConfig, setDingTalkInstanceConfig, setDiscordConfig, setDiscordInstanceConfig, setEmailInstanceConfig, setFeishuConfig, setFeishuInstanceConfig, setNeteaseBeeChanConfig, setNimConfig, setNimInstanceConfig, setPopoInstanceConfig, setQQConfig, setQQInstanceConfig, setTelegramInstanceConfig, setTelegramOpenClawConfig, setWecomConfig, setWecomInstanceConfig, setWeixinConfig } from '../../store/slices/imSlice';
 import type { EmailInstanceConfig, IMConnectivityCheck, IMConnectivityTestResult, IMGatewayConfig, WeixinOpenClawConfig } from '../../types/im';
@@ -80,10 +79,6 @@ const IM_AUTH_RESTART_ON_SAVE_OPTIONS = {
   markRestartOnSave: true,
 } as const;
 
-const IMAnalyticsSource = {
-  Settings: 'settings_im',
-} as const;
-
 const checkLevelColorClass: Record<IMConnectivityCheck['level'], string> = {
   pass: 'text-green-600 dark:text-green-400',
   info: 'text-sky-600 dark:text-sky-400',
@@ -103,232 +98,9 @@ const MULTI_INSTANCE_PLATFORMS = new Set<Platform>([
   'popo',
 ]);
 
-type IMAnalyticsPlatformKind = 'single_instance' | 'multi_instance';
-type IMAnalyticsInstanceOperation = 'added' | 'deleted' | 'enabled' | 'disabled';
-type IMAnalyticsGatewayOperation = 'start' | 'stop';
-
-const IM_CREDENTIAL_FIELDS = [
-  'account',
-  'aesKey',
-  'apiKey',
-  'appId',
-  'appKey',
-  'appSecret',
-  'botId',
-  'botToken',
-  'clientId',
-  'clientSecret',
-  'email',
-  'nimToken',
-  'secret',
-  'token',
-  'webhookSecret',
-] as const;
-
 const MULTI_INSTANCE_CARD_GRID_COLUMNS =
   'repeat(auto-fit, minmax(min(100%, max(260px, calc((100% - 0.75rem) / 2))), 1fr))';
 const EMPTY_MULTI_INSTANCE_CARD_GRID_COLUMNS = 'minmax(min(100%, 260px), 320px)';
-
-const getIMPlatformKind = (platform: Platform): IMAnalyticsPlatformKind => (
-  MULTI_INSTANCE_PLATFORMS.has(platform) ? 'multi_instance' : 'single_instance'
-);
-
-const getIMInstancesFromConfig = (
-  imConfig: IMGatewayConfig,
-  platform: Platform,
-): IMInstanceConfigCard[] => {
-  if (!MULTI_INSTANCE_PLATFORMS.has(platform)) {
-    return [];
-  }
-  const platformConfig = imConfig[platform as keyof IMGatewayConfig] as { instances?: IMInstanceConfigCard[] } | undefined;
-  return Array.isArray(platformConfig?.instances) ? platformConfig.instances : [];
-};
-
-const countEnabledIMInstances = (instances: IMInstanceConfigCard[]): number => (
-  instances.filter(instance => instance.enabled === true).length
-);
-
-const getIMPlatformEnabled = (imConfig: IMGatewayConfig, platform: Platform): boolean => {
-  const instances = getIMInstancesFromConfig(imConfig, platform);
-  if (instances.length > 0 || MULTI_INSTANCE_PLATFORMS.has(platform)) {
-    return countEnabledIMInstances(instances) > 0;
-  }
-  const platformConfig = imConfig[platform as keyof IMGatewayConfig] as { enabled?: boolean } | undefined;
-  return platformConfig?.enabled === true;
-};
-
-const hasIMAgentBinding = (imConfig: IMGatewayConfig, platform: Platform): boolean => {
-  const binding = imConfig.settings?.platformAgentBindings?.[platform];
-  return Boolean(binding && binding !== 'main');
-};
-
-const hasIMCredentialState = (value: unknown): boolean => {
-  if (!value || typeof value !== 'object') {
-    return false;
-  }
-  const record = value as Record<string, unknown>;
-  return IM_CREDENTIAL_FIELDS.some(field => {
-    const fieldValue = record[field];
-    return typeof fieldValue === 'string' && fieldValue.trim().length > 0;
-  });
-};
-
-const getIMCredentialStateCount = (imConfig: IMGatewayConfig, platform: Platform): number => {
-  const instances = getIMInstancesFromConfig(imConfig, platform);
-  if (instances.length > 0 || MULTI_INSTANCE_PLATFORMS.has(platform)) {
-    return instances.filter(instance => hasIMCredentialState(instance)).length;
-  }
-  return hasIMCredentialState(imConfig[platform as keyof IMGatewayConfig]) ? 1 : 0;
-};
-
-const getIMConfigStringField = (
-  value: unknown,
-  field: string,
-): string => {
-  if (!value || typeof value !== 'object') {
-    return '';
-  }
-  const fieldValue = (value as Record<string, unknown>)[field];
-  return typeof fieldValue === 'string' ? fieldValue : '';
-};
-
-const collectIMConfigFieldValues = (
-  imConfig: IMGatewayConfig,
-  platform: Platform,
-  field: string,
-): string => {
-  const instances = getIMInstancesFromConfig(imConfig, platform);
-  if (instances.length > 0 || MULTI_INSTANCE_PLATFORMS.has(platform)) {
-    return instances.map(instance => getIMConfigStringField(instance, field)).join('|');
-  }
-  return getIMConfigStringField(imConfig[platform as keyof IMGatewayConfig], field);
-};
-
-const buildIMChangedKeys = (
-  previousConfig: IMGatewayConfig | null,
-  nextConfig: IMGatewayConfig,
-  platform: Platform,
-  fallback = 'config',
-): string => {
-  if (!previousConfig) {
-    return fallback;
-  }
-
-  const changedKeys = new Set<string>();
-  const previousInstances = getIMInstancesFromConfig(previousConfig, platform);
-  const nextInstances = getIMInstancesFromConfig(nextConfig, platform);
-
-  if (previousInstances.length !== nextInstances.length) {
-    changedKeys.add('instance_count');
-  }
-  if (getIMPlatformEnabled(previousConfig, platform) !== getIMPlatformEnabled(nextConfig, platform)) {
-    changedKeys.add('enabled');
-  }
-  if (countEnabledIMInstances(previousInstances) !== countEnabledIMInstances(nextInstances)) {
-    changedKeys.add('enabled');
-  }
-  if (getIMCredentialStateCount(previousConfig, platform) !== getIMCredentialStateCount(nextConfig, platform)) {
-    changedKeys.add('credential_state');
-  }
-  if (hasIMAgentBinding(previousConfig, platform) !== hasIMAgentBinding(nextConfig, platform)) {
-    changedKeys.add('agent_binding');
-  }
-  if (
-    collectIMConfigFieldValues(previousConfig, platform, 'dmPolicy')
-    !== collectIMConfigFieldValues(nextConfig, platform, 'dmPolicy')
-  ) {
-    changedKeys.add('dm_policy');
-  }
-  if (
-    collectIMConfigFieldValues(previousConfig, platform, 'replyMode')
-    !== collectIMConfigFieldValues(nextConfig, platform, 'replyMode')
-    || collectIMConfigFieldValues(previousConfig, platform, 'replyToMode')
-    !== collectIMConfigFieldValues(nextConfig, platform, 'replyToMode')
-    || collectIMConfigFieldValues(previousConfig, platform, 'replyTo')
-    !== collectIMConfigFieldValues(nextConfig, platform, 'replyTo')
-  ) {
-    changedKeys.add('reply_mode');
-  }
-  if (
-    collectIMConfigFieldValues(previousConfig, platform, 'connectionMode')
-    !== collectIMConfigFieldValues(nextConfig, platform, 'connectionMode')
-  ) {
-    changedKeys.add('connection_mode');
-  }
-
-  return changedKeys.size > 0 ? Array.from(changedKeys).sort().join(',') : fallback;
-};
-
-const reportIMSettingsSaved = (
-  platform: Platform,
-  nextConfig: IMGatewayConfig,
-  previousConfig: IMGatewayConfig | null = null,
-  fallbackChangedKeys = 'config',
-): void => {
-  const instances = getIMInstancesFromConfig(nextConfig, platform);
-  const isMultiInstance = MULTI_INSTANCE_PLATFORMS.has(platform);
-  void reportYdAnalyzer({
-    action: LogReporterAction.ImSettingsSaved,
-    source: IMAnalyticsSource.Settings,
-    platform,
-    platformKind: getIMPlatformKind(platform),
-    enabled: getIMPlatformEnabled(nextConfig, platform),
-    instanceCount: isMultiInstance ? instances.length : undefined,
-    enabledInstanceCount: isMultiInstance ? countEnabledIMInstances(instances) : undefined,
-    changedKeys: buildIMChangedKeys(previousConfig, nextConfig, platform, fallbackChangedKeys),
-    hasAgentBinding: hasIMAgentBinding(nextConfig, platform),
-  });
-};
-
-const reportIMConnectionTested = (
-  platform: Platform,
-  result: IMConnectivityTestResult | null,
-): void => {
-  const checks = result?.checks ?? [];
-  void reportYdAnalyzer({
-    action: LogReporterAction.ImConnectionTested,
-    source: IMAnalyticsSource.Settings,
-    platform,
-    platformKind: getIMPlatformKind(platform),
-    result: result?.verdict ?? 'failed',
-    checkCount: result ? checks.length : undefined,
-    failedCheckCount: result ? checks.filter(check => check.level === 'fail').length : undefined,
-    warningCheckCount: result ? checks.filter(check => check.level === 'warn').length : undefined,
-  });
-};
-
-const reportIMInstanceChanged = (
-  platform: Platform,
-  operation: IMAnalyticsInstanceOperation,
-  instanceCount: number,
-  enabledInstanceCount: number,
-): void => {
-  void reportYdAnalyzer({
-    action: LogReporterAction.ImInstanceChanged,
-    source: IMAnalyticsSource.Settings,
-    platform,
-    operation,
-    instanceCount,
-    enabledInstanceCount,
-  });
-};
-
-const reportIMGatewayToggledAction = (
-  platform: Platform,
-  operation: IMAnalyticsGatewayOperation,
-  result: 'success' | 'failed',
-  failureReason?: string,
-): void => {
-  void reportYdAnalyzer({
-    action: LogReporterAction.ImGatewayToggled,
-    source: IMAnalyticsSource.Settings,
-    platform,
-    operation,
-    result,
-    platformKind: getIMPlatformKind(platform),
-    failureReason,
-  });
-};
 
 const WeixinRuntimeLastError = {
   Disabled: 'disabled',
@@ -803,7 +575,6 @@ const IMSettings: React.FC = () => {
 
         setWeixinQrStatus('success');
         await persistConnectedWeixinConfig(accountId);
-        reportIMSettingsSaved('weixin', config, null, 'credential_state,enabled');
       } else {
         setWeixinQrStatus('error');
         setWeixinQrError(waitResult.message || i18nService.t('imWeixinQrFailed'));
@@ -825,55 +596,47 @@ const IMSettings: React.FC = () => {
 
     // For Telegram, save telegram config directly
     if (activePlatform === 'telegram') {
-      const success = await imService.persistConfig({ telegram: tgMultiConfig });
-      if (success) reportIMSettingsSaved('telegram', config);
+      await imService.persistConfig({ telegram: tgMultiConfig });
       return;
     }
 
     // For Discord, save discord config directly
     if (activePlatform === 'discord') {
-      const success = await imService.persistConfig({ discord: discordMultiConfig });
-      if (success) reportIMSettingsSaved('discord', config);
+      await imService.persistConfig({ discord: discordMultiConfig });
       return;
     }
 
     // For Feishu, save feishu config directly
     if (activePlatform === 'feishu') {
-      const success = await imService.persistConfig({ feishu: feishuMultiConfig });
-      if (success) reportIMSettingsSaved('feishu', config);
+      await imService.persistConfig({ feishu: feishuMultiConfig });
       return;
     }
 
     // For QQ, save qq config directly (OpenClaw mode)
     if (activePlatform === 'qq') {
-      const success = await imService.persistConfig({ qq: qqMultiConfig });
-      if (success) reportIMSettingsSaved('qq', config);
+      await imService.persistConfig({ qq: qqMultiConfig });
       return;
     }
 
     // For WeCom, save is handled per-instance in WecomInstanceSettings
     if (activePlatform === 'wecom') {
-      const success = await imService.persistConfig({ wecom: config.wecom });
-      if (success) reportIMSettingsSaved('wecom', config);
+      await imService.persistConfig({ wecom: config.wecom });
       return;
     }
 
     // For Weixin, save weixin config directly (OpenClaw mode)
     if (activePlatform === 'weixin') {
-      const success = await imService.persistConfig({ weixin: weixinOpenClawConfig });
-      if (success) reportIMSettingsSaved('weixin', config);
+      await imService.persistConfig({ weixin: weixinOpenClawConfig });
       return;
     }
 
     // For Email, save the full email multi-instance config
     if (activePlatform === 'email') {
-      const success = await imService.persistConfig({ email: config.email ?? { instances: [] } });
-      if (success) reportIMSettingsSaved('email', config);
+      await imService.persistConfig({ email: config.email ?? { instances: [] } });
       return;
     }
 
-    const success = await imService.persistConfig({ [activePlatform]: config[activePlatform] });
-    if (success) reportIMSettingsSaved(activePlatform, config);
+    await imService.persistConfig({ [activePlatform]: config[activePlatform] });
   };
 
   // ==================== Email instance helpers ====================
@@ -925,7 +688,6 @@ const IMSettings: React.FC = () => {
     if (result) {
       setConnectivityResults((prev) => ({ ...prev, [platform]: result }));
     }
-    reportIMConnectionTested(platform, result);
     setTestingPlatform(null);
     return result;
   };
@@ -992,16 +754,12 @@ const IMSettings: React.FC = () => {
 
       if (platform === 'weixin') {
         const newEnabled = !weixinOpenClawConfig.enabled;
-        const operation: IMAnalyticsGatewayOperation = newEnabled ? 'start' : 'stop';
         const success = await imService.updateConfig({ weixin: { ...weixinOpenClawConfig, enabled: newEnabled } });
         if (success) {
           dispatch(setWeixinConfig({ enabled: newEnabled }));
           setSaveReminderTarget(platform, null, newEnabled);
           if (newEnabled) dispatch(clearError());
           await imService.loadStatus();
-          reportIMGatewayToggledAction(platform, operation, 'success');
-        } else {
-          reportIMGatewayToggledAction(platform, operation, 'failed', 'config_update_failed');
         }
         return;
       }
@@ -1013,7 +771,6 @@ const IMSettings: React.FC = () => {
 
       const isEnabled = config[platform].enabled;
       const newEnabled = !isEnabled;
-      const operation: IMAnalyticsGatewayOperation = newEnabled ? 'start' : 'stop';
 
       // Map platform to its Redux action
       const setConfigAction = getSetConfigAction(platform);
@@ -1025,9 +782,6 @@ const IMSettings: React.FC = () => {
         setSaveReminderTarget(platform, null, newEnabled);
         if (newEnabled) dispatch(clearError());
         await imService.loadStatus();
-        reportIMGatewayToggledAction(platform, operation, 'success');
-      } else {
-        reportIMGatewayToggledAction(platform, operation, 'failed', 'config_update_failed');
       }
     } finally {
       setTogglingPlatform(null);
@@ -1710,12 +1464,6 @@ const IMSettings: React.FC = () => {
     if (instance) {
       setActivePlatform(platform);
       setActiveInstanceForPlatform(platform, instance.instanceId);
-      reportIMInstanceChanged(
-        platform,
-        'added',
-        count + 1,
-        countEnabledIMInstances(instancesBefore) + (instance.enabled ? 1 : 0),
-      );
     }
   };
 
@@ -1746,8 +1494,6 @@ const IMSettings: React.FC = () => {
       setRenamingInstance(null);
     }
 
-    const instancesBefore = getInstancesForPlatform(platform);
-    const deletedInstance = instancesBefore.find(instance => instance.instanceId === instanceId);
     let success = false;
     if (platform === 'dingtalk') success = await imService.deleteDingTalkInstance(instanceId);
     if (platform === 'feishu') success = await imService.deleteFeishuInstance(instanceId);
@@ -1761,12 +1507,6 @@ const IMSettings: React.FC = () => {
 
     if (success) {
       await imService.loadStatus();
-      reportIMInstanceChanged(
-        platform,
-        'deleted',
-        Math.max(0, instancesBefore.length - 1),
-        Math.max(0, countEnabledIMInstances(instancesBefore) - (deletedInstance?.enabled ? 1 : 0)),
-      );
     }
 
     return success;
@@ -1825,13 +1565,6 @@ const IMSettings: React.FC = () => {
     if (platform === 'popo') dispatch(setPopoInstanceConfig({ instanceId: instance.instanceId, config: { enabled } }));
     setSaveReminderTarget(platform, instance.instanceId, enabled);
     if (enabled) dispatch(clearError());
-    const instancesBefore = getInstancesForPlatform(platform);
-    reportIMInstanceChanged(
-      platform,
-      enabled ? 'enabled' : 'disabled',
-      instancesBefore.length,
-      Math.max(0, countEnabledIMInstances(instancesBefore) + (enabled ? 1 : -1)),
-    );
   };
 
   const renderInstanceToggle = (platform: Platform, instance: IMInstanceConfigCard, connected: boolean) => {
@@ -2194,13 +1927,11 @@ const IMSettings: React.FC = () => {
                   const restartOnSaveOptions = override?.enabled === true && !!override.clientId && !!override.clientSecret
                     ? IM_AUTH_RESTART_ON_SAVE_OPTIONS
                     : undefined;
-                  let success = false;
                   if (selectedInstance.enabled || restartOnSaveOptions) {
-                    success = await imService.updateDingTalkInstanceConfig(activeDingTalkInstanceId, configToSave, restartOnSaveOptions);
+                    await imService.updateDingTalkInstanceConfig(activeDingTalkInstanceId, configToSave, restartOnSaveOptions);
                   } else {
-                    success = await imService.persistDingTalkInstanceConfig(activeDingTalkInstanceId, configToSave);
+                    await imService.persistDingTalkInstanceConfig(activeDingTalkInstanceId, configToSave);
                   }
-                  if (success) reportIMSettingsSaved('dingtalk', config);
                   if (typeof override?.enabled === 'boolean') {
                     setSaveReminderTarget('dingtalk', activeDingTalkInstanceId, override.enabled);
                   }
@@ -2241,13 +1972,11 @@ const IMSettings: React.FC = () => {
                   const restartOnSaveOptions = override?.enabled === true && !!override.appId && !!override.appSecret
                     ? IM_AUTH_RESTART_ON_SAVE_OPTIONS
                     : undefined;
-                  let success = false;
                   if (selectedInstance.enabled || restartOnSaveOptions) {
-                    success = await imService.updateFeishuInstanceConfig(activeFeishuInstanceId, configToSave, restartOnSaveOptions);
+                    await imService.updateFeishuInstanceConfig(activeFeishuInstanceId, configToSave, restartOnSaveOptions);
                   } else {
-                    success = await imService.persistFeishuInstanceConfig(activeFeishuInstanceId, configToSave);
+                    await imService.persistFeishuInstanceConfig(activeFeishuInstanceId, configToSave);
                   }
-                  if (success) reportIMSettingsSaved('feishu', config);
                   if (typeof override?.enabled === 'boolean') {
                     setSaveReminderTarget('feishu', activeFeishuInstanceId, override.enabled);
                   }
@@ -2285,13 +2014,11 @@ const IMSettings: React.FC = () => {
                 }}
                 onSave={async (override) => {
                   const configToSave = override ? { ...selectedInstance, ...override } : selectedInstance;
-                  let success = false;
                   if (selectedInstance.enabled) {
-                    success = await imService.updateQQInstanceConfig(activeQQInstanceId, configToSave);
+                    await imService.updateQQInstanceConfig(activeQQInstanceId, configToSave);
                   } else {
-                    success = await imService.persistQQInstanceConfig(activeQQInstanceId, configToSave);
+                    await imService.persistQQInstanceConfig(activeQQInstanceId, configToSave);
                   }
-                  if (success) reportIMSettingsSaved('qq', config);
                   if (typeof override?.enabled === 'boolean') {
                     setSaveReminderTarget('qq', activeQQInstanceId, override.enabled);
                   }
@@ -2350,12 +2077,6 @@ const IMSettings: React.FC = () => {
                       if (success) {
                         dispatch(setEmailInstanceConfig({ instanceId: inst.instanceId, config: { enabled: false } }));
                         setSaveReminderTarget('email', inst.instanceId, false);
-                        reportIMInstanceChanged(
-                          'email',
-                          'disabled',
-                          config.email.instances.length,
-                          Math.max(0, countEnabledIMInstances(config.email.instances as unknown as IMInstanceConfigCard[]) - 1),
-                        );
                       }
                       return;
                     }
@@ -2367,19 +2088,12 @@ const IMSettings: React.FC = () => {
                       const result = await imService.testGateway('email', {
                         email: { instances: [inst] },
                       } as Partial<IMGatewayConfig>);
-                      reportIMConnectionTested('email', result);
                       if (result && result.verdict !== 'fail') {
                         const success = await imService.updateEmailInstanceConfig(inst.instanceId, { enabled: true });
                         if (success) {
                           dispatch(setEmailInstanceConfig({ instanceId: inst.instanceId, config: { enabled: true } }));
                           setSaveReminderTarget('email', inst.instanceId, true);
                           dispatch(clearError());
-                          reportIMInstanceChanged(
-                            'email',
-                            'enabled',
-                            config.email.instances.length,
-                            countEnabledIMInstances(config.email.instances as unknown as IMInstanceConfigCard[]) + 1,
-                          );
                         }
                       } else {
                         void window.electron.dialog.showMessageBox({
@@ -2417,12 +2131,6 @@ const IMSettings: React.FC = () => {
                     if (success) {
                       const remaining = config.email.instances.filter(i => i.instanceId !== inst.instanceId);
                       setActiveEmailInstanceId(remaining.length > 0 ? remaining[0].instanceId : null);
-                      reportIMInstanceChanged(
-                        'email',
-                        'deleted',
-                        remaining.length,
-                        countEnabledIMInstances(remaining as unknown as IMInstanceConfigCard[]),
-                      );
                     }
                   }}
                   className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-500/10 rounded-lg transition-colors flex-shrink-0"
@@ -2670,13 +2378,11 @@ const IMSettings: React.FC = () => {
                 }}
                 onSave={async (override) => {
                   const configToSave = override ? { ...selectedInstance, ...override } : selectedInstance;
-                  let success = false;
                   if (selectedInstance.enabled) {
-                    success = await imService.updateTelegramInstanceConfig(activeTelegramInstanceId, configToSave);
+                    await imService.updateTelegramInstanceConfig(activeTelegramInstanceId, configToSave);
                   } else {
-                    success = await imService.persistTelegramInstanceConfig(activeTelegramInstanceId, configToSave);
+                    await imService.persistTelegramInstanceConfig(activeTelegramInstanceId, configToSave);
                   }
-                  if (success) reportIMSettingsSaved('telegram', config);
                   if (typeof override?.enabled === 'boolean') {
                     setSaveReminderTarget('telegram', activeTelegramInstanceId, override.enabled);
                   }
@@ -2714,13 +2420,11 @@ const IMSettings: React.FC = () => {
                 }}
                 onSave={async (override) => {
                   const configToSave = override ? { ...selectedInstance, ...override } : selectedInstance;
-                  let success = false;
                   if (selectedInstance.enabled) {
-                    success = await imService.updateDiscordInstanceConfig(activeDiscordInstanceId, configToSave);
+                    await imService.updateDiscordInstanceConfig(activeDiscordInstanceId, configToSave);
                   } else {
-                    success = await imService.persistDiscordInstanceConfig(activeDiscordInstanceId, configToSave);
+                    await imService.persistDiscordInstanceConfig(activeDiscordInstanceId, configToSave);
                   }
-                  if (success) reportIMSettingsSaved('discord', config);
                   if (typeof override?.enabled === 'boolean') {
                     setSaveReminderTarget('discord', activeDiscordInstanceId, override.enabled);
                   }
@@ -2763,13 +2467,11 @@ const IMSettings: React.FC = () => {
                     && (!!override.nimToken || !!(override.appKey && override.account && override.token))
                     ? IM_AUTH_RESTART_ON_SAVE_OPTIONS
                     : undefined;
-                  let success = false;
                   if (selectedInstance.enabled || restartOnSaveOptions) {
-                    success = await imService.updateNimInstanceConfig(activeNimInstanceId, configToSave, restartOnSaveOptions);
+                    await imService.updateNimInstanceConfig(activeNimInstanceId, configToSave, restartOnSaveOptions);
                   } else {
-                    success = await imService.persistNimInstanceConfig(activeNimInstanceId, configToSave);
+                    await imService.persistNimInstanceConfig(activeNimInstanceId, configToSave);
                   }
-                  if (success) reportIMSettingsSaved('nim', config);
                   if (typeof override?.enabled === 'boolean') {
                     setSaveReminderTarget('nim', activeNimInstanceId, override.enabled);
                   }
@@ -3134,8 +2836,7 @@ const IMSettings: React.FC = () => {
                     const configToSave = override
                       ? { ...activeWecomInstance, ...override }
                       : activeWecomInstance;
-                    const success = await imService.persistWecomInstanceConfig(activeWecomInstanceId!, configToSave);
-                    if (success) reportIMSettingsSaved('wecom', config);
+                    await imService.persistWecomInstanceConfig(activeWecomInstanceId!, configToSave);
                     if (typeof override?.enabled === 'boolean') {
                       setSaveReminderTarget('wecom', activeWecomInstanceId!, override.enabled);
                     }
@@ -3153,14 +2854,11 @@ const IMSettings: React.FC = () => {
                       if (!isMountedRef.current) return;
                       dispatch(setWecomInstanceConfig({ instanceId: activeWecomInstanceId!, config: { botId: bot.botid, secret: bot.secret, enabled: true } }));
                       dispatch(clearError());
-                      const quickSetupSaved = await imService.updateWecomInstanceConfig(
+                      await imService.updateWecomInstanceConfig(
                         activeWecomInstanceId!,
                         { botId: bot.botid, secret: bot.secret, enabled: true },
                         IM_AUTH_RESTART_ON_SAVE_OPTIONS,
                       );
-                      if (quickSetupSaved) {
-                        reportIMSettingsSaved('wecom', config, null, 'credential_state,enabled');
-                      }
                       setSaveReminderTarget('wecom', activeWecomInstanceId!, true);
                       if (!isMountedRef.current) return;
                       await imService.loadStatus();
@@ -3210,13 +2908,11 @@ const IMSettings: React.FC = () => {
                     && !!override.aesKey
                     ? IM_AUTH_RESTART_ON_SAVE_OPTIONS
                     : undefined;
-                  let success = false;
                   if (selectedInstance.enabled || restartOnSaveOptions) {
-                    success = await imService.updatePopoInstanceConfig(activePopoInstanceId, configToSave, restartOnSaveOptions);
+                    await imService.updatePopoInstanceConfig(activePopoInstanceId, configToSave, restartOnSaveOptions);
                   } else {
-                    success = await imService.persistPopoInstanceConfig(activePopoInstanceId, configToSave);
+                    await imService.persistPopoInstanceConfig(activePopoInstanceId, configToSave);
                   }
-                  if (success) reportIMSettingsSaved('popo', config);
                   if (typeof override?.enabled === 'boolean') {
                     setSaveReminderTarget('popo', activePopoInstanceId, override.enabled);
                   }

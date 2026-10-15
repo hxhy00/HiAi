@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import { DeliveryMode, PayloadKind, ScheduleKind, SessionTarget, WakeMode } from '../../../scheduledTask/constants';
 import type { ScheduledTask, ScheduledTaskChannelOption } from '../../../scheduledTask/types';
 import { i18nService } from '../../services/i18n';
-import { getScheduleAnalyticsParams } from './analytics';
+
 import { createScheduledTaskFormState } from './TaskForm';
 import {
   SCHEDULED_TASK_TEMPLATES,
@@ -269,31 +269,5 @@ describe('formatDeliveryLabel', () => {
       to: 'https://example.com/hook',
     });
     expect(label).toContain('https://example.com/hook');
-  });
-});
-
-describe('getScheduleAnalyticsParams', () => {
-  test('reports weekdays only for weekly cron schedules', () => {
-    const params = getScheduleAnalyticsParams({
-      kind: ScheduleKind.Cron,
-      expr: '30 8 * * 1,2,3,4,5',
-    });
-
-    expect(params.planType).toBe('weekly');
-    expect(params.weekdayCount).toBe(5);
-    expect(params.weekdays).toBe('1,2,3,4,5');
-    expect(params.monthDay).toBeUndefined();
-  });
-
-  test('reports monthDay only for monthly cron schedules', () => {
-    const params = getScheduleAnalyticsParams({
-      kind: ScheduleKind.Cron,
-      expr: '30 8 15 * *',
-    });
-
-    expect(params.planType).toBe('monthly');
-    expect(params.monthDay).toBe(15);
-    expect(params.weekdayCount).toBeUndefined();
-    expect(params.weekdays).toBeUndefined();
   });
 });

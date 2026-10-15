@@ -50,10 +50,6 @@ import { copyTextToClipboard } from '../../services/clipboard';
 import { i18nService } from '../../services/i18n';
 import { startLibraryBackfill } from '../../services/libraryBackfill';
 import {
-  ArtifactPreviewActionSource,
-  ArtifactPublishEntryPoint,
-} from '../artifacts/artifactAnalytics';
-import {
   ArtifactFileShareProvider,
   useOptionalArtifactFileShare,
 } from '../artifacts/ArtifactFileShareController';
@@ -70,18 +66,6 @@ import ShareUploadIcon from '../icons/ShareUploadIcon';
 import SidebarToggleIcon from '../icons/SidebarToggleIcon';
 import Tooltip, { TooltipAlign, TooltipPosition } from '../ui/Tooltip';
 import { LIBRARY_ACTION_MENU_WIDTH_PX } from './libraryActionMenuPresentation';
-import {
-  createLibraryAnalyticsOperationId,
-  createLibraryAnalyticsPageViewId,
-  getLibraryLoadedItemCountBucket,
-  LibraryAnalyticsActionType,
-  type LibraryAnalyticsContext,
-  LibraryAnalyticsControl,
-  LibraryAnalyticsEventPhase,
-  LibraryAnalyticsResult,
-  LibraryAnalyticsSurface,
-  reportLibraryAction,
-} from './libraryAnalytics';
 import {
   canShareLibraryArtifact,
   createLibraryArtifactCandidate,
@@ -365,7 +349,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
   navigationRequestId = 0,
 }) => {
   const artifactFileShare = useOptionalArtifactFileShare();
-  const [analyticsPageViewId] = useState(createLibraryAnalyticsPageViewId);
   const [source, setSource] = useState<LibrarySourceFilter>(requestedSource);
   const [category, setCategory] = useState<LibraryCategory>(LibraryCategory.All);
   const [keywordInput, setKeywordInput] = useState('');
@@ -422,10 +405,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
   const scrollContainerRef = useRef<HTMLElement>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const localSearchInputRef = useRef<HTMLInputElement>(null);
-  const pageExposureReportedRef = useRef(false);
-  const lastListResultSignatureRef = useRef('');
-  const lastReportedKeywordRef = useRef('');
-  const pendingRefreshOperationIdRef = useRef<string>();
 
   const beginLibraryLoad = useCallback((
     phase: LibraryLoadPhase,
@@ -574,78 +553,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
       finishScrollRestoration(restoration.id, false);
     }
   }, [finishScrollRestoration, localData.list.length, restoration, taskGrid.groups.length, wantsLocalGrid]);
-  const analyticsContext = useMemo<LibraryAnalyticsContext>(() => ({
-    pageViewId: analyticsPageViewId,
-    librarySource: source,
-    category,
-    ...(wantsCloud ? { availability: cloudAvailability } : {}),
-    favoritesOnly,
-    keyword,
-    viewMode: wantsCloud ? LibraryViewMode.List : viewMode,
-    isAuthenticated,
-  }), [
-    analyticsPageViewId,
-    category,
-    cloudAvailability,
-    favoritesOnly,
-    isAuthenticated,
-    keyword,
-    source,
-    viewMode,
-    wantsCloud,
-  ]);
-
-  useEffect(() => {
-    if (pageExposureReportedRef.current) return;
-    pageExposureReportedRef.current = true;
-    reportLibraryAction(analyticsContext, {
-      actionType: LibraryAnalyticsActionType.PageExposure,
-    });
-  }, [analyticsContext]);
-
-  useEffect(() => {
-    if (lastReportedKeywordRef.current === keyword) return;
-    lastReportedKeywordRef.current = keyword;
-    reportLibraryAction(analyticsContext, {
-      actionType: keyword
-        ? LibraryAnalyticsActionType.SearchApplied
-        : LibraryAnalyticsActionType.SearchCleared,
-      control: LibraryAnalyticsControl.Search,
-    });
-  }, [analyticsContext, keyword]);
-
-  const reportListResult = useCallback((
-    result: LibraryAnalyticsResult,
-    resultCount?: number,
-    hasMore?: boolean,
-  ): void => {
-    const signature = JSON.stringify({
-      librarySource: analyticsContext.librarySource,
-      category: analyticsContext.category,
-      availability: analyticsContext.availability,
-      favoritesOnly: analyticsContext.favoritesOnly,
-      hasSearch: analyticsContext.keyword.trim().length > 0,
-      result,
-      loadedItemCountBucket: getLibraryLoadedItemCountBucket(resultCount),
-      hasMore,
-      operationId: pendingRefreshOperationIdRef.current,
-    });
-    if (lastListResultSignatureRef.current === signature) return;
-    lastListResultSignatureRef.current = signature;
-    reportLibraryAction(analyticsContext, {
-      actionType: LibraryAnalyticsActionType.ListResult,
-      result,
-      loadedItemCount: resultCount,
-      hasMore,
-      ...(pendingRefreshOperationIdRef.current
-        ? {
-            operationId: pendingRefreshOperationIdRef.current,
-            eventPhase: LibraryAnalyticsEventPhase.Result,
-          }
-        : {}),
-    });
-    pendingRefreshOperationIdRef.current = undefined;
-  }, [analyticsContext]);
 
   const clearKeyword = useCallback(() => {
     setKeywordInput('');
@@ -654,11 +561,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
 
   const handleSourceChange = (nextSource: LibrarySourceFilter): void => {
     if (nextSource === source) return;
-    reportLibraryAction(analyticsContext, {
-      actionType: LibraryAnalyticsActionType.SourceChange,
-      control: LibraryAnalyticsControl.Source,
-      targetValue: nextSource,
-    });
     setActiveItem(undefined);
     setCategory(LibraryCategory.All);
     setKeywordInput('');
@@ -669,11 +571,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
 
   const handleCategoryChange = (nextCategory: LibraryCategory): void => {
     if (nextCategory === category) return;
-    reportLibraryAction(analyticsContext, {
-      actionType: LibraryAnalyticsActionType.FilterChange,
-      control: LibraryAnalyticsControl.Category,
-      targetValue: nextCategory,
-    });
     setCategory(nextCategory);
   };
 
@@ -681,31 +578,16 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
     nextAvailability: LibraryCloudAvailabilityFilter,
   ): void => {
     if (nextAvailability === cloudAvailability) return;
-    reportLibraryAction(analyticsContext, {
-      actionType: LibraryAnalyticsActionType.FilterChange,
-      control: LibraryAnalyticsControl.Availability,
-      targetValue: nextAvailability,
-    });
     setCloudAvailability(nextAvailability);
   };
 
   const handleFavoritesOnlyToggle = (): void => {
     const nextFavoritesOnly = !favoritesOnly;
-    reportLibraryAction(analyticsContext, {
-      actionType: LibraryAnalyticsActionType.FilterChange,
-      control: LibraryAnalyticsControl.Favorites,
-      targetValue: nextFavoritesOnly,
-    });
     setFavoritesOnly(nextFavoritesOnly);
   };
 
   const handleViewModeChange = (nextViewMode: LibraryViewMode): void => {
     if (nextViewMode === viewMode) return;
-    reportLibraryAction(analyticsContext, {
-      actionType: LibraryAnalyticsActionType.ViewModeChange,
-      control: LibraryAnalyticsControl.ViewMode,
-      targetValue: nextViewMode,
-    });
     setViewMode(nextViewMode);
   };
 
@@ -804,13 +686,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
             ...localResult.data,
             list: append ? [...localDataRef.current.list, ...localResult.data.list] : localResult.data.list,
           };
-          if (!append) {
-            reportListResult(
-              LibraryAnalyticsResult.Success,
-              nextData.list.length,
-              nextData.hasMore,
-            );
-          }
           localDataRef.current = nextData;
           browseDepthRef.current = Math.max(LibraryLimits.DefaultPageSize, nextData.list.length);
           localDirtyRef.current = false;
@@ -819,7 +694,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
           if (!append) setLocalResolvedQueryKey(requestLocalQueryKey);
           appliedActiveResult = true;
         } else if (localResult) {
-          if (!append) reportListResult(LibraryAnalyticsResult.Failure);
           localDirtyRef.current = true;
           localCursorValidRef.current = false;
           if (localResult.code === LibraryErrorCode.InvalidCursor) {
@@ -829,7 +703,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
         }
       } catch (loadError) {
         if (requestId === requestIdRef.current) {
-          if (!append) reportListResult(LibraryAnalyticsResult.Failure);
           localDirtyRef.current = true;
           localCursorValidRef.current = false;
           setError(loadError instanceof Error ? loadError.message : i18nService.t('unknownError'));
@@ -841,13 +714,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
         const cloudResult = await cloudPromise;
         if (requestId !== requestIdRef.current) return;
         if (cloudResult?.success) {
-          if (!append) {
-            reportListResult(
-              LibraryAnalyticsResult.Success,
-              cloudResult.data.list.length,
-              cloudResult.data.hasMore,
-            );
-          }
           setCloudData(current => {
             if (append) {
               return {
@@ -868,18 +734,15 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
           }
           appliedActiveResult = true;
         } else if (cloudResult) {
-          if (!append) reportListResult(LibraryAnalyticsResult.Failure);
           setCloudError(cloudResult.error);
         } else if (!append) {
           if (wantsCloud && !isAuthenticated) {
-            reportListResult(LibraryAnalyticsResult.AuthRequired);
             setCloudData(EMPTY_CLOUD);
             setCloudResolvedQuery(undefined);
           }
         }
       } catch (loadError) {
         if (requestId === requestIdRef.current) {
-          if (!append) reportListResult(LibraryAnalyticsResult.Failure);
           setCloudError(
             loadError instanceof Error ? loadError.message : i18nService.t('unknownError'),
           );
@@ -908,7 +771,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
     localData.nextCursor,
     localQueryKey,
     cloudAvailability,
-    reportListResult,
     restoration,
     settleLibraryLoad,
     sitesHidden,
@@ -976,7 +838,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
       setActiveItem(current => current?.itemKind === LibraryItemKind.LocalArtifact
         ? nextData.list.find(item => item.itemId === current.itemId) ?? current
         : current);
-      reportListResult(LibraryAnalyticsResult.Success, nextData.list.length, nextData.hasMore);
       return LibraryRefreshOutcome.Committed;
     } catch (refreshError) {
       if (
@@ -984,7 +845,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
         && mountedRef.current
         && requestQueryKey === currentQueryKeyRef.current
       ) {
-        reportListResult(LibraryAnalyticsResult.Failure);
         setError(
           refreshError instanceof Error
             ? refreshError.message
@@ -1009,7 +869,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
     keyword,
     localQueryKey,
     queryKey,
-    reportListResult,
     restoreScrollAnchor,
     settleLibraryLoad,
     wantsLocalList,
@@ -1017,13 +876,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
   refreshLocalWindowRef.current = refreshLocalWindow;
 
   const handleRefresh = useCallback((): void => {
-    const operationId = createLibraryAnalyticsOperationId();
-    pendingRefreshOperationIdRef.current = operationId;
-    reportLibraryAction(analyticsContext, {
-      actionType: LibraryAnalyticsActionType.Refresh,
-      operationId,
-      eventPhase: LibraryAnalyticsEventPhase.Start,
-    });
     if (wantsLocalGrid) {
       setError(undefined);
       setLocalNotice(undefined);
@@ -1048,7 +900,7 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
       return;
     }
     void loadData(LibraryLoadIntent.Refresh, LibraryLoadCause.ManualRefresh);
-  }, [analyticsContext, loadData, refreshLocalWindow, refreshTaskGrid, wantsLocal, wantsLocalGrid]);
+  }, [loadData, refreshLocalWindow, refreshTaskGrid, wantsLocal, wantsLocalGrid]);
 
   useEffect(() => {
     if (
@@ -1277,24 +1129,10 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
   useEffect(() => {
     if (!wantsLocalGrid || isBusy) return;
     gridManualRefreshRef.current = false;
-    if (taskGrid.error) reportListResult(LibraryAnalyticsResult.Failure);
-    else if (taskGrid.hasResolvedCurrentQuery) {
-      reportListResult(LibraryAnalyticsResult.Success,
-        taskGrid.groups.reduce((sum, group) => sum + group.items.length, 0), taskGrid.hasMoreTasks);
-    }
-  }, [isBusy, reportListResult, taskGrid.error, taskGrid.groups, taskGrid.hasMoreTasks, taskGrid.hasResolvedCurrentQuery, wantsLocalGrid]);
+  }, [isBusy, wantsLocalGrid]);
 
   const updateFavorite = async (item: LibraryItem): Promise<void> => {
     const next = !item.isFavorite;
-    const operationId = createLibraryAnalyticsOperationId();
-    reportLibraryAction(analyticsContext, {
-      actionType: LibraryAnalyticsActionType.FavoriteChange,
-      itemKind: item.itemKind,
-      itemCategory: item.category,
-      favorite: next,
-      operationId,
-      eventPhase: LibraryAnalyticsEventPhase.Start,
-    });
     if (item.itemKind === LibraryItemKind.LocalArtifact) {
       taskGrid.invalidate();
       localEpochRef.current += 1;
@@ -1326,15 +1164,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
       taskGrid.invalidate({ reason: LibraryChangeReason.Favorite, itemIds: [item.itemId] });
       refreshCoordinatorRef.current?.enqueue({ reason: LibraryChangeReason.Favorite, itemIds: [item.itemId] });
     }
-    reportLibraryAction(analyticsContext, {
-      actionType: LibraryAnalyticsActionType.FavoriteChange,
-      itemKind: item.itemKind,
-      itemCategory: item.category,
-      favorite: next,
-      operationId,
-      eventPhase: LibraryAnalyticsEventPhase.Result,
-      result: result.success ? LibraryAnalyticsResult.Success : LibraryAnalyticsResult.Failure,
-    });
     if (!result.success) {
       setError(result.error);
       if (item.itemKind === LibraryItemKind.LocalArtifact) {
@@ -1370,20 +1199,10 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
   }, []);
 
   const openItem = (item: LibraryItem): void => {
-    reportLibraryAction(analyticsContext, {
-      actionType: LibraryAnalyticsActionType.ItemPreviewOpen,
-      itemKind: item.itemKind,
-      itemCategory: item.category,
-    });
     setActiveItem(item);
   };
 
-  const handleCloudDetailOpen = (item: LibraryCloudItem): void => {
-    reportLibraryAction(analyticsContext, {
-      actionType: LibraryAnalyticsActionType.ItemPreviewOpen,
-      itemKind: item.itemKind,
-      itemCategory: item.category,
-    });
+  const handleCloudDetailOpen = (): void => {
     scrollContainerRef.current?.scrollTo({ top: 0 });
   };
 
@@ -1464,12 +1283,7 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
         setError(i18nService.t('artifactShareSourceUnavailable'));
         return;
       }
-      await artifactFileShare.openShare(artifact, {
-        source: ArtifactPreviewActionSource.LibraryList,
-        entryPoint: ArtifactPublishEntryPoint.LibraryMenu,
-        surface: LibraryAnalyticsSurface.MyFiles,
-        pageViewId: analyticsPageViewId,
-      });
+      await artifactFileShare.openShare(artifact, {});
     } catch (shareError) {
       const message = shareError instanceof Error
         ? shareError.message
@@ -1691,7 +1505,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
       >
           {wantsCloud ? (
             <LibraryCloudView
-              analyticsPageViewId={analyticsPageViewId}
               data={visibleCloudData}
               loadingFeedback={loadingFeedback}
               hasResolvedSnapshot={activeCloudResolvedQuery !== undefined}
@@ -1917,7 +1730,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
       {wantsLocal && activeItem && (
         <LibraryPreviewModal
           item={activeItem}
-          analyticsPageViewId={analyticsPageViewId}
           detail={localDetail}
           detailLoading={detailLoading}
           onClose={() => setActiveItem(undefined)}

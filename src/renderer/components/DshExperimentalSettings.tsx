@@ -1,12 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { DshEngineErrorCode, DshEnginePhase, DshInstallStage } from '../../shared/dshEngine/constants';
-import {
-  DshAnalyticsResult,
-  reportDshEnabledChanged,
-  reportDshOpenWorkbench,
-  resolveDshOpenWorkbenchErrorCode,
-} from '../services/dshAnalytics';
 import { i18nService } from '../services/i18n';
 
 interface DshInstallView {
@@ -70,20 +64,6 @@ function installLabel(install: DshInstallView): string {
   }
 }
 
-// Best-effort reads for analytics context; the bridge may be missing on an
-// older main process, in which case the caller's fallback is used.
-async function readEngineState(): Promise<DshEngineStateView | null> {
-  try {
-    return await window.electron.dsh.getState();
-  } catch {
-    return null;
-  }
-}
-
-async function readEnginePhase(fallback: string): Promise<string> {
-  return (await readEngineState())?.phase ?? fallback;
-}
-
 export const DshExperimentalSettings: React.FC = () => {
   const [enabled, setEnabled] = useState(false);
   const [engineState, setEngineState] = useState<DshEngineStateView>({ phase: DshEnginePhase.Stopped, version: null, errorCode: null });
@@ -128,7 +108,6 @@ export const DshExperimentalSettings: React.FC = () => {
     setOpenError(null);
     try {
       await window.electron.dsh.setEnabled(next);
-      reportDshEnabledChanged(previous, next);
     } finally {
       void refresh();
     }
@@ -137,27 +116,16 @@ export const DshExperimentalSettings: React.FC = () => {
   const handleOpenWorkbench = useCallback(async () => {
     setOpening(true);
     setOpenError(null);
-    // Read the phase fresh rather than from the polled copy: a first open
-    // right after enabling is the case where the two most often differ.
-    const phaseBefore = await readEnginePhase(engineState.phase);
     try {
       await window.electron.dsh.openWorkbench();
-      reportDshOpenWorkbench({ phaseBefore, result: DshAnalyticsResult.Success });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setOpenError(localizeOpenError(message));
-      const stateAfter = await readEngineState();
-      reportDshOpenWorkbench({
-        phaseBefore,
-        result: DshAnalyticsResult.Failed,
-        errorCode: resolveDshOpenWorkbenchErrorCode(stateAfter, error),
-        error,
-      });
     } finally {
       if (mountedRef.current) setOpening(false);
       void refresh();
     }
-  }, [engineState.phase, refresh]);
+  }, [refresh]);
 
   const install = engineState.install ?? null;
   const phaseLabel = i18nService.t(PHASE_LABEL_KEY[engineState.phase] ?? 'dshStatusStopped');

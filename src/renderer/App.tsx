@@ -77,9 +77,7 @@ import {
   invalidateLatestAsyncRequest,
   isLatestAsyncRequest,
 } from './services/latestAsyncRequest';
-import { LogReporterAction, reportYdAnalyzer } from './services/logReporter';
 import { installOfficeAgentBridges } from './services/office/officeFormats';
-import { getOnboardingErrorCode, reportOnboardingAction } from './services/onboardingAnalytics';
 import { scheduledTaskService } from './services/scheduledTask';
 import { isTextEditingSafeShortcut, matchesShortcut } from './services/shortcuts';
 import { themeService } from './services/theme';
@@ -310,10 +308,6 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!shouldShowNewUserOnboarding) return;
     console.log(`[Onboarding] showing new user onboarding step=${newUserOnboardingStep}`);
-    reportOnboardingAction('guide_exposure', {
-      source: 'first_run_gate',
-      step: newUserOnboardingStep,
-    });
     setMainView('cowork');
     setIsSidebarCollapsed(false);
   }, [newUserOnboardingStep, shouldShowNewUserOnboarding]);
@@ -468,7 +462,7 @@ const App: React.FC = () => {
       return false;
     };
 
-    const finishShell = (providerModelCount: number, readyLabel: string) => {
+    const finishShell = (readyLabel: string) => {
       if (!requiredStartupGatesReadyRef.current) {
         throw new Error('Required privacy and enterprise startup gates are unresolved.');
       }
@@ -477,10 +471,6 @@ const App: React.FC = () => {
       mark(readyLabel);
       if (!hasReportedAppStartedRef.current) {
         hasReportedAppStartedRef.current = true;
-        void reportYdAnalyzer({
-          action: LogReporterAction.AppStarted,
-          providerModelCount,
-        });
       }
     };
 
@@ -587,11 +577,10 @@ const App: React.FC = () => {
         coreStartupServicesInitializedRef.current = true;
       }
 
-      const providerModels = applyConfigToApp(mark);
+      applyConfigToApp(mark);
       mark('model resolution done');
 
       finishShell(
-        providerModels.length,
         configReady ? 'shell ready' : 'shell ready (degraded: default config)',
       );
 
@@ -843,13 +832,6 @@ const App: React.FC = () => {
     } catch {
       // Logging should never block sidebar interactions.
     }
-    void reportYdAnalyzer({
-      action: LogReporterAction.SidebarAction,
-      source: 'home_sidebar',
-      actionType: isSidebarCollapsed ? 'expand_sidebar' : 'collapse_sidebar',
-      activeView: mainView,
-      isCollapsed: isSidebarCollapsed,
-    });
     setIsSidebarCollapsed((prev) => !prev);
   }, [isSidebarCollapsed, mainView]);
 
@@ -862,25 +844,10 @@ const App: React.FC = () => {
     } catch {
       // Diagnostics must never block the sidebar interaction.
     }
-    void reportYdAnalyzer({
-      action: LogReporterAction.SidebarAction,
-      source: 'home_sidebar',
-      actionType: 'task_filter_toggle',
-      activeView: mainView,
-      isCollapsed: isSidebarCollapsed,
-      targetSelected: nextActive,
-    });
     setIsTaskFilterActive(nextActive);
   }, [hasUnreadCompletedTasks, isSidebarCollapsed, isTaskFilterActive, mainView]);
 
   const handleOpenTaskSearch = useCallback(() => {
-    void reportYdAnalyzer({
-      action: LogReporterAction.SidebarAction,
-      source: 'home_sidebar',
-      actionType: 'open_search',
-      activeView: mainView,
-      isCollapsed: isSidebarCollapsed,
-    });
     window.dispatchEvent(new CustomEvent<CoworkTaskSearchRequestEventDetail>(
       CoworkUiEvent.ShortcutSearch,
       { detail: { source: CoworkTaskSearchRequestSource.WindowsTitleBar } },
@@ -1170,30 +1137,15 @@ const App: React.FC = () => {
             `[Onboarding] new user welcome task seed returned no session source=${source}: `
             + `${result.error ?? 'unknown error'}`,
           );
-          reportOnboardingAction('welcome_task_open_result', {
-            source,
-            result: 'failed',
-            errorCode: result.error ? 'seed_failed' : 'unknown',
-          });
           showToast(i18nService.t('newUserWelcomeTaskCreateFailed'));
           return;
         }
         console.log(
           `[Onboarding] new user welcome task opened source=${source} session=${result.session.id}`,
         );
-        reportOnboardingAction('welcome_task_open_result', {
-          source,
-          result: 'success',
-          created: result.created === true,
-        });
       })
       .catch((error) => {
         console.warn(`[Onboarding] failed to open new user welcome task source=${source}:`, error);
-        reportOnboardingAction('welcome_task_open_result', {
-          source,
-          result: 'failed',
-          errorCode: getOnboardingErrorCode(error),
-        });
         showToast(i18nService.t('newUserWelcomeTaskCreateFailed'));
       });
   }, [showToast]);
@@ -1251,11 +1203,6 @@ const App: React.FC = () => {
         '[Onboarding] OpenClaw startup settled; opening pending new user welcome task '
         + `phase=${latestPhase ?? 'unknown'} sawStartup=${pendingNewUserWelcomeAfterLoginSawStartupRef.current}`,
       );
-      reportOnboardingAction('login_success_gateway_settled', {
-        source: 'new_user_onboarding',
-        phase: latestPhase ?? 'unknown',
-        sawStartup: pendingNewUserWelcomeAfterLoginSawStartupRef.current,
-      });
       pendingNewUserWelcomeAfterLoginSawStartupRef.current = false;
       pendingNewUserWelcomeAfterLoginWaitingLoggedRef.current = false;
       setIsNewUserOnboardingDismissed(true);
@@ -1272,10 +1219,6 @@ const App: React.FC = () => {
   ]);
 
   const handleNewUserOnboardingSkip = useCallback(() => {
-    reportOnboardingAction('guide_skip_click', {
-      source: 'new_user_onboarding',
-      step: newUserOnboardingStep,
-    });
     finishNewUserOnboarding('skip');
     if (privacyAgreed !== false) return;
 
@@ -1285,11 +1228,6 @@ const App: React.FC = () => {
   const handleNewUserOnboardingNext = useCallback(() => {
     if (newUserOnboardingStep === NewUserOnboardingStep.NewTask) {
       console.log('[Onboarding] advancing new user onboarding step=new-task next=prompt-input');
-      reportOnboardingAction('guide_next_click', {
-        source: 'new_user_onboarding',
-        step: newUserOnboardingStep,
-        nextStep: NewUserOnboardingStep.PromptInput,
-      });
       setNewUserOnboardingStep(NewUserOnboardingStep.PromptInput);
       return;
     }
@@ -1298,10 +1236,6 @@ const App: React.FC = () => {
 
   const handleNewUserOnboardingStartExperience = useCallback(() => {
     console.log('[Onboarding] start experience clicked; opening new user welcome task');
-    reportOnboardingAction('guide_start_experience_click', {
-      source: 'new_user_onboarding',
-      step: newUserOnboardingStep,
-    });
     setNewUserWelcomeAfterLoginPending();
     finishNewUserOnboarding('start_experience');
     setNewUserWelcomeAfterLoginSignal((value) => value + 1);

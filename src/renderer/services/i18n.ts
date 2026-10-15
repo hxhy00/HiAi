@@ -3772,9 +3772,6 @@ const translations: Record<LanguageType, Record<string, string>> = {
     preventSleepDescription: '防止系统在应用运行时进入睡眠模式',
     skipMissedJobs: '跳过未执行任务',
     skipMissedJobsDescription: '启动时跳过离线期间未触发的定时任务，不补充执行（保存后生效）',
-    usageAnalyticsEnabled: '帮助改进 HiAi',
-    usageAnalyticsEnabledDescription:
-      '允许发送基础使用统计，帮助我们改进功能体验。不会上传对话内容、文件内容或 API Key。',
     // 通用设置分组标题
     settingsGroupBasics: '常规',
     settingsGroupNotifications: '通知',
@@ -8270,9 +8267,6 @@ const translations: Record<LanguageType, Record<string, string>> = {
     skipMissedJobs: 'Skip Missed Scheduled Jobs',
     skipMissedJobsDescription:
       'Skip jobs that were missed while the app was offline (applies after Save)',
-    usageAnalyticsEnabled: 'Help improve HiAi',
-    usageAnalyticsEnabledDescription:
-      'Allow basic usage analytics to help improve the product. Chat content, file content, and API keys are not uploaded.',
     // General settings group titles
     settingsGroupBasics: 'General',
     settingsGroupNotifications: 'Notifications',
