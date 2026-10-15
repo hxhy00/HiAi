@@ -201,7 +201,13 @@ import {
 import type { ShellOpenFailureReason as ShellOpenFailureReasonType } from '../shared/shell/constants';
 import { type ShellGetBrowserAppsInput, ShellIpc, ShellOpenFailureReason } from '../shared/shell/constants';
 import { AgentManager } from './agentManager';
-import { APP_NAME, APP_USER_MODEL_ID, DB_FILENAME, LEGACY_APP_DIR_NAME } from './appConstants';
+import {
+  APP_NAME,
+  APP_USER_MODEL_ID,
+  DB_FILENAME,
+  LEGACY_APP_DIR_NAME,
+  LEGACY_DB_FILENAME,
+} from './appConstants';
 import { createLocalFileProtocolResponse } from './artifactLocalFileProtocol';
 import { type AutoLaunchStatus, getAutoLaunchStatus, isAutoLaunched, setAutoLaunchEnabled } from './autoLaunchManager';
 import { BrowserCredentialApprovalService } from './browserCredentials/browserCredentialApprovalService';
@@ -1957,6 +1963,9 @@ const configureUserDataPath = (): void => {
     if (outcome === 'moved' || outcome === 'copied') {
       console.log(`[Main] migrated legacy profile into "${preferredUserDataPath}" (${outcome}).`);
     }
+    // The directory move keeps file names, so the database still carries its
+    // old name and has to be renamed before the store opens it.
+    renameLegacySqliteFiles(preferredUserDataPath, LEGACY_DB_FILENAME, DB_FILENAME);
   }
 
   if (currentUserDataPath !== preferredUserDataPath) {

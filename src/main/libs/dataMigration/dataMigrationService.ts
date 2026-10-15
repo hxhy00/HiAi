@@ -9,7 +9,12 @@ import {
   type DataMigrationLastRestoreResult,
   DataMigrationRestoreStatus,
 } from '../../../shared/dataMigration/constants';
-import { APP_NAME, DB_FILENAME, LEGACY_APP_DIR_NAME } from '../../appConstants';
+import {
+  APP_NAME,
+  DB_FILENAME,
+  LEGACY_APP_DIR_NAME,
+  LEGACY_DB_FILENAME,
+} from '../../appConstants';
 import { SQLITE_BACKUP_DIR_NAME } from '../sqliteBackup/constants';
 
 const CURRENT_ARCHIVE_ROOT = APP_NAME;
@@ -26,11 +31,16 @@ const LAST_RESTORE_RESULT_FILE_NAME = '.lobsterai-data-migration-restore-result.
 const ARCHIVE_FORMAT = 'lobsterai-data-migration';
 const ARCHIVE_FORMAT_VERSION = 1;
 const SQLITE_BACKUP_TOP_LEVEL_DIR_NAME = SQLITE_BACKUP_DIR_NAME.split('/')[0] || 'backups';
-const SQLITE_RESTORE_FILE_NAMES = [
-  DB_FILENAME,
-  `${DB_FILENAME}-wal`,
-  `${DB_FILENAME}-shm`,
-] as const;
+/**
+ * Database file names an archive may carry. Archives written before the rename
+ * store `lobsterai.sqlite`, and those still have to restore cleanly.
+ */
+const ACCEPTED_DB_FILE_NAMES: readonly string[] = [DB_FILENAME, LEGACY_DB_FILENAME];
+const SQLITE_RESTORE_FILE_NAMES: readonly string[] = ACCEPTED_DB_FILE_NAMES.flatMap(base => [
+  base,
+  `${base}-wal`,
+  `${base}-shm`,
+]);
 const SQLITE_REPLACE_RETRY_DELAYS_MS = [
   50,
   100,
@@ -386,11 +396,10 @@ const shouldExcludeSourcePath = (
 
   const firstSegment = relativePosixPath.split('/')[0] || '';
   if (input.sqliteSnapshotPath) {
-    if (
-      firstSegment === DB_FILENAME
-      || firstSegment === `${DB_FILENAME}-wal`
-      || firstSegment === `${DB_FILENAME}-shm`
-    ) {
+    // Only the snapshot is excluded: the live database is copied over it later
+    // under the current name. Legacy names still match so an old profile is
+    // excluded rather than silently shadowed by the snapshot.
+    if (SQLITE_RESTORE_FILE_NAMES.includes(firstSegment)) {
       return true;
     }
   }
@@ -1098,9 +1107,21 @@ const assertManifestSqliteSummaryMatches = (
   assertSqliteCriticalSummaryMatches(manifestSummary, actualSummary, label);
 };
 
+/**
+ * Resolves which accepted database name an extracted archive actually uses, so
+ * a pre-rename archive (`lobsterai.sqlite`) validates through the same code path
+ * as a current one instead of being reported as missing.
+ */
+const resolveArchiveSqliteFileName = (sourceRoot: string): string => (
+  ACCEPTED_DB_FILE_NAMES.find(name => fs.existsSync(path.join(sourceRoot, name))) ?? DB_FILENAME
+);
+
 const validateExtractedArchiveContentSync = (sourceRoot: string): MigrationManifest => {
   const manifest = readMigrationManifestSync(sourceRoot);
-  const sqliteSummary = assertMigrationSqliteReadySync(path.join(sourceRoot, DB_FILENAME), 'Backup archive');
+  const sqliteSummary = assertMigrationSqliteReadySync(
+    path.join(sourceRoot, resolveArchiveSqliteFileName(sourceRoot)),
+    'Backup archive',
+  );
   assertManifestSqliteSummaryMatches(manifest.sqlite, sqliteSummary, 'Backup archive manifest');
 
   if (!manifest.openclawState) {
@@ -1230,7 +1251,7 @@ const resolveArchiveRoot = (entryPath: string): Pick<MigrationArchiveInfo, 'root
 };
 
 const isArchiveSqliteDatabaseEntry = (entryPath: string, root: string): boolean =>
-  entryPath === `${root}/${DB_FILENAME}`;
+  ACCEPTED_DB_FILE_NAMES.some(name => entryPath === `${root}/${name}`);
 
 const isArchiveRootParentDirectory = (entryPath: string): boolean => (
   ACCEPTED_ARCHIVE_ROOTS.some(root => `${root}/`.startsWith(`${entryPath}/`))
@@ -1505,7 +1526,7 @@ const replaceSqliteDatabaseSync = (
   userDataPath: string,
   options: { includeSidecars?: boolean } = {},
 ): void => {
-  const sourceDbPath = path.join(sourceRoot, DB_FILENAME);
+  const sourceDbPath = path.join(sourceRoot, resolveArchiveSqliteFileName(sourceRoot));
   const targetDbPath = path.join(userDataPath, DB_FILENAME);
 
   for (const fileName of SQLITE_RESTORE_FILE_NAMES) {
@@ -1598,7 +1619,7 @@ const replaceRestorableUserDataSync = (
 const assertSqliteRestoredSync = (
   sourceRoot: string,
   userDataPath: string,
-  sourceSummary = assertMigrationSqliteReadySync(path.join(sourceRoot, DB_FILENAME), 'Backup archive'),
+  sourceSummary = assertMigrationSqliteReadySync(path.join(sourceRoot, resolveArchiveSqliteFileName(sourceRoot)), 'Backup archive'),
 ): void => {
   const targetSummary = assertMigrationSqliteReadySync(path.join(userDataPath, DB_FILENAME), 'Restored data');
   if (sourceSummary.checksumSha256 !== targetSummary.checksumSha256) {
@@ -1664,11 +1685,11 @@ export const performDataMigrationRestoreSync = (
 
     const extracted = extractMigrationArchiveToTempSync(archivePath);
     extractedTempRoot = extracted.tempRoot;
-    assertMigrationSqliteReadySync(path.join(extracted.sourceRoot, DB_FILENAME), 'Backup archive');
-    checkpointSqliteDatabaseSync(path.join(extracted.sourceRoot, DB_FILENAME), 'Backup archive');
-    invalidateMcpLaunchResolutionsSync(path.join(extracted.sourceRoot, DB_FILENAME));
-    checkpointSqliteDatabaseSync(path.join(extracted.sourceRoot, DB_FILENAME), 'Backup archive');
-    const sourceSummary = assertMigrationSqliteReadySync(path.join(extracted.sourceRoot, DB_FILENAME), 'Backup archive');
+    assertMigrationSqliteReadySync(path.join(extracted.sourceRoot, resolveArchiveSqliteFileName(extracted.sourceRoot)), 'Backup archive');
+    checkpointSqliteDatabaseSync(path.join(extracted.sourceRoot, resolveArchiveSqliteFileName(extracted.sourceRoot)), 'Backup archive');
+    invalidateMcpLaunchResolutionsSync(path.join(extracted.sourceRoot, resolveArchiveSqliteFileName(extracted.sourceRoot)));
+    checkpointSqliteDatabaseSync(path.join(extracted.sourceRoot, resolveArchiveSqliteFileName(extracted.sourceRoot)), 'Backup archive');
+    const sourceSummary = assertMigrationSqliteReadySync(path.join(extracted.sourceRoot, resolveArchiveSqliteFileName(extracted.sourceRoot)), 'Backup archive');
 
     targetWasTouched = true;
     replaceRestorableUserDataSync(extracted.sourceRoot, input.userDataPath);

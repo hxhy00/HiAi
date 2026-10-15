@@ -318,7 +318,7 @@ function defaultTargets(request) {
     }
   }
   if (request.userDataDir) {
-    targets.largeFiles.push({ label: 'userData/lobsterai.sqlite', path: path.join(request.userDataDir, 'lobsterai.sqlite') });
+    targets.largeFiles.push({ label: 'userData/hiai.sqlite', path: path.join(request.userDataDir, 'hiai.sqlite') });
     targets.locationGroups.push({ label: 'userData/SKILLs', root: path.join(request.userDataDir, 'SKILLs') });
   }
   if (request.installRoot) {

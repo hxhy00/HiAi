@@ -594,7 +594,7 @@ try {
         }
         Write-Host '    统计引擎数据大小（只统计大小，不读取内容）…'
         $storage.state = Get-FolderStats $stateDir -BudgetSeconds 60 -ByTopLevel -CollectPattern '\.sqlite(?:-wal|-shm|-journal)?$'
-        $storage.lobsteraiDatabase = @(Get-ChildItem -LiteralPath $userData -Filter 'lobsterai.sqlite*' -File -ErrorAction SilentlyContinue | ForEach-Object { [ordered]@{ name = $_.Name; mb = [math]::Round($_.Length / 1MB, 1) } })
+        $storage.hiaiDatabase = @(Get-ChildItem -LiteralPath $userData -Filter 'hiai.sqlite*' -File -ErrorAction SilentlyContinue | ForEach-Object { [ordered]@{ name = $_.Name; mb = [math]::Round($_.Length / 1MB, 1) } })
         $repairRoot = Join-Path $openclawBase 'repair-backups'
         $storage.repairBackups = @()
         if (Test-Path -LiteralPath $repairRoot -PathType Container) {

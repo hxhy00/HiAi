@@ -145,3 +145,40 @@ export const migrateLegacyUserDataDir = (
   }
   return 'copied';
 };
+
+/**
+ * Renames the SQLite database (and its WAL/SHM siblings) inside a profile that
+ * was moved by {@link migrateLegacyUserDataDir}.
+ *
+ * Moving the directory preserves file names, so the database would still be
+ * called `lobsterai.sqlite` inside the new `HiAi` profile. Since the app now
+ * opens `hiai.sqlite`, skipping this makes it silently start on an empty
+ * database — the exact "all my settings vanished" symptom the migration exists
+ * to prevent. Sidecar files are renamed together with the database, which is
+ * what SQLite expects when a database is moved.
+ *
+ * Must run before the database is opened, and never overwrites an existing file.
+ */
+export const renameLegacySqliteFiles = (
+  userDataPath: string,
+  legacyDbFileName: string,
+  currentDbFileName: string,
+): void => {
+  if (legacyDbFileName === currentDbFileName) return;
+
+  for (const suffix of ['', '-wal', '-shm']) {
+    const from = path.join(userDataPath, `${legacyDbFileName}${suffix}`);
+    const to = path.join(userDataPath, `${currentDbFileName}${suffix}`);
+    if (!exists(from)) continue;
+    // A database already present under the new name means this profile was
+    // migrated before; touching it could destroy live data.
+    if (exists(to)) continue;
+    try {
+      fs.renameSync(from, to);
+    } catch (error) {
+      // Non-fatal: the app will create a fresh database and the legacy file
+      // stays on disk, which is recoverable.
+      console.warn(`[UserDataMigration] failed to rename "${from}" to "${to}":`, error);
+    }
+  }
+};

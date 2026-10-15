@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
-import { migrateLegacyUserDataDir } from './userDataDirMigration';
+import { migrateLegacyUserDataDir, renameLegacySqliteFiles } from './userDataDirMigration';
 
 let appDataPath: string;
 
@@ -89,5 +89,38 @@ describe('migrateLegacyUserDataDir', () => {
     // Force the copy path by renaming the legacy directory onto itself first.
     expect(migrate()).toBe('moved');
     expect(readFileIn(currentDir(), 'nested/keep.txt')).toBe('kept');
+  });
+});
+describe('renameLegacySqliteFiles', () => {
+  test('renames the database together with its WAL and SHM sidecars', () => {
+    writeFileIn(currentDir(), 'lobsterai.sqlite', 'db');
+    writeFileIn(currentDir(), 'lobsterai.sqlite-wal', 'wal');
+    writeFileIn(currentDir(), 'lobsterai.sqlite-shm', 'shm');
+
+    renameLegacySqliteFiles(currentDir(), 'lobsterai.sqlite', 'hiai.sqlite');
+
+    expect(readFileIn(currentDir(), 'hiai.sqlite')).toBe('db');
+    expect(readFileIn(currentDir(), 'hiai.sqlite-wal')).toBe('wal');
+    expect(readFileIn(currentDir(), 'hiai.sqlite-shm')).toBe('shm');
+    expect(fs.existsSync(path.join(currentDir(), 'lobsterai.sqlite'))).toBe(false);
+  });
+
+  test('never overwrites a database that already uses the new name', () => {
+    writeFileIn(currentDir(), 'lobsterai.sqlite', 'old');
+    writeFileIn(currentDir(), 'hiai.sqlite', 'current');
+
+    renameLegacySqliteFiles(currentDir(), 'lobsterai.sqlite', 'hiai.sqlite');
+
+    // Re-running on an already migrated profile must not clobber live data.
+    expect(readFileIn(currentDir(), 'hiai.sqlite')).toBe('current');
+    expect(readFileIn(currentDir(), 'lobsterai.sqlite')).toBe('old');
+  });
+
+  test('does nothing when the legacy database is absent', () => {
+    writeFileIn(currentDir(), 'hiai.sqlite', 'current');
+
+    renameLegacySqliteFiles(currentDir(), 'lobsterai.sqlite', 'hiai.sqlite');
+
+    expect(readFileIn(currentDir(), 'hiai.sqlite')).toBe('current');
   });
 });
