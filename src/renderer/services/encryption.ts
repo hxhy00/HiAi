@@ -34,7 +34,7 @@ const getLocalStorage = (): Storage | null => {
     if (typeof globalThis !== 'undefined' && 'localStorage' in globalThis) {
       return globalThis.localStorage;
     }
-  } catch (error) {
+  } catch {
     return null;
   }
   return null;
@@ -47,7 +47,7 @@ const readRawExportKey = (stored: unknown): Uint8Array<ArrayBuffer> | null => {
   if (typeof stored === 'string') {
     try {
       return base64ToBytes(stored);
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -80,7 +80,7 @@ const readExportKeyFromLocalStorage = (): Uint8Array<ArrayBuffer> | null => {
   }
   try {
     return base64ToBytes(stored);
-  } catch (error) {
+  } catch {
     return null;
   }
 };
@@ -92,7 +92,7 @@ const writeExportKeyToLocalStorage = (raw: Uint8Array) => {
   }
   try {
     storage.setItem(CONFIG_KEYS.PROVIDERS_EXPORT_KEY, bytesToBase64(raw));
-  } catch (error) {
+  } catch {
     return;
   }
 };
@@ -221,4 +221,27 @@ export const decryptWithPassword = async (payload: PasswordEncryptedPayload, pas
   const encrypted = base64ToBytes(payload.encrypted);
   const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted);
   return new TextDecoder().decode(decrypted);
+};
+
+/**
+ * Tries each password in turn and returns the first successful decryption.
+ *
+ * Exists so a password change can stay readable-only: files written before the
+ * change must still open, while everything written afterwards keeps using the
+ * current password only. Candidates are tried in order, so the current password
+ * is attempted first.
+ */
+export const decryptWithPasswordCandidates = async (
+  payload: PasswordEncryptedPayload,
+  passwords: readonly string[],
+): Promise<string> => {
+  let lastError: unknown;
+  for (const password of passwords) {
+    try {
+      return await decryptWithPassword(payload, password);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError ?? new Error('No password candidates provided');
 };

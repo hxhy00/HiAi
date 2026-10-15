@@ -28,13 +28,19 @@ import {
   resolveModelRuntimeProfile,
 } from '../../shared/providers';
 import { type AppConfig, defaultConfig, FontPreferences, getProviderDisplayName, getVisibleProviders, isCustomProvider, normalizeFontPreference, resolveArtifactAutoPreviewEnabled, ShortcutAction, type ShortcutConfig } from '../config';
-import { APP_ID, EXPORT_FORMAT_TYPE, EXPORT_PASSWORD } from '../constants/app';
+import {
+  ACCEPTED_EXPORT_FORMAT_TYPES,
+  APP_ID,
+  EXPORT_FORMAT_TYPE,
+  EXPORT_PASSWORD,
+  EXPORT_PASSWORD_CANDIDATES,
+} from '../constants/app';
 import { OPEN_SOURCE_ENTERPRISE_UI_KEY } from '../constants/openSource';
 import { useSkin } from '../providers/SkinProvider';
 import { apiService } from '../services/api';
 import { configService } from '../services/config';
 import { coworkService } from '../services/cowork';
-import { decryptSecret, decryptWithPassword, EncryptedPayload, encryptWithPassword, PasswordEncryptedPayload } from '../services/encryption';
+import { decryptSecret, decryptWithPasswordCandidates, EncryptedPayload, encryptWithPassword, PasswordEncryptedPayload } from '../services/encryption';
 import { i18nService, LanguageType } from '../services/i18n';
 import { imService } from '../services/im';
 import { LogReporterAction, reportYdAnalyzer } from '../services/logReporter';
@@ -72,7 +78,7 @@ import PlugIcon from './icons/PlugIcon';
 import PlusCircleIcon from './icons/PlusCircleIcon';
 import IMSettings from './im/IMSettings';
 import PluginsSettings, { type PluginPendingChanges, type PluginsSettingsHandle } from './plugins/PluginsSettings';
-import { AboutOpenSourceAction, AboutOpenSourceRows, AboutOpenSourceStarPrompt } from './settings/AboutOpenSource';
+import { AboutOpenSourceAction, AboutOpenSourceRows } from './settings/AboutOpenSource';
 import BrowserWebAccessSettings from './settings/BrowserWebAccessSettings';
 import MediaProviderSettingsSection from './settings/MediaProviderSettingsSection';
 import {
@@ -974,9 +980,7 @@ interface ProvidersImportPayload {
   providers?: Record<string, ProvidersImportEntry>;
 }
 
-const ABOUT_CONTACT_EMAIL = 'lobsterai.project@rd.netease.com';
-const ABOUT_USER_MANUAL_URL = 'https://lobsterai.youdao.com/#/docs/lobsterai_user_manual';
-const ABOUT_USER_COMMUNITY_URL = 'https://lobsterai.youdao.com/#/about';
+const ABOUT_CONTACT_EMAIL = 'hxhy00@gmail.com';
 const ABOUT_SERVICE_TERMS_URL = 'https://c.youdao.com/dict/hardware/lobsterai/lobsterai_service.html';
 
 // MiniMax Portal OAuth constants
@@ -1700,16 +1704,6 @@ const Settings: React.FC<SettingsProps> = ({
     if (updateCheckStatus === 'error') return i18nService.t('updateCheckFailed');
     return i18nService.t('checkForUpdate');
   })();
-
-  const handleOpenUserManual = useCallback(() => {
-    reportAboutAction('open_user_manual', 'success');
-    void window.electron.shell.openExternal(ABOUT_USER_MANUAL_URL);
-  }, []);
-
-  const handleOpenUserCommunity = useCallback(() => {
-    reportAboutAction('open_user_community', 'success');
-    void window.electron.shell.openExternal(ABOUT_USER_COMMUNITY_URL);
-  }, []);
 
   const handleOpenServiceTerms = useCallback(() => {
     reportAboutAction('open_service_terms', 'success');
@@ -4424,7 +4418,14 @@ const Settings: React.FC<SettingsProps> = ({
         return;
       }
 
-      if (!payload || payload.type !== EXPORT_FORMAT_TYPE || !payload.providers) {
+      // Accepts the pre-rename marker too, so a file exported under the old name
+      // still imports instead of being rejected as an invalid format.
+      if (
+        !payload
+        || typeof payload.type !== 'string'
+        || !ACCEPTED_EXPORT_FORMAT_TYPES.includes(payload.type)
+        || !payload.providers
+      ) {
         console.warn(`[Settings] import failed: invalid format, type=${payload?.type}, hasProviders=${!!payload?.providers}`);
         setError(i18nService.t('invalidProvidersFile'));
         return;
@@ -4559,9 +4560,11 @@ const Settings: React.FC<SettingsProps> = ({
         } else if (providerData.apiKey && typeof providerData.apiKey === 'object') {
           const apiKeyObj = providerData.apiKey as PasswordEncryptedPayload;
           if (apiKeyObj.salt) {
-            // Version 2 password-based encryption
+            // Version 2 password-based encryption. Each candidate is tried in
+            // turn so a file exported before the rename still decrypts, without
+            // weakening the current password for anything we write.
             try {
-              apiKey = await decryptWithPassword(apiKeyObj, DEFAULT_EXPORT_PASSWORD);
+              apiKey = await decryptWithPasswordCandidates(apiKeyObj, EXPORT_PASSWORD_CANDIDATES);
               console.log(`[Settings] v2 import: decrypted key for ${providerKey}`);
             } catch (error) {
               hadDecryptFailure = true;
@@ -6021,35 +6024,11 @@ const Settings: React.FC<SettingsProps> = ({
                   )}
                 </div>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-b border-border">
-                <span className="shrink-0 text-sm text-foreground">{i18nService.t('aboutUserCommunity')}</span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenUserCommunity();
-                  }}
-                  className="min-w-0 break-all text-right text-sm text-secondary hover:text-primary dark:hover:text-primary bg-transparent border-none appearance-none px-1.5 py-0.5 -mx-1.5 -my-0.5 rounded-md cursor-pointer focus:outline-none hover:bg-surface-raised transition-colors"
-                >
-                  {ABOUT_USER_COMMUNITY_URL}
-                </button>
-              </div>
-              <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3${testModeUnlocked ? ' border-b border-border' : ''}`}>
-                <span className="shrink-0 text-sm text-foreground">{i18nService.t('aboutUserManual')}</span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenUserManual();
-                  }}
-                  className="min-w-0 break-all text-right text-sm text-secondary hover:text-primary dark:hover:text-primary bg-transparent border-none appearance-none px-1.5 py-0.5 -mx-1.5 -my-0.5 rounded-md cursor-pointer focus:outline-none hover:bg-surface-raised transition-colors"
-                >
-                  {ABOUT_USER_MANUAL_URL}
-                </button>
-              </div>
+              {/* Hidden until the logo is alt-clicked ten times; the border only exists while
+                  the row itself is shown. */}
               {testModeUnlocked && (
-                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
-                  <span className="shrink-0 text-sm text-foreground">{i18nService.t('testMode')}</span>
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
+                <span className="shrink-0 text-sm text-foreground">{i18nService.t('testMode')}</span>
                   <button
                     type="button"
                     role="switch"
@@ -6068,8 +6047,6 @@ const Settings: React.FC<SettingsProps> = ({
                 </div>
               )}
             </div>
-
-            {showOpenSourceEntries && <AboutOpenSourceStarPrompt onAction={reportAboutOpenSourceAction} />}
 
             {/* Footer */}
             <div className="mt-auto w-full pt-14 pb-2 flex flex-col items-center">
@@ -6097,13 +6074,6 @@ const Settings: React.FC<SettingsProps> = ({
                   {isExportingLogs ? i18nService.t('aboutExportingLogs') : i18nService.t('aboutExportLogs')}
                 </button>
               </div>
-
-              <p className="mt-5 text-center text-xs text-secondary">
-                {i18nService.t('copyrightHolder')}
-              </p>
-              <p className="mt-1 text-center text-xs text-secondary">
-                Copyright &copy; {new Date().getFullYear()} NetEase Youdao. All Rights Reserved.
-              </p>
             </div>
           </div>
         );
