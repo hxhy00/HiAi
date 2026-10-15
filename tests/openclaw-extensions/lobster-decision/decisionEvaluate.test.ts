@@ -20,7 +20,7 @@ type RegisteredTool = {
 type ToolFactory = (ctx: { sessionKey?: string }) => RegisteredTool | null;
 
 const SECRET = 'decision-e2e-secret';
-const DESKTOP_SESSION = 'agent:main:lobsterai:session-e2e';
+const DESKTOP_SESSION = 'agent:main:hiai:session-e2e';
 
 describe('decision_evaluate through the loopback bridge', () => {
   const server = new McpBridgeServer(SECRET);

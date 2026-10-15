@@ -228,7 +228,7 @@ openai/gpt-5.5
 1. `shouldMigrateManagedModelRefs` 对本次 provider id 变化会返回 true。
 2. `resolveQualifiedAgentModelRef()` 能识别旧 `openai-codex/gpt-*` 并迁到新 provider。
 3. `LegacyQualifiedProviderMigration` 方向需要调整：以前是 `openai -> openai-codex` 兼容，现在应支持 `openai-codex -> openai`。
-4. 对 channel session 或非 `agent:*:lobsterai:*` session，只做安全兼容解析，不做过度重写，避免误改 OpenClaw 非 LobsterAI 管理的状态。
+4. 对 channel session 或非 `agent:*:hiai:*` session，只做安全兼容解析，不做过度重写，避免误改 OpenClaw 非 LobsterAI 管理的状态。
 
 ### 4.6 不把 `openclaw doctor --fix` 作为主修复
 

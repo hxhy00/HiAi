@@ -333,8 +333,8 @@ const removeLoadedDetachedTailMessages = (
 };
 
 const MediaGenerationToolName = {
-  Image: 'lobsterai_image_generate',
-  Video: 'lobsterai_video_generate',
+  Image: 'hiai_image_generate',
+  Video: 'hiai_video_generate',
 } as const;
 
 const MediaGenerationActionName = {

@@ -81,7 +81,7 @@ LobsterAI 当前是一个"本地 agent 内核 + 商业服务端外壳"的结构�
 MediaModelPicker 选择模型
   → 每轮注入 agent 指令 mediaGenerationTurnInstruction.ts:71-111
     → OpenClaw 插件 lobster-media-generation 注册工具
-       lobsterai_image_generate / lobsterai_video_generate（index.ts:56-60）
+       hiai_image_generate / hiai_video_generate（index.ts:56-60）
       → 插件按 callbackUrl 回调 LobsterAI 主进程
         （getMediaCallbackUrl，src/main/mcp/mcpRuntime.ts:164-166；注入 main.ts:2723）
         → handleMediaGenerationCallback（main.ts:6309）
@@ -90,12 +90,12 @@ MediaModelPicker 选择模型
 
 **关键（已核实）**：媒体工具路由是**按 `selection.mode` 动态切换**的，不是静态绑定：
 
-- `mode === 'image' | 'auto'` → `lobsterai_image_generate`（`mediaGenerationTurnInstruction.ts:9-10,20-28`）
+- `mode === 'image' | 'auto'` → `hiai_image_generate`（`mediaGenerationTurnInstruction.ts:9-10,20-28`）
 - 否则 → **OpenClaw 原生 `image_generate`**（`:29-33`，注释明确 "locked to the OpenClaw-native image_generate tool"）
 
 **这意味着 FR-2.1 不需要"禁用插件"这么粗暴**：更稳妥的做法是让媒体选择始终走原生分支（即不再产生 `lobsterai_*` 路由），插件可保留但不被调用。真正的开关是 `selection.mode` 与 `hasMediaSkillActive` 的取值。
 
-**连带影响（易漏）**：`buildSkinPackInstruction`（`:8-48`，"AI 皮肤包"工作流）同样强绑 `lobsterai_image_generate`（`:21`），且配套 `lobsterai_skin_manage` 工具。若插件被移除，皮肤包工作流需一并处置 —— 见 FR-2.7。
+**连带影响（易漏）**：`buildSkinPackInstruction`（`:8-48`，"AI 皮肤包"工作流）同样强绑 `hiai_image_generate`（`:21`），且配套 `hiai_skin_manage` 工具。若插件被移除，皮肤包工作流需一并处置 —— 见 FR-2.7。
 
 ### 2.4 ASR 链路
 
@@ -165,7 +165,7 @@ CoworkPromptInput（语音按钮）
 - **FR-2.4（已实现）** **撤销积分估算**：移除 `MediaModelPicker.tsx:310-404` 的积分单价估算与 `CLIENT_ESTIMATE_CONFIGS`（`:256-287`）。同时移除 `getModelDiscountLabel`（"6 折"标签）、`getClientEstimateConfig`、`formatChineseEstimateScope` / `formatEnglishEstimateScope`、`BANANA_*_ESTIMATE_KEYS` 等硬编码估算体系；`getTokenBillingEstimateNotes` 统一返回 `mediaTokenBillingEstimateNote`。保留 `per_token` 计费读取（`getCreditsPerUsd` / `calculateEstimatedTokenCredits` 等，读 `pricing` 配置值而非硬编码）。
 - **FR-2.5（已决，降级）** **不显示 token 消耗**：媒体生成链路无用量字段（见 10.5 D4），`details.billing` 一并移除。
 - **FR-2.6（已实现）** 移除媒体生成的门控：删除 `NormalizedAuthQuota.mediaGenerationEntitled`、`AuthQuotaGateState.mediaGenerationEntitled`、`hasMediaGenerationEntitlement`、`cachedMediaGenerationEntitled`、`MediaGenerationAccessReason.NotEntitled` 分支、`UserQuota.mediaGenerationEntitled` 字段与 `mediaSubscribe*` 文案；`openclawConfigSync.canUseMediaGeneration` 死代码与 `skinWorkflowRegistry` 的 entitlement 短路一并删除。因媒体链路已完全改为用户自有本地 provider，**登录门控一并移除**：`resolveMediaGenerationAccess` 不再要求登录，`MediaGenerationAccessReason.LoginRequired`、`MediaModelPicker` 的登录提示面板与 `mediaLogin*` / `mediaLearnMore` 文案全部删除；仅保留企业账号的企业上下文/企业配额校验。未登录用户以 `local` 作用域缓存模型与保存选择（`coworkSlice.mediaModelsScopeKey`）。
-- **FR-2.7（已实现）** "AI 皮肤包"工作流保留：`buildSkinPackInstruction`（`mediaGenerationTurnInstruction.ts:8-48`）继续绑定 `lobsterai_image_generate`，因 FR-2.1 已决定保留插件且其后端改为本地 provider，皮肤包随之自动走本地生图。`preflightLobsterImageGeneration`（`src/main/skins/skinMediaBridge.ts`）触发条件已改为"存在可用本地图片模型 + 生成 gate 放行"（见 4.3 节第 6 点）。
+- **FR-2.7（已实现）** "AI 皮肤包"工作流保留：`buildSkinPackInstruction`（`mediaGenerationTurnInstruction.ts:8-48`）继续绑定 `hiai_image_generate`，因 FR-2.1 已决定保留插件且其后端改为本地 provider，皮肤包随之自动走本地生图。`preflightLobsterImageGeneration`（`src/main/skins/skinMediaBridge.ts`）触发条件已改为"存在可用本地图片模型 + 生成 gate 放行"（见 4.3 节第 6 点）。
 
 
 

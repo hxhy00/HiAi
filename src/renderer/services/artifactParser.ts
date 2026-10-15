@@ -1161,7 +1161,7 @@ const WRITE_TOOL_NAMES = new Set([
  */
 const IMAGE_GEN_TOOL_NAMES_FOR_PATH_DETECTION = new Set([
   'image_generate',
-  'lobsterai_image_generate',
+  'hiai_image_generate',
 ]);
 
 export function shouldParseFilePathsFromToolResult(toolName: string | undefined | null): boolean {

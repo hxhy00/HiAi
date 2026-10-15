@@ -1,14 +1,14 @@
-const LEGACY_LOBSTERAI_SESSION_PREFIX = 'lobsterai:';
+const LEGACY_HIAI_SESSION_PREFIX = 'hiai:';
 const AGENT_SESSION_PREFIX = 'agent:';
-const LOBSTERAI_SESSION_MARKER = 'lobsterai';
+const LOBSTERAI_SESSION_MARKER = 'hiai';
 const SUBAGENT_SESSION_MARKER = 'subagent';
 
 export function isAskUserQuestionCandidateSessionKey(sessionKey: string | undefined | null): boolean {
   const raw = (sessionKey ?? '').trim();
   if (!raw) return false;
 
-  if (raw.startsWith(LEGACY_LOBSTERAI_SESSION_PREFIX)) {
-    return raw.slice(LEGACY_LOBSTERAI_SESSION_PREFIX.length).trim().length > 0;
+  if (raw.startsWith(LEGACY_HIAI_SESSION_PREFIX)) {
+    return raw.slice(LEGACY_HIAI_SESSION_PREFIX.length).trim().length > 0;
   }
 
   if (!raw.startsWith(AGENT_SESSION_PREFIX)) {

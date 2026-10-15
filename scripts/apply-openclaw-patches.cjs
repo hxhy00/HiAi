@@ -195,11 +195,11 @@ const legacyStrongPatchValidators = {
       ],
     },
   ],
-  'openclaw-lobsterai-model-compat-api.patch': [
+  'openclaw-hiai-model-compat-api.patch': [
     {
       file: 'src/config/types.models.ts',
       snippets: [
-        'LOBSTERAI_MODEL_COMPAT_API = "lobsterai-model-compat"',
+        'LOBSTERAI_MODEL_COMPAT_API = "hiai-model-compat"',
         'export const MODEL_TRANSPORT_APIS',
         'api?: ModelTransportApi',
       ],
@@ -215,7 +215,7 @@ const legacyStrongPatchValidators = {
       file: 'src/agents/embedded-agent-runner/model.inline-provider.test.ts',
       snippets: [
         'keeps a provider API owner out of model transport resolution',
-        'api: "lobsterai-model-compat"',
+        'api: "hiai-model-compat"',
       ],
     },
     {
@@ -550,7 +550,7 @@ const v20260801StrongPatchValidators = {
   'openclaw-lobsterai-startup-recovery.patch': [
     {
       file: 'src/agents/main-session-recovery/main-session-restart-recovery-marking.ts',
-      snippets: ['const LOBSTERAI_SESSION_PREFIX = "lobsterai:"'],
+      snippets: ['const HIAI_SESSION_PREFIX = "lobsterai:"'],
       orderedSnippets: [
         'export async function markStartupOrphanedMainSessionsForRecovery',
         'entry.abortedLastRun === true',
@@ -558,8 +558,8 @@ const v20260801StrongPatchValidators = {
         'if (isMainRestartRecoveryAggregateTerminalOnly(entry))',
         'return { action: "retire_terminal" }',
         'parseAgentSessionKey(sessionKey)?.rest ?? sessionKey.trim()',
-        'sessionNamespace.startsWith(LOBSTERAI_SESSION_PREFIX)',
-        'sessionNamespace.slice(LOBSTERAI_SESSION_PREFIX.length).trim()',
+        'sessionNamespace.startsWith(HIAI_SESSION_PREFIX)',
+        'sessionNamespace.slice(HIAI_SESSION_PREFIX.length).trim()',
         'return undefined',
         'return { action: "mark" }',
       ],
@@ -703,11 +703,11 @@ const v20260801StrongPatchValidators = {
       ],
     },
   ],
-  'openclaw-lobsterai-model-compat-api.patch': [
+  'openclaw-hiai-model-compat-api.patch': [
     {
       file: 'src/config/types.models.ts',
       snippets: [
-        'LOBSTERAI_MODEL_COMPAT_API = "lobsterai-model-compat"',
+        'LOBSTERAI_MODEL_COMPAT_API = "hiai-model-compat"',
         'export const MODEL_TRANSPORT_APIS',
         'export const MODEL_APIS = [...MODEL_TRANSPORT_APIS, LOBSTERAI_MODEL_COMPAT_API]',
       ],

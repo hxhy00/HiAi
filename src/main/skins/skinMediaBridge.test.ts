@@ -18,7 +18,7 @@ import { SkinWorkflowRegistry } from './skinWorkflowRegistry';
 
 const timestamp = '2026-07-16T10:00:00.000Z';
 const sessionId = 'session-one';
-const sessionKey = 'agent:main:lobsterai:session-one';
+const sessionKey = 'agent:main:hiai:session-one';
 const context = { sessionKey, toolCallId: 'tool-call-one' };
 
 const installedKit: InstalledKitRecord = {

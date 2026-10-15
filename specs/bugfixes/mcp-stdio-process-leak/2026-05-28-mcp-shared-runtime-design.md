@@ -12,7 +12,7 @@ LobsterAI 桌面端运行期间，Node.js 进程不断增殖。每新建一个�
 
 OpenClaw 的 `SessionMcpRuntimeManager` 以 **sessionId** 为 key 管理 MCP 连接。每个 session 拥有独立的 stdio 子进程组。
 
-LobsterAI 桌面端每个对话对应一个**独立的 gateway session key**（`agent:{agentId}:lobsterai:{uuid}`），新建对话 = 新 sessionId = 新 MCP 进程。
+LobsterAI 桌面端每个对话对应一个**独立的 gateway session key**（`agent:{agentId}:hiai:{uuid}`），新建对话 = 新 sessionId = 新 MCP 进程。
 
 释放路径的缺陷：
 

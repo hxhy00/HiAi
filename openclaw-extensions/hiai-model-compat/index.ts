@@ -23,7 +23,7 @@ import {
   resolveOpenClawThinkingProfile,
 } from './thinkingProfileMapping';
 
-const PLUGIN_ID = 'lobsterai-model-compat';
+const PLUGIN_ID = 'hiai-model-compat';
 const OPENAI_COMPLETIONS_API = 'openai-completions';
 const OPENAI_COMPATIBLE_APIS = new Set([
   OPENAI_COMPLETIONS_API,

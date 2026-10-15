@@ -12,7 +12,7 @@ export type OpenClawEngineIpc =
   typeof OpenClawEngineIpc[keyof typeof OpenClawEngineIpc];
 
 export const OpenClawGatewayProcessControl = {
-  Shutdown: 'lobsterai:gateway:shutdown',
+  Shutdown: 'hiai:gateway:shutdown',
 } as const;
 
 export const OpenClawEnginePhase = {
@@ -57,7 +57,7 @@ export type OpenClawGatewayRepairErrorCode =
 export const OPENCLAW_PLUGIN_INDEX_MANAGED_KEYS = ['installs'] as const;
 
 /** Bundled plugin that owns model compatibility and thinking profiles. */
-export const OPENCLAW_MODEL_COMPAT_PLUGIN_ID = 'lobsterai-model-compat';
+export const OPENCLAW_MODEL_COMPAT_PLUGIN_ID = 'hiai-model-compat';
 
 /** Why a task was refused while a config change is still unapplied. */
 export const OpenClawConfigApplyPendingReason = {

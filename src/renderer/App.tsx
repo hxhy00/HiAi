@@ -118,7 +118,7 @@ const AGENT_TASK_SLOT_SHORTCUT_ACTIONS = [
   ShortcutAction.OpenAgentTask9,
 ] as const;
 
-const NEW_USER_WELCOME_AFTER_LOGIN_STORAGE_KEY = 'lobsterai:newUserWelcomeAfterLogin';
+const NEW_USER_WELCOME_AFTER_LOGIN_STORAGE_KEY = 'hiai:newUserWelcomeAfterLogin';
 const NEW_USER_WELCOME_AFTER_LOGIN_RESTART_GRACE_MS = 1800;
 const NEW_USER_WELCOME_AFTER_LOGIN_ENGINE_SETTLE_MS = 700;
 

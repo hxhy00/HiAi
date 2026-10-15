@@ -3655,7 +3655,7 @@ export class OpenClawConfigSync {
           }
         }
 
-        if (!/^agent:[^:]+:lobsterai:/.test(sessionKey)) {
+        if (!/^agent:[^:]+:hiai:/.test(sessionKey)) {
           continue;
         }
 

@@ -6,9 +6,9 @@ import {
   ModelProfileTransportDecision,
   parseModelProfileMap,
   resolveModelProfileTransportDecision,
-} from '../openclaw-extensions/lobsterai-model-compat/profileMapping';
+} from '../openclaw-extensions/hiai-model-compat/profileMapping';
 
-describe('lobsterai-model-compat profile mapping', () => {
+describe('hiai-model-compat profile mapping', () => {
   test('keeps only exact valid model refs and known profiles in deterministic order', () => {
     expect(parseModelProfileMap({
       'custom_2/alias-k3': 'moonshot-kimi-k3',
@@ -72,11 +72,11 @@ describe('lobsterai-model-compat profile mapping', () => {
       modelProfiles: profiles,
       provider: 'custom_0',
       modelId: 'my-kimi-prod',
-      modelApi: 'lobsterai-model-compat',
+      modelApi: 'hiai-model-compat',
     })).toEqual({
       kind: ModelProfileTransportDecision.Reject,
       expectedApi: 'openai-completions',
-      actualApi: 'lobsterai-model-compat',
+      actualApi: 'hiai-model-compat',
     });
   });
 });

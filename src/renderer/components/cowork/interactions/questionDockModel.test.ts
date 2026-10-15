@@ -15,14 +15,14 @@ const pluginPermission = (questions: unknown[]): CoworkPermissionRequest => ({
   sessionId: 's',
   requestId: 'r',
   toolName: 'AskUserQuestion',
-  toolInput: { questions, sessionKey: 'agent:main:lobsterai:s' },
+  toolInput: { questions, sessionKey: 'agent:main:hiai:s' },
 });
 
 const nativePermission = (questions: unknown[], overrides: Record<string, unknown> = {}): CoworkPermissionRequest => ({
   sessionId: 's',
   requestId: 'openclaw-question:q',
   toolName: 'ask_user',
-  toolInput: { id: 'q', sessionKey: 'agent:main:lobsterai:s', expiresAtMs: Date.now() + 60_000, status: 'pending', questions, ...overrides },
+  toolInput: { id: 'q', sessionKey: 'agent:main:hiai:s', expiresAtMs: Date.now() + 60_000, status: 'pending', questions, ...overrides },
 });
 
 const options = [{ label: 'A (Recommended)' }, { label: 'B', description: 'second' }];

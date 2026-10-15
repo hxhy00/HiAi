@@ -4,12 +4,12 @@ import { describe, expect, test } from 'vitest';
 import {
   createLobsterAIRequestOptionsWrapper,
   resolveLobsterAIRequestThinkingLevel,
-} from '../../../openclaw-extensions/lobsterai-model-compat/requestOptions';
+} from '../../../openclaw-extensions/hiai-model-compat/requestOptions';
 import {
   LOBSTERAI_REQUEST_OPTIONS_FIELD,
   LOBSTERAI_REQUEST_OPTIONS_VERSION,
-} from '../../../openclaw-extensions/lobsterai-model-compat/requestOptionsProtocol';
-import type { LobsterAIThinkingProfile } from '../../../openclaw-extensions/lobsterai-model-compat/thinkingProfileMapping';
+} from '../../../openclaw-extensions/hiai-model-compat/requestOptionsProtocol';
+import type { LobsterAIThinkingProfile } from '../../../openclaw-extensions/hiai-model-compat/thinkingProfileMapping';
 
 const profile: LobsterAIThinkingProfile = {
   options: [

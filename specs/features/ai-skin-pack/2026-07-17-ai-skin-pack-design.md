@@ -25,7 +25,7 @@ LobsterAI 已有颜色主题系统，但不能根据用户描述生成并应用�
 
 1. 用户选择内置外观定制 Kit 并输入主题、氛围和配色描述。
 2. 运行时确认可信 Kit 的 `skin_pack` 标记并创建草稿。
-3. 已登录且具有图片权益时使用 `lobsterai_image_generate`；否则在 OpenClaw 原生 `image_generate` 可用时使用用户配置的 Provider。
+3. 已登录且具有图片权益时使用 `hiai_image_generate`；否则在 OpenClaw 原生 `image_generate` 可用时使用用户配置的 Provider。
 4. 先生成并注册 `workspace.backdrop`，成功后再生成 `home.emblem`；同一皮肤锁定相同后端和模型。
 5. 两个槽位均通过校验后写入受管皮肤库并应用。
 6. 用户可在“设置 - 外观”中恢复默认、重新应用或删除本地皮肤，以上操作均不再次生图。

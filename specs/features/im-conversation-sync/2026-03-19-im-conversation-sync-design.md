@@ -123,7 +123,7 @@ handleChatFinal()
 
 | 类型 | 格式 | 示例 |
 |------|------|------|
-| Managed（LobsterAI 发起） | `agent:main:lobsterai:{sessionId}` | `agent:main:lobsterai:abc123` |
+| Managed（LobsterAI 发起） | `agent:main:hiai:{sessionId}` | `agent:main:hiai:abc123` |
 | Channel（平台发起） | `agent:{agentId}:{platform}:{subtype}:{conversationId}` | `agent:bot1:telegram:private:12345` |
 | Cron（定时任务） | `cron:{jobId}` 或 `agent:{agentId}:cron:{jobId}` | `cron:task-001` |
 

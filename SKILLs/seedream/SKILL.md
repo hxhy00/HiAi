@@ -1,6 +1,6 @@
 ---
 name: seedream
-description: 使用图片生成工具（lobsterai_image_generate）生成、编辑图片。当用户想生成图片、画一张图、做图片编辑、图像融合、生成组图或需要联网搜索增强的图片时使用。先用 action=list 查看用户在设置里配置了哪些图片模型，再用 action=generate 生成。
+description: 使用图片生成工具（hiai_image_generate）生成、编辑图片。当用户想生成图片、画一张图、做图片编辑、图像融合、生成组图或需要联网搜索增强的图片时使用。先用 action=list 查看用户在设置里配置了哪些图片模型，再用 action=generate 生成。
 official: true
 version: 2.0.0
 ---

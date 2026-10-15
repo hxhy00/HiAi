@@ -38,7 +38,7 @@ OpenClaw 引擎接管后，原有的 Claude Agent SDK `canUseTool` 执行前拦�
 ### 桌面端 vs IM 端隔离
 
 插件通过 `sessionKey` 判断来源：
-- `agent:main:lobsterai:*` → 桌面端 → 注册 AskUserQuestion 工具
+- `agent:main:hiai:*` → 桌面端 → 注册 AskUserQuestion 工具
 - 其他（qqbot/dingtalk/weixin/feishu/wecom）→ IM → 返回 null，工具不可见
 
 IM 端模型工具列表中没有 AskUserQuestion，自然不会调用，命令直接执行。

@@ -158,7 +158,7 @@ test.skipIf(!runtimeRoot || !archiveDir).each(NSP_CLAWGUARD.Releases)(
           }
         }
       } finally {
-        if (child.connected) child.send({ type: 'lobsterai:gateway:shutdown' });
+        if (child.connected) child.send({ type: 'hiai:gateway:shutdown' });
         else child.kill();
         const force = setTimeout(() => child.kill('SIGKILL'), 5000);
         await closed;

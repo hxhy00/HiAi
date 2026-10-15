@@ -2336,8 +2336,8 @@ const buildMediaReferencePromptSection = (mediaReferences?: CoworkMediaAttachmen
   const lines = [
     '[HiAi media reference mapping]',
     'The current user request contains explicit @ media tokens. Treat these mappings as authoritative and do not guess which uploaded attachment a token means.',
-    'When calling lobsterai_image_generate or lobsterai_video_generate, pass mapped file paths or URLs as tool arguments. Do not pass @ media tokens as image, images, firstFrame, lastFrame, referenceImages, media.url, video, or videos values.',
-    'For lobsterai_image_generate, prefer image with the mapped path for one referenced image and images for multiple referenced images.',
+    'When calling hiai_image_generate or hiai_video_generate, pass mapped file paths or URLs as tool arguments. Do not pass @ media tokens as image, images, firstFrame, lastFrame, referenceImages, media.url, video, or videos values.',
+    'For hiai_image_generate, prefer image with the mapped path for one referenced image and images for multiple referenced images.',
   ];
 
   for (const ref of refs) {

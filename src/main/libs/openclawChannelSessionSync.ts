@@ -17,7 +17,7 @@ import { t } from '../i18n';
 import type { IMStore } from '../im/imStore';
 import type { Platform } from '../im/types';
 
-const LOBSTERAI_SESSION_PREFIX = 'lobsterai:';
+const HIAI_SESSION_PREFIX = 'hiai:';
 const FEISHU_GROUP_CHAT_ID_RE = /^oc_/i;
 export const DEFAULT_MANAGED_AGENT_ID = 'main';
 
@@ -32,7 +32,7 @@ export function buildManagedSessionKey(
 ): string {
   const normalizedSessionId = sessionId.trim();
   const normalizedAgentId = agentId.trim() || DEFAULT_MANAGED_AGENT_ID;
-  return `agent:${normalizedAgentId}:lobsterai:${normalizedSessionId}`;
+  return `agent:${normalizedAgentId}:hiai:${normalizedSessionId}`;
 }
 
 export function parseManagedSessionKey(
@@ -41,8 +41,8 @@ export function parseManagedSessionKey(
   const raw = (sessionKey ?? '').trim();
   if (!raw) return null;
 
-  if (raw.startsWith(LOBSTERAI_SESSION_PREFIX)) {
-    const sessionId = raw.slice(LOBSTERAI_SESSION_PREFIX.length).trim();
+  if (raw.startsWith(HIAI_SESSION_PREFIX)) {
+    const sessionId = raw.slice(HIAI_SESSION_PREFIX.length).trim();
     return sessionId ? { agentId: null, sessionId } : null;
   }
 
@@ -51,7 +51,7 @@ export function parseManagedSessionKey(
   }
 
   const parts = raw.split(':');
-  if (parts.length < 4 || parts[0] !== 'agent' || parts[2] !== 'lobsterai') {
+  if (parts.length < 4 || parts[0] !== 'agent' || parts[2] !== 'hiai') {
     return null;
   }
 

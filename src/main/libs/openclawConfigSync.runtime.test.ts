@@ -120,7 +120,7 @@ vi.mock('./openclawLocalExtensions', () => ({
   findThirdPartyExtensionsDir: () => mockRuntimeState.thirdPartyExtensionsDir,
   hasBundledOpenClawExtension: (id: string) => (
     id !== 'qwen-portal-auth'
-    && (id !== 'lobsterai-model-compat' || mockRuntimeState.modelCompatPluginAvailable)
+    && (id !== 'hiai-model-compat' || mockRuntimeState.modelCompatPluginAvailable)
   ),
   hasRuntimeBundledOpenClawExtension: (id: string) => id === 'xai',
   resolveOpenClawExtensionPluginId: (id: string) => {
@@ -2049,7 +2049,7 @@ describe('OpenClawConfigSync runtime config output', () => {
     const customK3 = customProvider.models.find((model: { id: string }) =>
       model.id === 'kimi-k3');
 
-    expect(customProvider.api).toBe('lobsterai-model-compat');
+    expect(customProvider.api).toBe('hiai-model-compat');
     expect(customProvider.models).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'plain-model', api: 'openai-completions' }),
       expect.objectContaining({ id: 'kimi-k3', api: 'openai-completions' }),
@@ -2090,7 +2090,7 @@ describe('OpenClawConfigSync runtime config output', () => {
         },
       },
     });
-    expect(config.plugins.entries['lobsterai-model-compat']).toEqual({
+    expect(config.plugins.entries['hiai-model-compat']).toEqual({
       enabled: true,
       config: {
         modelProfiles: {
@@ -2098,7 +2098,7 @@ describe('OpenClawConfigSync runtime config output', () => {
         },
       },
     });
-    expect(config.plugins.allow).toContain('lobsterai-model-compat');
+    expect(config.plugins.allow).toContain('hiai-model-compat');
 
     const unchangedSync = sync.sync('kimi-k3-compat-unchanged');
     expect(unchangedSync.ok).toBe(true);
@@ -2126,14 +2126,14 @@ describe('OpenClawConfigSync runtime config output', () => {
       models: {
         providers: {
           custom_0: {
-            api: 'lobsterai-model-compat',
+            api: 'hiai-model-compat',
             models: [{ id: 'plain-model', api: 'openai-completions' }],
           },
         },
       },
       plugins: {
         entries: {
-          'lobsterai-model-compat': {
+          'hiai-model-compat': {
             enabled: true,
             config: {
               modelProfiles: {
@@ -2151,7 +2151,7 @@ describe('OpenClawConfigSync runtime config output', () => {
       ...compatConfig,
       plugins: {
         entries: {
-          'lobsterai-model-compat': {
+          'hiai-model-compat': {
             enabled: true,
             config: {
               modelProfiles: {
@@ -2167,7 +2167,7 @@ describe('OpenClawConfigSync runtime config output', () => {
       models: {
         providers: {
           custom_0: {
-            api: 'lobsterai-model-compat',
+            api: 'hiai-model-compat',
             models: [
               { id: 'another-plain-model', api: 'openai-completions' },
               { id: 'plain-model', api: 'openai-completions' },
@@ -2180,10 +2180,10 @@ describe('OpenClawConfigSync runtime config output', () => {
       ...compatConfig,
       plugins: {
         entries: {
-          'lobsterai-model-compat': {
+          'hiai-model-compat': {
             enabled: true,
             config: {
-              modelProfiles: compatConfig.plugins.entries['lobsterai-model-compat'].config.modelProfiles,
+              modelProfiles: compatConfig.plugins.entries['hiai-model-compat'].config.modelProfiles,
               thinkingProfiles: {
                 'lobsterai-server/deepseek-v4-flash': {
                   options: [
@@ -2232,7 +2232,7 @@ describe('OpenClawConfigSync runtime config output', () => {
       rejectedModelRefs: [],
     });
     for (const providers of [forward, reverse]) {
-      expect(providers.custom_0.api).toBe('lobsterai-model-compat');
+      expect(providers.custom_0.api).toBe('hiai-model-compat');
       expect(Object.fromEntries(
         providers.custom_0.models.map(model => [model.id, model.api]),
       )).toEqual({
@@ -2298,7 +2298,7 @@ describe('OpenClawConfigSync runtime config output', () => {
       ok: false,
       changed: false,
     });
-    expect(result.error).toContain('lobsterai-model-compat');
+    expect(result.error).toContain('hiai-model-compat');
     expect(fs.existsSync(configPath)).toBe(false);
   });
 

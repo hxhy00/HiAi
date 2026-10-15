@@ -1,9 +1,10 @@
-import { test, expect } from 'vitest';
+import { expect,test } from 'vitest';
+
+import {
+BindingKind, DeliveryChannel, DeliveryMode,   OriginKind, SessionTarget,
+} from '../constants';
 import { makeModel } from '../fixtures';
 import { CoworkTaskPolicy } from './coworkPolicy';
-import {
-  OriginKind, BindingKind, DeliveryMode, DeliveryChannel, SessionTarget,
-} from '../constants';
 
 test('CoworkPolicy.getCreateDefaults: with cowork origin -> sessionTarget main + channel last', () => {
   const policy = new CoworkTaskPolicy();
@@ -73,7 +74,7 @@ test('CoworkPolicy.toWireBinding: ui_session binding -> managed sessionKey', () 
   const policy = new CoworkTaskPolicy();
   const result = policy.toWireBinding({ kind: BindingKind.UISession, sessionId: 'sess-x' });
   expect(result.sessionTarget).toBe(SessionTarget.Main);
-  expect(result.sessionKey).toBe('agent:main:lobsterai:sess-x');
+  expect(result.sessionKey).toBe('agent:main:hiai:sess-x');
 });
 
 test('CoworkPolicy.toWireBinding: session_key binding -> isolated + original sessionKey', () => {
