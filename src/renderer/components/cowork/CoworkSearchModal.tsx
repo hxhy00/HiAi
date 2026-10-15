@@ -5,7 +5,6 @@ import { useSelector } from 'react-redux';
 
 import { coworkService } from '../../services/cowork';
 import { i18nService } from '../../services/i18n';
-import { LogReporterAction, reportYdAnalyzer } from '../../services/logReporter';
 import { RootState } from '../../store';
 import { CoworkSessionStatusValue, type CoworkSessionSummary } from '../../types/cowork';
 import { getAgentDisplayNameById } from '../../utils/agentDisplay';
@@ -15,37 +14,9 @@ import SkinPresentationScope from '../skin/SkinPresentationScope';
 
 const SEARCH_SESSION_LIMIT = 100;
 const SEARCH_DEBOUNCE_MS = 180;
-const TASK_SEARCH_ANALYTICS_SOURCE = 'home_task_search';
 
 const getSessionAgentId = (session: CoworkSessionSummary) => {
   return session.agentId?.trim() || AgentId.Main;
-};
-
-const getSessionAgentType = (session: CoworkSessionSummary): 'main' | 'custom' => (
-  getSessionAgentId(session) === AgentId.Main ? 'main' : 'custom'
-);
-
-const reportTaskSearchAction = (
-  actionType: string,
-  options: {
-    agentType?: 'main' | 'custom';
-    hasQuery?: boolean;
-    isCurrentSession?: boolean;
-    resultCount?: number;
-    sessionStatus?: string;
-  } = {},
-): void => {
-  console.debug('[CoworkSearch] reporting task search analytics');
-  void reportYdAnalyzer({
-    action: LogReporterAction.TaskSearchAction,
-    source: TASK_SEARCH_ANALYTICS_SOURCE,
-    actionType,
-    hasQuery: options.hasQuery,
-    resultCount: options.resultCount,
-    isCurrentSession: options.isCurrentSession,
-    sessionStatus: options.sessionStatus,
-    agentType: options.agentType,
-  });
 };
 
 const mergeUniqueSessions = (
@@ -144,10 +115,6 @@ const CoworkSearchModal: React.FC<CoworkSearchModalProps> = ({
     if (isOpen) {
       if (!reportedOpenRef.current) {
         reportedOpenRef.current = true;
-        reportTaskSearchAction('open', {
-          hasQuery: false,
-          resultCount: sessions.length,
-        });
       }
       requestAnimationFrame(() => {
         searchInputRef.current?.focus();
@@ -212,22 +179,11 @@ const CoworkSearchModal: React.FC<CoworkSearchModalProps> = ({
   }, [displayedSessions]);
 
   const handleSelectSession = useCallback(async (session: CoworkSessionSummary) => {
-    reportTaskSearchAction('select_result', {
-      agentType: getSessionAgentType(session),
-      hasQuery: searchQuery.trim().length > 0,
-      isCurrentSession: session.id === currentSessionId,
-      resultCount: displayedSessions.length,
-      sessionStatus: session.status,
-    });
     await onSelectSession(session);
     onClose();
   }, [currentSessionId, displayedSessions.length, onClose, onSelectSession, searchQuery]);
 
   const handleClose = useCallback(() => {
-    reportTaskSearchAction('close', {
-      hasQuery: searchQuery.trim().length > 0,
-      resultCount: displayedSessions.length,
-    });
     onClose();
   }, [displayedSessions.length, onClose, searchQuery]);
 
@@ -267,10 +223,6 @@ const CoworkSearchModal: React.FC<CoworkSearchModalProps> = ({
     const emptyResultKey = `${searchQuery.trim().length > 0 ? 'query' : 'recent'}:${searchResultQuery}`;
     if (reportedEmptyResultKeyRef.current === emptyResultKey) return;
     reportedEmptyResultKeyRef.current = emptyResultKey;
-    reportTaskSearchAction('empty_result', {
-      hasQuery: searchQuery.trim().length > 0,
-      resultCount: 0,
-    });
   }, [displayedSessions.length, isLoading, isOpen, searchQuery, searchResultQuery]);
 
   if (!isOpen) return null;

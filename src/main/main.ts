@@ -36,10 +36,6 @@ import {
 import {
   AgentId,
 } from '../shared/agent/constants';
-import {
-  LogReporterAction,
-  LogReporterSource,
-} from '../shared/analytics/constants';
 import { AppIpcChannel } from '../shared/app/constants';
 import { AppSettingsAutoLaunchErrorCode, AppSettingsIpc } from '../shared/appSettings/constants';
 import { type AppUpdateActiveWorkloads, AppUpdateIpc } from '../shared/appUpdate/constants';
@@ -391,7 +387,6 @@ import {
   resolveLobsterBrowserMcpStdioLaunch,
 } from './libs/lobsterBrowserMcpServer';
 import { exportLogsZip } from './libs/logExport';
-import { MainLogReporter } from './libs/mainLogReporter';
 import {
   createDevelopmentMainWindowLoadRecovery,
   type DevelopmentMainWindowLoadRecovery,
@@ -504,7 +499,7 @@ import { collectReferencedEnvVarNames, pickReferencedSecretEnvVars } from './lib
 import { runLegacyWeixinAllowFromMigration } from './libs/openclawWeixinPairingMigration';
 import { migrateMainAgentWorkspace } from './libs/openclawWorkspaceMigration';
 import { ensurePythonRuntimeReady } from './libs/pythonRuntime';
-import { isAnalyticsEndpointUrl, sanitizeUrlForLog, serializeForLog } from './libs/sanitizeForLog';
+import { sanitizeUrlForLog, serializeForLog } from './libs/sanitizeForLog';
 import { packageNodeServiceDeployment } from './libs/shareDeployment/nodeServiceDeploymentPackager';
 import {
   analyzeNodeServiceProjectDirectory,
@@ -2144,7 +2139,6 @@ let memoryMigrationDone = false;
 let preventSleepBlockerId: number | null = null;
 let appUpdateCoordinator: AppUpdateCoordinator | null = null;
 let resolveAppUpdateGraySession: () => AppUpdateGraySession | null = () => null;
-let mainLogReporter: MainLogReporter | null = null;
 let libraryIndexService: LibraryIndexService | null = null;
 let unsubscribeLibrarySessionChanges: (() => void) | null = null;
 
@@ -2305,22 +2299,6 @@ const getAppUpdateCoordinator = (): AppUpdateCoordinator => {
     }));
   }
   return appUpdateCoordinator;
-};
-
-const getMainLogReporter = (): MainLogReporter => {
-  if (!mainLogReporter) {
-    mainLogReporter = new MainLogReporter({
-      appVersion: app.getVersion(),
-      fetch: async (url, signal) => {
-        const response = await session.defaultSession.fetch(url, { method: 'GET', signal });
-        const result = { ok: response.ok, status: response.status };
-        await response.body?.cancel();
-        return result;
-      },
-      store: getStore(),
-    });
-  }
-  return mainLogReporter;
 };
 
 const forwardOpenClawStatus = (status: OpenClawEngineStatus): void => {
@@ -3882,13 +3860,6 @@ const getCoworkEngineRouter = () => {
         getOpenClawEngineManager(),
         {
           normalizeModelRef: normalizeOpenClawModelRef,
-          onChannelPromptSubmit: event => {
-            void getMainLogReporter().report({
-              action: LogReporterAction.ImPromptSubmit,
-              source: LogReporterSource.OpenClawChannel,
-              ...event,
-            });
-          },
           onGatewayClientReady: () => {
             getCronJobService().notifyGatewayReady();
             handleGatewaySelfRestartSettled();
@@ -4640,7 +4611,6 @@ type AppConfigSettings = {
   language?: string;
   useSystemProxy?: boolean;
   sqliteAutoBackupEnabled?: boolean;
-  usageAnalyticsEnabled?: boolean;
   notificationSettings?: Partial<NotificationSettings>;
   browserWebAccess?: Partial<BrowserWebAccessConfig>;
 };
@@ -12336,14 +12306,9 @@ if (!gotTheLock) {
       },
     ) => {
       const sanitizedUrl = sanitizeUrlForLog(options.url);
-      // Analytics beacons are traced by the reporter itself ([LogReporter]
-      // lines); logging them here again would only add noise.
-      const logTraffic = !isAnalyticsEndpointUrl(options.url);
-      if (logTraffic) {
-        console.log(
-          `[api:fetch] ${options.method} ${sanitizedUrl}, headers: ${serializeForLog(options.headers)}, body: ${options.body}`,
-        );
-      }
+      console.log(
+        `[api:fetch] ${options.method} ${sanitizedUrl}, headers: ${serializeForLog(options.headers)}, body: ${options.body}`,
+      );
 
       const doFetch = async (headers: Record<string, string>) => {
         const response = await session.defaultSession.fetch(options.url, {
@@ -12374,12 +12339,10 @@ if (!gotTheLock) {
 
       try {
         let result = await doFetch(options.headers);
-        if (logTraffic) {
-          console.log(
-            `[api:fetch] ${options.method} ${sanitizedUrl} -> ${result.status} ${result.statusText}`,
-            typeof result.data === 'object' ? JSON.stringify(result.data) : result.data,
-          );
-        }
+        console.log(
+          `[api:fetch] ${options.method} ${sanitizedUrl} -> ${result.status} ${result.statusText}`,
+          typeof result.data === 'object' ? JSON.stringify(result.data) : result.data,
+        );
 
         // Auto-retry once for Copilot 401/403
         if (

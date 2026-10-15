@@ -14,7 +14,7 @@ import { RootState } from '../../store';
 import { setViewMode } from '../../store/slices/scheduledTaskSlice';
 import EditIcon from '../icons/EditIcon';
 import TrashIcon from '../icons/TrashIcon';
-import { getTaskAnalyticsParams, reportScheduledTaskAction } from './analytics';
+
 import TaskRunHistory from './TaskRunHistory';
 import TaskStatusChip from './TaskStatusChip';
 import TaskToggle from './TaskToggle';
@@ -122,67 +122,25 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, onRequestDelete }) => {
     }
   }, [runningAtMs, task.id]);
 
-  const analyticsParams = React.useMemo(
-    () => getTaskAnalyticsParams(task, availableModels),
-    [availableModels, task],
-  );
-
   const handleEdit = React.useCallback(() => {
-    reportScheduledTaskAction('detail_edit', {
-      source: 'scheduled_task_detail',
-      ...analyticsParams,
-    });
     dispatch(setViewMode('edit'));
-  }, [analyticsParams, dispatch]);
+  }, [dispatch]);
 
   const handleRunManually = React.useCallback(async () => {
-    reportScheduledTaskAction('detail_run_manually', {
-      source: 'scheduled_task_detail',
-      ...analyticsParams,
-    });
     try {
       await scheduledTaskService.runManually(task.id);
-      reportScheduledTaskAction('detail_run_manually_success', {
-        source: 'scheduled_task_detail',
-        result: 'success',
-        ...analyticsParams,
-      });
     } catch {
-      reportScheduledTaskAction('detail_run_manually_failed', {
-        source: 'scheduled_task_detail',
-        result: 'failed',
-        errorCode: 'run_manually_failed',
-        ...analyticsParams,
-      });
     }
-  }, [analyticsParams, task.id]);
+  }, [task.id]);
 
   const handleToggle = React.useCallback(async () => {
     const targetEnabled = !task.enabled;
-    reportScheduledTaskAction('toggle_enabled', {
-      source: 'scheduled_task_detail',
-      targetEnabled,
-      ...analyticsParams,
-    });
     try {
       await scheduledTaskService.toggleTask(task.id, targetEnabled);
-      reportScheduledTaskAction('toggle_enabled_success', {
-        source: 'scheduled_task_detail',
-        targetEnabled,
-        result: 'success',
-        ...analyticsParams,
-      });
     } catch {
       // The service already rolled back the optimistic flip and toasted.
-      reportScheduledTaskAction('toggle_enabled_failed', {
-        source: 'scheduled_task_detail',
-        targetEnabled,
-        result: 'failed',
-        errorCode: 'toggle_failed',
-        ...analyticsParams,
-      });
     }
-  }, [analyticsParams, task.enabled, task.id]);
+  }, [task.enabled, task.id]);
 
   const promptText = task.payload.kind === 'systemEvent' ? task.payload.text : task.payload.message;
   const deliveryLabel = formatDeliveryLabel(task.delivery, {

@@ -14,12 +14,11 @@ import {
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { i18nService } from '../../services/i18n';
-import { LogReporterAction, reportYdAnalyzer } from '../../services/logReporter';
+
 import { type EmailSkillAccountConfig, type EmailSkillAccountsConfig, skillService } from '../../services/skill';
 import Modal from '../common/Modal';
 
 const SKILL_ID = 'imap-smtp-email';
-const EMAIL_ANALYTICS_SOURCE = 'settings_email';
 
 interface ProviderPreset {
   label: string;
@@ -187,25 +186,6 @@ const getChangedAccountKeys = (patch: Partial<EmailSkillAccountConfig>): string 
   return Array.from(changedKeys).join(',');
 };
 
-const buildEmailSkillAnalyticsParams = (
-  config: EmailSkillAccountsConfig,
-  account: EmailSkillAccountConfig | null,
-) => ({
-  source: EMAIL_ANALYTICS_SOURCE,
-  skillId: SKILL_ID,
-  provider: account?.provider ?? '',
-  accountCount: config.accounts.length,
-  enabledAccountCount: config.accounts.filter(item => item.enabled).length,
-  hasEmail: Boolean(account?.email?.trim()),
-  hasPassword: Boolean(account?.password?.trim()),
-  hasImapHost: Boolean(account?.imapHost?.trim()),
-  hasSmtpHost: Boolean(account?.smtpHost?.trim()),
-  imapTlsEnabled: account?.imapTls !== false,
-  smtpSslEnabled: account?.smtpSecure === true,
-  allowInsecureCert: account?.imapRejectUnauthorized === false || account?.smtpRejectUnauthorized === false,
-  mailboxCustomized: Boolean(account?.mailbox && account.mailbox !== 'INBOX'),
-});
-
 const EmailSkillConfig: React.FC = () => {
   const [config, setConfig] = useState<EmailSkillAccountsConfig>({
     version: 1,
@@ -295,16 +275,6 @@ const EmailSkillConfig: React.FC = () => {
       console.warn('[EmailSkillConfig] failed to persist email accounts config', {
         accountCount: normalized.accounts.length,
         defaultAccountId: normalized.defaultAccountId,
-      });
-    }
-    if (success && analyticsChangedKeys) {
-      const analyticsAccount = normalized.accounts.find(account => account.id === activeAccountId)
-        ?? normalized.accounts.find(account => account.id === normalized.defaultAccountId)
-        ?? null;
-      void reportYdAnalyzer({
-        action: LogReporterAction.EmailSkillSettingsSaved,
-        ...buildEmailSkillAnalyticsParams(normalized, analyticsAccount),
-        changedKeys: analyticsChangedKeys,
       });
     }
     return success;
@@ -432,28 +402,12 @@ const EmailSkillConfig: React.FC = () => {
       if (!isMountedRef.current) return;
       if (result) {
         setConnectivityResults(prev => ({ ...prev, [activeAccount.id]: result }));
-        const imapCheck = result.checks.find(check => check.code === 'imap_connection');
-        const smtpCheck = result.checks.find(check => check.code === 'smtp_connection');
-        void reportYdAnalyzer({
-          action: LogReporterAction.EmailSkillConnectionTested,
-          ...buildEmailSkillAnalyticsParams(config, activeAccount),
-          result: result.verdict,
-          imapResult: imapCheck?.level ?? '',
-          smtpResult: smtpCheck?.level ?? '',
-        });
         console.debug('[EmailSkillConfig] email account connectivity test completed', {
           accountId: activeAccount.id,
           verdict: result.verdict,
         });
       } else {
         setConnectivityError(i18nService.t('connectionFailed'));
-        void reportYdAnalyzer({
-          action: LogReporterAction.EmailSkillConnectionTested,
-          ...buildEmailSkillAnalyticsParams(config, activeAccount),
-          result: 'fail',
-          imapResult: '',
-          smtpResult: '',
-        });
         console.warn('[EmailSkillConfig] email account connectivity test returned no result', {
           accountId: activeAccount.id,
         });
@@ -462,13 +416,6 @@ const EmailSkillConfig: React.FC = () => {
       console.error('[EmailSkillConfig] email account connectivity test failed:', error);
       if (!isMountedRef.current) return;
       setConnectivityError(i18nService.t('connectionFailed'));
-      void reportYdAnalyzer({
-        action: LogReporterAction.EmailSkillConnectionTested,
-        ...buildEmailSkillAnalyticsParams(config, activeAccount),
-        result: 'fail',
-        imapResult: '',
-        smtpResult: '',
-      });
     } finally {
       if (isMountedRef.current) {
         setTestingAccountId(null);

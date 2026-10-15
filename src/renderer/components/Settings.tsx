@@ -41,7 +41,6 @@ import { coworkService } from '../services/cowork';
 import { decryptSecret, decryptWithPassword, EncryptedPayload, encryptWithPassword, PasswordEncryptedPayload } from '../services/encryption';
 import { i18nService, LanguageType } from '../services/i18n';
 import { imService } from '../services/im';
-import { LogReporterAction, reportYdAnalyzer } from '../services/logReporter';
 import { resolveOpenClawRepairError, resolveOpenClawRepairHistoryWarning } from '../services/openclawRepair';
 import { formatShortcutForDisplay, getShortcutConflictSignature, isTextEditingSafeShortcut, matchesShortcut } from '../services/shortcuts';
 import {
@@ -75,8 +74,8 @@ import MessageCopyIcon from './icons/MessageCopyIcon';
 import PlugIcon from './icons/PlugIcon';
 import PlusCircleIcon from './icons/PlusCircleIcon';
 import IMSettings from './im/IMSettings';
-import PluginsSettings, { type PluginPendingChanges, type PluginsSettingsHandle } from './plugins/PluginsSettings';
-import { AboutOpenSourceAction, AboutOpenSourceRows } from './settings/AboutOpenSource';
+import PluginsSettings, { type PluginsSettingsHandle } from './plugins/PluginsSettings';
+import { AboutOpenSourceRows } from './settings/AboutOpenSource';
 import BrowserWebAccessSettings from './settings/BrowserWebAccessSettings';
 import MediaProviderSettingsSection from './settings/MediaProviderSettingsSection';
 import {
@@ -196,574 +195,6 @@ const SETTINGS_TAB_SHORTCUT_ACTIONS: Partial<Record<ShortcutAction, TabType>> = 
   [ShortcutAction.OpenSettingsPlugins]: 'plugins',
   [ShortcutAction.OpenSettingsShortcuts]: 'shortcuts',
   [ShortcutAction.OpenSettingsAbout]: 'about',
-};
-
-const SettingsAnalyticsSource = {
-  AgentEngine: 'settings_agent_engine',
-  Appearance: 'settings_appearance',
-  Browser: 'settings_browser',
-  Dreaming: 'settings_dreaming',
-  General: 'settings_general',
-  Memory: 'settings_memory',
-  Model: 'settings_model',
-  Plugins: 'settings_plugins',
-  Shortcuts: 'settings_shortcuts',
-  About: 'settings_about',
-} as const;
-
-type SettingsAnalyticsValue = string | boolean | number;
-type ProviderAnalyticsKind = 'builtin' | 'custom' | 'local';
-
-type MemorySettingAnalyticsSummary = {
-  changedKeys: string;
-  embeddingEnabled: boolean;
-  embeddingProvider: string;
-  embeddingVectorWeight: number;
-  hasEmbeddingApiKey: boolean;
-  hasEmbeddingBaseUrl: boolean;
-  hasEmbeddingModel: boolean;
-  memoryEnabled: boolean;
-  memoryLlmJudgeEnabled: boolean;
-};
-
-type DreamingSettingAnalyticsSummary = {
-  changedKeys: string;
-  dreamingEnabled: boolean;
-  frequencyType: 'preset' | 'custom';
-};
-
-type ShortcutSettingAnalyticsSummary = {
-  changedCount: number;
-  configuredCount: number;
-  disabledCount: number;
-  resetToDefault: boolean;
-};
-
-type PluginSettingsAnalyticsSummary = {
-  changedKeys: string;
-  configCount: number;
-  disabledToggleCount: number;
-  enabledToggleCount: number;
-  toggleCount: number;
-};
-
-const DREAMING_FREQUENCY_PRESETS_FOR_ANALYTICS = new Set([
-  '0 3 * * *',
-  '0 0 * * *',
-  '0 0,12 * * *',
-  '0 */6 * * *',
-  '0 3 * * 0',
-]);
-
-type CustomModelSettingsAnalyticsSummary = {
-  changedKeys: string;
-  changedProviderCount: number;
-  customProviderCount: number;
-  customProviderModelCount: number;
-  enabledCustomProviderCount: number;
-  enabledProviderCount: number;
-  hasCodingPlanEnabled: boolean;
-  hasLocalProviderEnabled: boolean;
-  modelCount: number;
-};
-
-const isCustomProviderKey = (providerKey: string): boolean => (
-  (CUSTOM_PROVIDER_KEYS as readonly string[]).includes(providerKey)
-);
-
-const isLocalProviderKey = (providerKey: string): boolean => (
-  providerKey === ProviderName.Ollama || providerKey === ProviderName.LmStudio
-);
-
-const resolveProviderAnalyticsKind = (providerKey: string): ProviderAnalyticsKind => {
-  if (isCustomProviderKey(providerKey)) {
-    return 'custom';
-  }
-  if (isLocalProviderKey(providerKey)) {
-    return 'local';
-  }
-  return 'builtin';
-};
-
-const countProviderModels = (providerConfig?: ProviderConfig): number => (
-  Array.isArray(providerConfig?.models) ? providerConfig.models.length : 0
-);
-
-const sortAnalyticsObject = (value: unknown): unknown => {
-  if (Array.isArray(value)) {
-    return value.map(sortAnalyticsObject);
-  }
-  if (value && typeof value === 'object') {
-    return Object.keys(value as Record<string, unknown>)
-      .sort()
-      .reduce<Record<string, unknown>>((sorted, key) => {
-        sorted[key] = sortAnalyticsObject((value as Record<string, unknown>)[key]);
-        return sorted;
-      }, {});
-  }
-  return value;
-};
-
-const serializeProviderModelsForAnalyticsDiff = (providerConfig?: ProviderConfig): string => (
-  JSON.stringify((providerConfig?.models ?? []).map(model => ({
-    contextWindow: model.contextWindow,
-    customParams: sortAnalyticsObject(model.customParams),
-    id: model.id,
-    maxTokens: model.maxTokens,
-    name: model.name,
-    supportsImage: model.supportsImage === true,
-    supportsThinking: model.supportsThinking === true,
-    supportsVideo: model.supportsVideo === true,
-  })))
-);
-
-const getProviderAuthTypeForAnalytics = (providerConfig?: ProviderConfig): string => (
-  providerConfig?.authType || ProviderAuthType.ApiKey
-);
-
-const getProviderApiFormatForAnalytics = (providerKey: string, providerConfig?: ProviderConfig): string => (
-  getEffectiveApiFormat(providerKey, providerConfig?.apiFormat)
-);
-
-const buildCustomModelSettingsAnalyticsSummary = (
-  previousProviders: ProvidersConfig,
-  nextProviders: ProvidersConfig,
-): CustomModelSettingsAnalyticsSummary | null => {
-  const changedKeys = new Set<string>();
-  const changedProviders = new Set<string>();
-  const providerKeysForDiff = new Set([
-    ...Object.keys(previousProviders),
-    ...Object.keys(nextProviders),
-  ]);
-
-  providerKeysForDiff.forEach(providerKey => {
-    const previousProvider = previousProviders[providerKey];
-    const nextProvider = nextProviders[providerKey];
-
-    if (!previousProvider || !nextProvider) {
-      changedKeys.add('provider_count');
-      changedProviders.add(providerKey);
-      return;
-    }
-
-    let providerChanged = false;
-    if ((previousProvider.enabled === true) !== (nextProvider.enabled === true)) {
-      changedKeys.add('provider_enabled');
-      providerChanged = true;
-    }
-    if (getProviderApiFormatForAnalytics(providerKey, previousProvider) !== getProviderApiFormatForAnalytics(providerKey, nextProvider)) {
-      changedKeys.add('api_format');
-      providerChanged = true;
-    }
-    if (((previousProvider as ProviderConfig).codingPlanEnabled === true) !== ((nextProvider as ProviderConfig).codingPlanEnabled === true)) {
-      changedKeys.add('coding_plan');
-      providerChanged = true;
-    }
-    if (getProviderAuthTypeForAnalytics(previousProvider) !== getProviderAuthTypeForAnalytics(nextProvider)) {
-      changedKeys.add('auth_type');
-      providerChanged = true;
-    }
-    if (countProviderModels(previousProvider) !== countProviderModels(nextProvider)) {
-      changedKeys.add('model_count');
-      providerChanged = true;
-    }
-    if (serializeProviderModelsForAnalyticsDiff(previousProvider) !== serializeProviderModelsForAnalyticsDiff(nextProvider)) {
-      changedKeys.add('model_config');
-      providerChanged = true;
-    }
-
-    if (providerChanged) {
-      changedProviders.add(providerKey);
-    }
-  });
-
-  if (changedKeys.size === 0) {
-    return null;
-  }
-
-  const nextProviderEntries = Object.entries(nextProviders);
-  return {
-    changedKeys: Array.from(changedKeys).sort().join(','),
-    changedProviderCount: changedProviders.size,
-    customProviderCount: nextProviderEntries.filter(([providerKey]) => isCustomProviderKey(providerKey)).length,
-    customProviderModelCount: nextProviderEntries
-      .filter(([providerKey]) => isCustomProviderKey(providerKey))
-      .reduce((count, [, providerConfig]) => count + countProviderModels(providerConfig), 0),
-    enabledCustomProviderCount: nextProviderEntries
-      .filter(([providerKey, providerConfig]) => isCustomProviderKey(providerKey) && providerConfig.enabled === true)
-      .length,
-    enabledProviderCount: nextProviderEntries.filter(([, providerConfig]) => providerConfig.enabled === true).length,
-    hasCodingPlanEnabled: nextProviderEntries.some(([, providerConfig]) => (providerConfig as ProviderConfig).codingPlanEnabled === true),
-    hasLocalProviderEnabled: nextProviderEntries.some(([providerKey, providerConfig]) => (
-      isLocalProviderKey(providerKey) && providerConfig.enabled === true
-    )),
-    modelCount: nextProviderEntries.reduce((count, [, providerConfig]) => count + countProviderModels(providerConfig), 0),
-  };
-};
-
-const buildBrowserSettingAnalyticsParams = (
-  previousConfig: BrowserWebAccessConfig,
-  nextConfig: BrowserWebAccessConfig,
-): {
-  blockedHostnameCount: number;
-  changedKeys: string;
-  networkMode: string;
-  previousBlockedHostnameCount?: number;
-} | null => {
-  const changedKeys = new Set<string>();
-  if (previousConfig.networkMode !== nextConfig.networkMode) {
-    changedKeys.add('network_mode');
-  }
-  if (previousConfig.blockedHostnames.length !== nextConfig.blockedHostnames.length) {
-    changedKeys.add('blocked_hostnames');
-  }
-
-  if (changedKeys.size === 0) {
-    return null;
-  }
-
-  return {
-    blockedHostnameCount: nextConfig.blockedHostnames.length,
-    changedKeys: Array.from(changedKeys).sort().join(','),
-    networkMode: nextConfig.networkMode,
-    previousBlockedHostnameCount: previousConfig.blockedHostnames.length,
-  };
-};
-
-const buildMemorySettingAnalyticsSummary = (
-  previousConfig: {
-    embeddingEnabled: boolean;
-    embeddingModel: string;
-    embeddingProvider: string;
-    embeddingRemoteApiKey: string;
-    embeddingRemoteBaseUrl: string;
-    embeddingVectorWeight: number;
-    memoryEnabled: boolean;
-    memoryLlmJudgeEnabled: boolean;
-  },
-  nextConfig: {
-    embeddingEnabled: boolean;
-    embeddingModel: string;
-    embeddingProvider: string;
-    embeddingRemoteApiKey: string;
-    embeddingRemoteBaseUrl: string;
-    embeddingVectorWeight: number;
-    memoryEnabled: boolean;
-    memoryLlmJudgeEnabled: boolean;
-  },
-): MemorySettingAnalyticsSummary | null => {
-  const changedKeys = new Set<string>();
-  if (previousConfig.memoryEnabled !== nextConfig.memoryEnabled) {
-    changedKeys.add('memory_enabled');
-  }
-  if (previousConfig.memoryLlmJudgeEnabled !== nextConfig.memoryLlmJudgeEnabled) {
-    changedKeys.add('llm_judge_enabled');
-  }
-  if (previousConfig.embeddingEnabled !== nextConfig.embeddingEnabled) {
-    changedKeys.add('embedding_enabled');
-  }
-  if (previousConfig.embeddingProvider !== nextConfig.embeddingProvider) {
-    changedKeys.add('embedding_provider');
-  }
-  if (previousConfig.embeddingModel !== nextConfig.embeddingModel) {
-    changedKeys.add('embedding_model');
-  }
-  if (previousConfig.embeddingRemoteBaseUrl !== nextConfig.embeddingRemoteBaseUrl) {
-    changedKeys.add('embedding_base_url');
-  }
-  if (previousConfig.embeddingRemoteApiKey !== nextConfig.embeddingRemoteApiKey) {
-    changedKeys.add('embedding_api_key');
-  }
-  if (previousConfig.embeddingVectorWeight !== nextConfig.embeddingVectorWeight) {
-    changedKeys.add('embedding_vector_weight');
-  }
-
-  if (changedKeys.size === 0) {
-    return null;
-  }
-
-  return {
-    changedKeys: Array.from(changedKeys).sort().join(','),
-    embeddingEnabled: nextConfig.embeddingEnabled,
-    embeddingProvider: nextConfig.embeddingProvider,
-    embeddingVectorWeight: nextConfig.embeddingVectorWeight,
-    hasEmbeddingApiKey: nextConfig.embeddingRemoteApiKey.trim().length > 0,
-    hasEmbeddingBaseUrl: nextConfig.embeddingRemoteBaseUrl.trim().length > 0,
-    hasEmbeddingModel: nextConfig.embeddingModel.trim().length > 0,
-    memoryEnabled: nextConfig.memoryEnabled,
-    memoryLlmJudgeEnabled: nextConfig.memoryLlmJudgeEnabled,
-  };
-};
-
-const resolveDreamingFrequencyType = (frequency: string): 'preset' | 'custom' => (
-  DREAMING_FREQUENCY_PRESETS_FOR_ANALYTICS.has(frequency) ? 'preset' : 'custom'
-);
-
-const buildDreamingSettingAnalyticsSummary = (
-  previousConfig: {
-    dreamingEnabled: boolean;
-    dreamingFrequency: string;
-  },
-  nextConfig: {
-    dreamingEnabled: boolean;
-    dreamingFrequency: string;
-  },
-): DreamingSettingAnalyticsSummary | null => {
-  const changedKeys = new Set<string>();
-  if (previousConfig.dreamingEnabled !== nextConfig.dreamingEnabled) {
-    changedKeys.add('dreaming_enabled');
-  }
-  if (previousConfig.dreamingFrequency !== nextConfig.dreamingFrequency) {
-    changedKeys.add('dreaming_frequency');
-  }
-
-  if (changedKeys.size === 0) {
-    return null;
-  }
-
-  return {
-    changedKeys: Array.from(changedKeys).sort().join(','),
-    dreamingEnabled: nextConfig.dreamingEnabled,
-    frequencyType: resolveDreamingFrequencyType(nextConfig.dreamingFrequency),
-  };
-};
-
-const countConfiguredShortcuts = (shortcutConfig: ShortcutConfig): number => (
-  Object.values(shortcutConfig).filter(value => String(value || '').trim().length > 0).length
-);
-
-const buildShortcutSettingAnalyticsSummary = (
-  previousShortcuts: ShortcutConfig,
-  nextShortcuts: ShortcutConfig,
-): ShortcutSettingAnalyticsSummary | null => {
-  const keys = new Set([
-    ...Object.keys(previousShortcuts),
-    ...Object.keys(nextShortcuts),
-    ...Object.keys(defaultConfig.shortcuts || {}),
-  ]);
-  let changedCount = 0;
-  keys.forEach(key => {
-    if ((previousShortcuts[key as ShortcutAction] || '') !== (nextShortcuts[key as ShortcutAction] || '')) {
-      changedCount += 1;
-    }
-  });
-
-  if (changedCount === 0) {
-    return null;
-  }
-
-  const defaultShortcuts: ShortcutConfig = { ...defaultConfig.shortcuts! };
-  const resetToDefault = Array.from(keys).every(key => (
-    (nextShortcuts[key as ShortcutAction] || '') === (defaultShortcuts[key as ShortcutAction] || '')
-  ));
-
-  return {
-    changedCount,
-    configuredCount: countConfiguredShortcuts(nextShortcuts),
-    disabledCount: Array.from(keys).filter(key => !String(nextShortcuts[key as ShortcutAction] || '').trim()).length,
-    resetToDefault,
-  };
-};
-
-const buildPluginSettingsAnalyticsSummary = (
-  pendingChanges: PluginPendingChanges | null,
-): PluginSettingsAnalyticsSummary | null => {
-  if (!pendingChanges) {
-    return null;
-  }
-  const toggleCount = pendingChanges.toggles.length;
-  const configCount = pendingChanges.configs.length;
-  if (toggleCount === 0 && configCount === 0) {
-    return null;
-  }
-  const changedKeys = [
-    ...(toggleCount > 0 ? ['toggle'] : []),
-    ...(configCount > 0 ? ['config'] : []),
-  ].join(',');
-
-  return {
-    changedKeys,
-    configCount,
-    disabledToggleCount: pendingChanges.toggles.filter(change => !change.enabled).length,
-    enabledToggleCount: pendingChanges.toggles.filter(change => change.enabled).length,
-    toggleCount,
-  };
-};
-
-const reportGeneralSettingChanged = (
-  settingKey: string,
-  settingValue: SettingsAnalyticsValue,
-  previousValue?: SettingsAnalyticsValue,
-): void => {
-  void reportYdAnalyzer({
-    action: LogReporterAction.GeneralSettingChanged,
-    settingKey,
-    settingValue,
-    previousValue,
-    source: SettingsAnalyticsSource.General,
-  });
-};
-
-const reportAppearanceSettingChanged = (
-  settingKey: string,
-  settingValue: SettingsAnalyticsValue,
-  previousValue?: SettingsAnalyticsValue,
-): void => {
-  void reportYdAnalyzer({
-    action: LogReporterAction.AppearanceSettingChanged,
-    settingKey,
-    settingValue,
-    previousValue,
-    source: SettingsAnalyticsSource.Appearance,
-  });
-};
-
-const reportBrowserSettingChanged = (
-  params: {
-    blockedHostnameCount: number;
-    changedKeys: string;
-    networkMode: string;
-    previousBlockedHostnameCount?: number;
-  },
-): void => {
-  void reportYdAnalyzer({
-    action: LogReporterAction.BrowserSettingChanged,
-    source: SettingsAnalyticsSource.Browser,
-    ...params,
-  });
-};
-
-const reportMemorySettingChanged = (
-  summary: MemorySettingAnalyticsSummary,
-): void => {
-  console.debug('[Settings] reporting memory setting analytics');
-  void reportYdAnalyzer({
-    action: LogReporterAction.MemorySettingChanged,
-    source: SettingsAnalyticsSource.Memory,
-    ...summary,
-  });
-};
-
-const reportMemoryEntryChanged = (
-  operation: 'created' | 'updated' | 'deleted',
-  entryCount?: number,
-): void => {
-  console.debug('[Settings] reporting memory entry analytics');
-  void reportYdAnalyzer({
-    action: LogReporterAction.MemoryEntryChanged,
-    source: SettingsAnalyticsSource.Memory,
-    operation,
-    entryCount,
-  });
-};
-
-const reportDreamingSettingChanged = (
-  summary: DreamingSettingAnalyticsSummary,
-): void => {
-  console.debug('[Settings] reporting dreaming setting analytics');
-  void reportYdAnalyzer({
-    action: LogReporterAction.DreamingSettingChanged,
-    source: SettingsAnalyticsSource.Dreaming,
-    ...summary,
-  });
-};
-
-const reportPluginSettingsSaved = (
-  summary: PluginSettingsAnalyticsSummary,
-): void => {
-  console.debug('[Settings] reporting plugin settings analytics');
-  void reportYdAnalyzer({
-    action: LogReporterAction.PluginSettingsSaved,
-    source: SettingsAnalyticsSource.Plugins,
-    ...summary,
-  });
-};
-
-const reportShortcutSettingChanged = (
-  summary: ShortcutSettingAnalyticsSummary,
-): void => {
-  console.debug('[Settings] reporting shortcut setting analytics');
-  void reportYdAnalyzer({
-    action: LogReporterAction.ShortcutSettingChanged,
-    source: SettingsAnalyticsSource.Shortcuts,
-    ...summary,
-  });
-};
-
-const reportAboutAction = (
-  actionType: string,
-  result: string,
-  options: { missingEntryCount?: number } = {},
-): void => {
-  console.debug('[Settings] reporting about action analytics');
-  void reportYdAnalyzer({
-    action: LogReporterAction.AboutAction,
-    source: SettingsAnalyticsSource.About,
-    actionType,
-    result,
-    missingEntryCount: options.missingEntryCount,
-  });
-};
-
-const reportAboutOpenSourceAction = (action: AboutOpenSourceAction): void => {
-  reportAboutAction(action, 'success');
-};
-
-const reportAgentEngineSettingChanged = (
-  settingKey: string,
-  settingValue: SettingsAnalyticsValue,
-  previousValue?: SettingsAnalyticsValue,
-): void => {
-  void reportYdAnalyzer({
-    action: LogReporterAction.AgentEngineSettingChanged,
-    settingKey,
-    settingValue,
-    previousValue,
-    source: SettingsAnalyticsSource.AgentEngine,
-  });
-};
-
-const reportAgentEngineMaintenanceAction = (
-  actionType: string,
-  result: string,
-  options: { errorCode?: string; sizeBytes?: number } = {},
-): void => {
-  void reportYdAnalyzer({
-    action: LogReporterAction.AgentEngineMaintenanceAction,
-    actionType,
-    result,
-    errorCode: options.errorCode,
-    sizeBytes: options.sizeBytes,
-    source: SettingsAnalyticsSource.AgentEngine,
-  });
-};
-
-const reportCustomModelSettingsSaved = (
-  summary: CustomModelSettingsAnalyticsSummary,
-): void => {
-  void reportYdAnalyzer({
-    action: LogReporterAction.CustomModelSettingsSaved,
-    source: SettingsAnalyticsSource.Model,
-    ...summary,
-  });
-};
-
-const reportCustomModelConnectionTested = (
-  providerKey: ProviderType,
-  apiFormat: string,
-  result: 'success' | 'failed',
-  options: { failureReason?: string; statusCode?: number } = {},
-): void => {
-  void reportYdAnalyzer({
-    action: LogReporterAction.CustomModelConnectionTested,
-    source: SettingsAnalyticsSource.Model,
-    providerKey,
-    providerKind: resolveProviderAnalyticsKind(providerKey),
-    apiFormat,
-    result,
-    failureReason: options.failureReason,
-    statusCode: options.statusCode,
-  });
 };
 
 const AGENT_TASK_SLOT_COMMANDS: ShortcutCommandDefinition[] = [
@@ -1416,7 +847,6 @@ const Settings: React.FC<SettingsProps> = ({
   const [autoLaunch, setAutoLaunchState] = useState(false);
   const [useSystemProxy, setUseSystemProxy] = useState(false);
   const [sqliteAutoBackupEnabled, setSqliteAutoBackupEnabled] = useState(false);
-  const [usageAnalyticsEnabled, setUsageAnalyticsEnabled] = useState(true);
   const [taskCompletionNotificationMode, setTaskCompletionNotificationMode] =
     useState<TaskCompletionNotificationMode>(TaskCompletionNotificationMode.Unfocused);
   const [permissionNotificationsEnabled, setPermissionNotificationsEnabled] = useState(true);
@@ -1623,7 +1053,6 @@ const Settings: React.FC<SettingsProps> = ({
 
   const handleCopyContactEmail = useCallback(async () => {
     const copied = await copyTextToClipboard(ABOUT_CONTACT_EMAIL);
-    reportAboutAction('copy_contact_email', copied ? 'success' : 'failed');
     if (copied) {
       setEmailCopied(true);
       if (emailCopiedTimerRef.current != null) {
@@ -1647,7 +1076,6 @@ const Settings: React.FC<SettingsProps> = ({
 
       if (!result.updateFound) {
         setUpdateCheckStatus('upToDate');
-        reportAboutAction('check_update', 'up_to_date');
         if (updateCheckTimerRef.current != null) {
           window.clearTimeout(updateCheckTimerRef.current);
         }
@@ -1660,13 +1088,10 @@ const Settings: React.FC<SettingsProps> = ({
 
       if (result.state.status === AppUpdateStatus.Ready) {
         setUpdateCheckStatus('ready');
-        reportAboutAction('check_update', 'ready');
       } else if (result.state.status === AppUpdateStatus.Downloading) {
         setUpdateCheckStatus('downloading');
-        reportAboutAction('check_update', 'downloading');
       } else {
         setUpdateCheckStatus('idle');
-        reportAboutAction('check_update', 'update_found');
       }
 
       // A download already running in the background reports its progress on
@@ -1675,7 +1100,6 @@ const Settings: React.FC<SettingsProps> = ({
         onUpdateFound?.(result.state.info);
       }
     } catch {
-      reportAboutAction('check_update', 'failed');
       setUpdateCheckStatus('error');
       if (updateCheckTimerRef.current != null) {
         window.clearTimeout(updateCheckTimerRef.current);
@@ -1715,11 +1139,9 @@ const Settings: React.FC<SettingsProps> = ({
       const result = await window.electron.log.exportZip();
       if (!result.success) {
         setError(result.error || i18nService.t('aboutExportLogsFailed'));
-        reportAboutAction('export_logs', 'failed');
         return;
       }
       if (result.canceled) {
-        reportAboutAction('export_logs', 'canceled');
         return;
       }
 
@@ -1733,12 +1155,8 @@ const Settings: React.FC<SettingsProps> = ({
       } else {
         setNoticeMessage(i18nService.t('aboutExportLogsSuccess'));
       }
-      reportAboutAction('export_logs', 'success', {
-        missingEntryCount: result.missingEntries?.length ?? 0,
-      });
     } catch (exportError) {
       setError(exportError instanceof Error ? exportError.message : i18nService.t('aboutExportLogsFailed'));
-      reportAboutAction('export_logs', 'failed');
     } finally {
       setIsExportingLogs(false);
     }
@@ -2004,7 +1422,6 @@ const Settings: React.FC<SettingsProps> = ({
       );
       setUseSystemProxy(config.useSystemProxy ?? false);
       setSqliteAutoBackupEnabled(config.sqliteAutoBackupEnabled === true);
-      setUsageAnalyticsEnabled(config.usageAnalyticsEnabled !== false);
       {
         const notificationSettings = normalizeNotificationSettings(config.notificationSettings);
         setTaskCompletionNotificationMode(notificationSettings.taskCompletionNotificationMode);
@@ -2416,15 +1833,6 @@ const Settings: React.FC<SettingsProps> = ({
     delete updatedProviders[key];
     try {
       await configService.updateConfig({ providers: updatedProviders as AppConfig['providers'] });
-      if (usageAnalyticsEnabled) {
-        const customModelSettingsSummary = buildCustomModelSettingsAnalyticsSummary(
-          (currentConfig.providers ?? providers) as ProvidersConfig,
-          updatedProviders as ProvidersConfig,
-        );
-        if (customModelSettingsSummary) {
-          reportCustomModelSettingsSaved(customModelSettingsSummary);
-        }
-      }
     } catch (deleteError) {
       console.warn('[Settings] failed to persist custom provider deletion:', deleteError);
     }
@@ -3005,17 +2413,11 @@ const Settings: React.FC<SettingsProps> = ({
     try {
       const result = await coworkService.repairOpenClawGatewayState();
       setOpenClawRepairResult(result);
-      reportAgentEngineMaintenanceAction(
-        'repair_gateway_state',
-        result.success ? 'success' : 'failed',
-        result.success ? {} : { errorCode: result.errorCode ?? 'unknown' },
-      );
     } catch (repairError) {
       setOpenClawRepairResult({
         success: false,
         error: repairError instanceof Error ? repairError.message : i18nService.t('openClawRepairFailed'),
       });
-      reportAgentEngineMaintenanceAction('repair_gateway_state', 'failed', { errorCode: 'unknown' });
     } finally {
       setIsRepairingOpenClaw(false);
     }
@@ -3071,7 +2473,6 @@ const Settings: React.FC<SettingsProps> = ({
       const result = await window.electron.openclaw.dataMigration.backup();
       if (!result.success) {
         setError(result.error || i18nService.t('openClawDataBackupFailed'));
-        reportAgentEngineMaintenanceAction('backup_data', 'failed', { errorCode: 'unknown' });
         return;
       }
       if (result.canceled) {
@@ -3081,12 +2482,8 @@ const Settings: React.FC<SettingsProps> = ({
         setOpenClawDataBackupResult({ path: result.path, sizeBytes: result.sizeBytes });
       }
       setNoticeMessage(i18nService.t('openClawDataBackupSuccess'));
-      reportAgentEngineMaintenanceAction('backup_data', 'success', {
-        sizeBytes: result.sizeBytes,
-      });
     } catch (backupError) {
       setError(backupError instanceof Error ? backupError.message : i18nService.t('openClawDataBackupFailed'));
-      reportAgentEngineMaintenanceAction('backup_data', 'failed', { errorCode: 'unknown' });
     } finally {
       setIsBackingUpOpenClawData(false);
     }
@@ -3104,7 +2501,6 @@ const Settings: React.FC<SettingsProps> = ({
       const result = await window.electron.openclaw.dataMigration.restore();
       if (!result.success) {
         setError(result.error || i18nService.t('openClawDataMigrationFailed'));
-        reportAgentEngineMaintenanceAction('restore_data', 'failed', { errorCode: 'unknown' });
         return;
       }
       if (result.canceled) {
@@ -3114,10 +2510,8 @@ const Settings: React.FC<SettingsProps> = ({
         keepLoadingUntilRestart = true;
         setNoticeMessage(i18nService.t('openClawDataMigrationRestarting'));
       }
-      reportAgentEngineMaintenanceAction('restore_data', 'success');
     } catch (restoreError) {
       setError(restoreError instanceof Error ? restoreError.message : i18nService.t('openClawDataMigrationFailed'));
-      reportAgentEngineMaintenanceAction('restore_data', 'failed', { errorCode: 'unknown' });
     } finally {
       if (!keepLoadingUntilRestart) {
         setIsRestoringOpenClawData(false);
@@ -3164,7 +2558,6 @@ const Settings: React.FC<SettingsProps> = ({
 
     setCoworkMemoryListLoading(true);
     try {
-      const operation = coworkMemoryEditingId ? 'updated' : 'created';
       if (coworkMemoryEditingId) {
         await coworkService.updateMemoryEntry({
           id: coworkMemoryEditingId,
@@ -3177,12 +2570,6 @@ const Settings: React.FC<SettingsProps> = ({
       }
       resetCoworkMemoryEditor();
       await loadCoworkMemoryData();
-      reportMemoryEntryChanged(
-        operation,
-        operation === 'created'
-          ? (coworkMemoryStats?.total ?? coworkMemoryEntries.length) + 1
-          : coworkMemoryStats?.total,
-      );
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : i18nService.t('coworkMemoryCrudSaveFailed'));
     } finally {
@@ -3204,10 +2591,6 @@ const Settings: React.FC<SettingsProps> = ({
         resetCoworkMemoryEditor();
       }
       await loadCoworkMemoryData();
-      reportMemoryEntryChanged(
-        'deleted',
-        Math.max(0, (coworkMemoryStats?.total ?? coworkMemoryEntries.length) - 1),
-      );
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : i18nService.t('coworkMemoryCrudDeleteFailed'));
     } finally {
@@ -3407,69 +2790,12 @@ const Settings: React.FC<SettingsProps> = ({
         webFetch: defaultBrowserWebAccessConfig.webFetch,
       });
       const previousConfig = configService.getConfig();
-      const previousBrowserWebAccess = normalizeBrowserWebAccessConfig(previousConfig.browserWebAccess);
-      const previousShortcuts: ShortcutConfig = {
-        ...defaultConfig.shortcuts!,
-        ...(previousConfig.shortcuts || {}),
-      };
-      const previousProviders = previousConfig.providers
-        ? normalizeProvidersForSettingsSave(previousConfig.providers as ProvidersConfig)
-        : normalizedProviders;
-      const previousSkipMissedJobs = coworkConfig.skipMissedJobs ?? true;
       const previousOpenClawHeartbeatEnabled = coworkConfig.openClawHeartbeatEnabled ?? false;
       const previousOpenClawSkillReviewEnabled = coworkConfig.openClawSkillReviewEnabled ?? false;
       const previousOpenClawMemoryFlushEnabled = coworkConfig.openClawMemoryFlushEnabled ?? false;
-      const previousAgentEngine = coworkConfig.agentEngine || 'openclaw';
-      const previousOpenClawSessionKeepAlive = coworkConfig.openClawSessionPolicy?.keepAlive
-        || OpenClawSessionKeepAliveValues.ThirtyDays;
-      const previousMemorySettings = {
-        embeddingEnabled: coworkConfig.embeddingEnabled ?? false,
-        embeddingModel: coworkConfig.embeddingModel ?? '',
-        embeddingProvider: coworkConfig.embeddingProvider ?? 'openai',
-        embeddingRemoteApiKey: coworkConfig.embeddingRemoteApiKey ?? '',
-        embeddingRemoteBaseUrl: coworkConfig.embeddingRemoteBaseUrl ?? '',
-        embeddingVectorWeight: coworkConfig.embeddingVectorWeight ?? 0.7,
-        memoryEnabled: coworkConfig.memoryEnabled ?? true,
-        memoryLlmJudgeEnabled: coworkConfig.memoryLlmJudgeEnabled ?? false,
-      };
-      const nextMemorySettings = {
-        embeddingEnabled,
-        embeddingModel,
-        embeddingProvider,
-        embeddingRemoteApiKey,
-        embeddingRemoteBaseUrl,
-        embeddingVectorWeight,
-        memoryEnabled: coworkMemoryEnabled,
-        memoryLlmJudgeEnabled: coworkMemoryLlmJudgeEnabled,
-      };
-      const previousDreamingSettings = {
-        dreamingEnabled: coworkConfig.dreamingEnabled ?? false,
-        dreamingFrequency: coworkConfig.dreamingFrequency ?? '0 3 * * *',
-      };
-      const nextDreamingSettings = {
-        dreamingEnabled,
-        dreamingFrequency,
-      };
-      const previousNotificationSettings = normalizeNotificationSettings(
-        previousConfig.notificationSettings,
-      );
       const previousArtifactAutoPreviewEnabled = resolveArtifactAutoPreviewEnabled(
         previousConfig.artifactAutoPreviewEnabled,
       );
-      const previousThemeId = initialThemeIdRef.current;
-      const previousUiFontSize = normalizeFontPreference(
-        previousConfig.uiFontSize,
-        FontPreferences.UiFontSizeDefault,
-        FontPreferences.UiFontSizeMin,
-        FontPreferences.UiFontSizeMax,
-      );
-      const previousCodeFontSize = normalizeFontPreference(
-        previousConfig.codeFontSize,
-        FontPreferences.CodeFontSizeDefault,
-        FontPreferences.CodeFontSizeMin,
-        FontPreferences.CodeFontSizeMax,
-      );
-      let savedPluginPendingChanges: PluginPendingChanges | null = null;
 
       await configService.updateConfig({
         api: {
@@ -3484,7 +2810,6 @@ const Settings: React.FC<SettingsProps> = ({
         artifactAutoPreviewEnabled,
         useSystemProxy,
         sqliteAutoBackupEnabled,
-        usageAnalyticsEnabled,
         notificationSettings: normalizeNotificationSettings({
           taskCompletionNotificationMode,
           permissionNotificationsEnabled,
@@ -3598,7 +2923,6 @@ const Settings: React.FC<SettingsProps> = ({
         const pendingChanges = pluginsSettingsRef.current.getPendingChanges();
         if (pendingChanges) {
           await window.electron?.plugins.batchSave(pendingChanges);
-          savedPluginPendingChanges = pendingChanges;
           pluginsSettingsRef.current.resetDirty();
         }
       }
@@ -3608,141 +2932,6 @@ const Settings: React.FC<SettingsProps> = ({
       if (decisionModelDraftRef.current) {
         await window.electron.decisionModel.saveConfig(decisionModelDraftRef.current);
         decisionModelDraftRef.current = null;
-      }
-
-      if (usageAnalyticsEnabled) {
-        if (previousConfig.language !== language) {
-          reportGeneralSettingChanged('language', language, previousConfig.language);
-        }
-        if (previousArtifactAutoPreviewEnabled !== artifactAutoPreviewEnabled) {
-          reportGeneralSettingChanged(
-            'artifactAutoPreviewEnabled',
-            artifactAutoPreviewEnabled,
-            previousArtifactAutoPreviewEnabled,
-          );
-        }
-        if ((previousConfig.useSystemProxy ?? false) !== useSystemProxy) {
-          reportGeneralSettingChanged('useSystemProxy', useSystemProxy, previousConfig.useSystemProxy ?? false);
-        }
-        if ((previousConfig.sqliteAutoBackupEnabled === true) !== sqliteAutoBackupEnabled) {
-          reportGeneralSettingChanged(
-            'sqliteAutoBackupEnabled',
-            sqliteAutoBackupEnabled,
-            previousConfig.sqliteAutoBackupEnabled === true,
-          );
-        }
-        if (previousNotificationSettings.taskCompletionNotificationMode !== taskCompletionNotificationMode) {
-          reportGeneralSettingChanged(
-            'taskCompletionNotificationMode',
-            taskCompletionNotificationMode,
-            previousNotificationSettings.taskCompletionNotificationMode,
-          );
-        }
-        if (previousNotificationSettings.permissionNotificationsEnabled !== permissionNotificationsEnabled) {
-          reportGeneralSettingChanged(
-            'permissionNotificationsEnabled',
-            permissionNotificationsEnabled,
-            previousNotificationSettings.permissionNotificationsEnabled,
-          );
-        }
-        if (previousNotificationSettings.questionNotificationsEnabled !== questionNotificationsEnabled) {
-          reportGeneralSettingChanged(
-            'questionNotificationsEnabled',
-            questionNotificationsEnabled,
-            previousNotificationSettings.questionNotificationsEnabled,
-          );
-        }
-        if (previousSkipMissedJobs !== skipMissedJobs) {
-          reportGeneralSettingChanged('skipMissedJobs', skipMissedJobs, previousSkipMissedJobs);
-        }
-        if (previousConfig.theme !== theme) {
-          reportAppearanceSettingChanged('theme', theme, previousConfig.theme);
-        }
-        if (previousThemeId !== themeId) {
-          reportAppearanceSettingChanged('themeId', themeId, previousThemeId);
-        }
-        if (previousUiFontSize !== uiFontSize) {
-          reportAppearanceSettingChanged('uiFontSize', uiFontSize, previousUiFontSize);
-        }
-        if (previousCodeFontSize !== codeFontSize) {
-          reportAppearanceSettingChanged('codeFontSize', codeFontSize, previousCodeFontSize);
-        }
-        const browserSettingParams = buildBrowserSettingAnalyticsParams(
-          previousBrowserWebAccess,
-          normalizedBrowserWebAccess,
-        );
-        if (browserSettingParams) {
-          reportBrowserSettingChanged(browserSettingParams);
-        }
-        if (previousAgentEngine !== coworkAgentEngine) {
-          reportAgentEngineSettingChanged('agentEngine', coworkAgentEngine, previousAgentEngine);
-        }
-        if (previousOpenClawHeartbeatEnabled !== openClawHeartbeatEnabled) {
-          reportAgentEngineSettingChanged(
-            'openClawHeartbeatEnabled',
-            openClawHeartbeatEnabled,
-            previousOpenClawHeartbeatEnabled,
-          );
-        }
-        if (previousOpenClawSkillReviewEnabled !== openClawSkillReviewEnabled) {
-          reportAgentEngineSettingChanged(
-            'openClawSkillReviewEnabled',
-            openClawSkillReviewEnabled,
-            previousOpenClawSkillReviewEnabled,
-          );
-        }
-        if (previousOpenClawSessionKeepAlive !== openClawSessionKeepAlive) {
-          reportAgentEngineSettingChanged(
-            'openClawSessionKeepAlive',
-            openClawSessionKeepAlive,
-            previousOpenClawSessionKeepAlive,
-          );
-        }
-        if (previousOpenClawMemoryFlushEnabled !== openClawMemoryFlushEnabled) {
-          reportAgentEngineSettingChanged(
-            'openClawMemoryFlushEnabled',
-            openClawMemoryFlushEnabled,
-            previousOpenClawMemoryFlushEnabled,
-          );
-        }
-        const memorySettingsSummary = buildMemorySettingAnalyticsSummary(
-          previousMemorySettings,
-          nextMemorySettings,
-        );
-        if (memorySettingsSummary) {
-          reportMemorySettingChanged(memorySettingsSummary);
-        }
-        const dreamingSettingsSummary = buildDreamingSettingAnalyticsSummary(
-          previousDreamingSettings,
-          nextDreamingSettings,
-        );
-        if (dreamingSettingsSummary) {
-          reportDreamingSettingChanged(dreamingSettingsSummary);
-        }
-        const shortcutSettingsSummary = buildShortcutSettingAnalyticsSummary(
-          previousShortcuts,
-          shortcuts,
-        );
-        if (shortcutSettingsSummary) {
-          reportShortcutSettingChanged(shortcutSettingsSummary);
-        }
-        const pluginSettingsSummary = buildPluginSettingsAnalyticsSummary(savedPluginPendingChanges);
-        if (pluginSettingsSummary) {
-          reportPluginSettingsSaved(pluginSettingsSummary);
-        }
-        const customModelSettingsSummary = buildCustomModelSettingsAnalyticsSummary(
-          previousProviders,
-          normalizedProviders,
-        );
-        if (customModelSettingsSummary) {
-          reportCustomModelSettingsSaved(customModelSettingsSummary);
-        }
-        if (previousConfig.usageAnalyticsEnabled === false) {
-          void reportYdAnalyzer({
-            action: LogReporterAction.UsageAnalyticsEnabled,
-            source: SettingsAnalyticsSource.General,
-          });
-        }
       }
 
       didSaveRef.current = true;
@@ -4158,9 +3347,6 @@ const Settings: React.FC<SettingsProps> = ({
 
 
     if (providerRequiresApiKey(testingProvider) && !hasValidAuth) {
-      reportCustomModelConnectionTested(testingProvider, testingApiFormat, 'failed', {
-        failureReason: 'missing_api_key',
-      });
       showTestResultModal({ success: false, message: i18nService.t('apiKeyRequired') }, testingProvider);
       setIsTesting(false);
       return;
@@ -4169,9 +3355,6 @@ const Settings: React.FC<SettingsProps> = ({
     // 获取第一个可用模型 - use a shallow copy to avoid mutating state
     const originalModel = providerConfig.models?.[0];
     if (!originalModel) {
-      reportCustomModelConnectionTested(testingProvider, testingApiFormat, 'failed', {
-        failureReason: 'missing_model',
-      });
       showTestResultModal({ success: false, message: i18nService.t('noModelsConfigured') }, testingProvider);
       setIsTesting(false);
       return;
@@ -4200,9 +3383,6 @@ const Settings: React.FC<SettingsProps> = ({
       if (testingProvider === ProviderName.Copilot) {
         const result = await window.electron.githubCopilot.refreshToken();
         if (!result.success || !result.token) {
-          reportCustomModelConnectionTested(testingProvider, effectiveApiFormat, 'failed', {
-            failureReason: 'unknown',
-          });
           showTestResultModal({
             success: false,
             message: result.error || i18nService.t('apiKeyRequired'),
@@ -4290,7 +3470,6 @@ const Settings: React.FC<SettingsProps> = ({
 
       if (response.ok) {
         enableProvider(testingProvider);
-        reportCustomModelConnectionTested(testingProvider, effectiveApiFormat, 'success');
         showTestResultModal({ success: true, message: i18nService.t('connectionSuccess') }, testingProvider);
       } else {
         const data = response.data || {};
@@ -4298,20 +3477,12 @@ const Settings: React.FC<SettingsProps> = ({
         const errorMessage = data.error?.message || data.message || `${i18nService.t('connectionFailed')}: ${response.status}`;
         if (typeof errorMessage === 'string' && errorMessage.toLowerCase().includes('model output limit was reached')) {
           enableProvider(testingProvider);
-          reportCustomModelConnectionTested(testingProvider, effectiveApiFormat, 'success');
           showTestResultModal({ success: true, message: i18nService.t('connectionSuccess') }, testingProvider);
           return;
         }
-        reportCustomModelConnectionTested(testingProvider, effectiveApiFormat, 'failed', {
-          failureReason: 'http_error',
-          statusCode: response.status,
-        });
         showTestResultModal({ success: false, message: errorMessage }, testingProvider);
       }
     } catch (err) {
-      reportCustomModelConnectionTested(testingProvider, testingApiFormat, 'failed', {
-        failureReason: 'network_error',
-      });
       showTestResultModal({
         success: false,
         message: err instanceof Error ? err.message : i18nService.t('connectionFailed'),
@@ -4972,10 +4143,8 @@ const Settings: React.FC<SettingsProps> = ({
                         `[Renderer][Settings] auto-launch update result: success=${result.success}, enabled=${result.enabled ?? 'unknown'}, error=${result.error ?? 'none'}`,
                       );
                       if (result.success) {
-                        const previous = autoLaunch;
                         const actualEnabled = result.enabled ?? next;
                         setAutoLaunchState(actualEnabled);
-                        reportGeneralSettingChanged('autoLaunch', actualEnabled, previous);
                       } else {
                         if (typeof result.enabled === 'boolean') {
                           setAutoLaunchState(result.enabled);
@@ -5005,9 +4174,7 @@ const Settings: React.FC<SettingsProps> = ({
                     try {
                       const result = await window.electron.preventSleep.set(next);
                       if (result.success) {
-                        const previous = preventSleep;
                         setPreventSleepState(next);
-                        reportGeneralSettingChanged('preventSleep', next, previous);
                       } else {
                         setError(result.error || 'Failed to update prevent-sleep setting');
                       }
@@ -5165,17 +4332,6 @@ const Settings: React.FC<SettingsProps> = ({
                   checked={sqliteAutoBackupEnabled}
                   onToggle={() => {
                     setSqliteAutoBackupEnabled((prev) => !prev);
-                  }}
-                />
-              </SettingsRow>
-
-              <SettingsRow>
-                <SettingsToggleRow
-                  title={i18nService.t('usageAnalyticsEnabled')}
-                  description={i18nService.t('usageAnalyticsEnabledDescription')}
-                  checked={usageAnalyticsEnabled}
-                  onToggle={() => {
-                    setUsageAnalyticsEnabled((prev) => !prev);
                   }}
                 />
               </SettingsRow>
@@ -5995,7 +5151,7 @@ const Settings: React.FC<SettingsProps> = ({
                   )}
                 </div>
               </div>
-              {showOpenSourceEntries && <AboutOpenSourceRows onAction={reportAboutOpenSourceAction} />}
+              {showOpenSourceEntries && <AboutOpenSourceRows onAction={() => {}} />}
               <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-b border-border">
                 <span className="shrink-0 text-sm text-foreground">{i18nService.t('aboutContactEmail')}</span>
                 <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">

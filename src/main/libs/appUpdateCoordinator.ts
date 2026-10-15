@@ -3,7 +3,6 @@ import { app, BrowserWindow, session } from 'electron';
 import fs from 'fs';
 import path from 'path';
 
-import { LogReporterStoreKey } from '../../shared/analytics/constants';
 import {
   APP_UPDATE_FILE_INVALID_ERROR,
   APP_UPDATE_GRAY_UNAVAILABLE_ERROR,
@@ -77,7 +76,7 @@ function formatUpdateUrlForLog(rawUrl: string): string {
   }
 }
 
-export const INSTALLATION_UUID_KEY = LogReporterStoreKey.InstallationUuid;
+export const INSTALLATION_UUID_KEY = 'installation_uuid';
 const APP_UPDATE_TEST_CURRENT_VERSION_ENV = 'LOBSTERAI_UPDATE_CURRENT_VERSION';
 export const APP_UPDATE_READY_FILE_KEY_PREFIX = 'app_update_ready_file';
 

@@ -18,7 +18,7 @@ import ManagementListRow, { MANAGEMENT_LIST_CONTAINER_CLASS } from '../common/Ma
 import { MANAGEMENT_BODY_TEXT, MANAGEMENT_TITLE_TEXT } from '../common/managementTypography';
 import EditIcon from '../icons/EditIcon';
 import TrashIcon from '../icons/TrashIcon';
-import { getTaskAnalyticsParams, reportScheduledTaskAction } from './analytics';
+
 import ScheduledTaskDataState from './ScheduledTaskDataState';
 import TaskStatusChip from './TaskStatusChip';
 import {
@@ -59,7 +59,6 @@ interface TaskCardProps {
 
 const TaskCard: React.FC<TaskCardProps> = ({ task, onRequestDelete }) => {
   const dispatch = useDispatch();
-  const availableModels = useSelector((state: RootState) => state.model.availableModels);
   const [showMenu, setShowMenu] = React.useState(false);
   const [menuPosition, setMenuPosition] = React.useState<MenuPosition | null>(null);
   const menuButtonRef = React.useRef<HTMLButtonElement>(null);
@@ -131,67 +130,26 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onRequestDelete }) => {
   const isRunning = displayStatus === 'running';
   const promptText = getTaskPromptText(task);
   const nextRunLabel = task.enabled ? formatNextRunRelative(task.state.nextRunAtMs) : null;
-  const analyticsParams = React.useMemo(
-    () => getTaskAnalyticsParams(task, availableModels),
-    [availableModels, task],
-  );
 
   const handleSelectTask = React.useCallback(() => {
-    reportScheduledTaskAction('select_task', {
-      source: 'scheduled_tasks_list',
-      ...analyticsParams,
-    });
     dispatch(selectTask(task.id));
-  }, [analyticsParams, dispatch, task.id]);
+  }, [dispatch, task.id]);
 
   const handleToggleTask = React.useCallback(async () => {
     const targetEnabled = !task.enabled;
-    reportScheduledTaskAction('toggle_enabled', {
-      source: 'scheduled_tasks_list',
-      targetEnabled,
-      ...analyticsParams,
-    });
     try {
       await scheduledTaskService.toggleTask(task.id, targetEnabled);
-      reportScheduledTaskAction('toggle_enabled_success', {
-        source: 'scheduled_tasks_list',
-        targetEnabled,
-        result: 'success',
-        ...analyticsParams,
-      });
     } catch {
       // The service already rolled back the optimistic flip and toasted.
-      reportScheduledTaskAction('toggle_enabled_failed', {
-        source: 'scheduled_tasks_list',
-        targetEnabled,
-        result: 'failed',
-        errorCode: 'toggle_failed',
-        ...analyticsParams,
-      });
     }
-  }, [analyticsParams, task.enabled, task.id]);
+  }, [task.enabled, task.id]);
 
   const handleRunManually = React.useCallback(async () => {
-    reportScheduledTaskAction('run_manually', {
-      source: 'scheduled_tasks_list',
-      ...analyticsParams,
-    });
     try {
       await scheduledTaskService.runManually(task.id);
-      reportScheduledTaskAction('run_manually_success', {
-        source: 'scheduled_tasks_list',
-        result: 'success',
-        ...analyticsParams,
-      });
     } catch {
-      reportScheduledTaskAction('run_manually_failed', {
-        source: 'scheduled_tasks_list',
-        result: 'failed',
-        errorCode: 'run_manually_failed',
-        ...analyticsParams,
-      });
     }
-  }, [analyticsParams, task.id]);
+  }, [task.id]);
 
   return (
     <ManagementListRow
@@ -236,10 +194,6 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onRequestDelete }) => {
                 setShowMenu(value => {
                   const nextShowMenu = !value;
                   if (nextShowMenu) {
-                    reportScheduledTaskAction('task_menu_open', {
-                      source: 'scheduled_tasks_list',
-                      ...analyticsParams,
-                    });
                   }
                   return nextShowMenu;
                 });
@@ -274,10 +228,6 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onRequestDelete }) => {
                     onClick={event => {
                       event.stopPropagation();
                       setShowMenu(false);
-                      reportScheduledTaskAction('edit_task', {
-                        source: 'scheduled_tasks_list',
-                        ...analyticsParams,
-                      });
                       dispatch(selectTask(task.id));
                       dispatch(setViewMode('edit'));
                     }}
@@ -458,10 +408,6 @@ const TaskList: React.FC<TaskListProps> = ({
         status={status}
         error={error}
         onRetry={() => {
-          reportScheduledTaskAction('retry_load_tasks', {
-            source: 'scheduled_tasks_list',
-            result: 'retry',
-          });
           void scheduledTaskService.loadTasks();
         }}
       />

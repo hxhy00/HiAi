@@ -2,7 +2,6 @@ import { XMarkIcon } from '@heroicons/react/24/outline';
 import { DefaultAgentAvatarIcon } from '@shared/agent/avatar';
 import type { Platform } from '@shared/platform';
 import { PlatformRegistry } from '@shared/platform';
-import { ProviderName } from '@shared/providers';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 
@@ -10,13 +9,11 @@ import { agentService } from '../../services/agent';
 import { coworkService } from '../../services/cowork';
 import { i18nService } from '../../services/i18n';
 import { imService } from '../../services/im';
-import { LogReporterAction, reportYdAnalyzer } from '../../services/logReporter';
 import { resolveThinkingLevelForModel } from '../../services/modelThinkingLevelMemory';
 import type { RootState } from '../../store';
 import type { Model } from '../../store/slices/modelSlice';
 import type { PresetAgent } from '../../types/agent';
 import type { DingTalkInstanceConfig, DiscordInstanceConfig, FeishuInstanceConfig, IMGatewayConfig, NimInstanceConfig, PopoInstanceConfig, QQInstanceConfig, TelegramInstanceConfig, WecomInstanceConfig } from '../../types/im';
-import type { Skill } from '../../types/skill';
 import { getAgentDisplayName, getAgentDisplayNameById } from '../../utils/agentDisplay';
 import { toOpenClawModelRef } from '../../utils/openclawModelRef';
 import { getVisibleIMPlatforms } from '../../utils/regionFilter';
@@ -37,40 +34,11 @@ import { AgentConfirmDialogVariant, AgentDetailTab } from './constants';
 type MultiInstancePlatform = 'dingtalk' | 'feishu' | 'qq' | 'wecom' | 'nim' | 'telegram' | 'discord' | 'popo';
 type MultiInstanceConfig = DingTalkInstanceConfig | FeishuInstanceConfig | QQInstanceConfig | WecomInstanceConfig | NimInstanceConfig | TelegramInstanceConfig | DiscordInstanceConfig | PopoInstanceConfig;
 type AgentCreateAnalyticsSource = 'home_agent_sidebar' | 'home_agent_sidebar_empty' | 'agents_view' | 'agent_create_modal';
-type AgentCreateActionType =
-  | 'open'
-  | 'close'
-  | 'open_template_picker'
-  | 'close_template_picker'
-  | 'template_selected'
-  | 'tab_change'
-  | 'create_submit'
-  | 'create_success'
-  | 'create_failed'
-  | 'discard_confirm_open'
-  | 'discard_confirm_submit'
-  | 'discard_confirm_cancel';
 
 const MULTI_INSTANCE_PLATFORMS: MultiInstancePlatform[] = ['dingtalk', 'feishu', 'qq', 'wecom', 'nim', 'telegram', 'discord', 'popo'];
-const AGENT_CREATE_ANALYTICS_DEFAULT_SOURCE: AgentCreateAnalyticsSource = 'agent_create_modal';
 
 const isMultiInstancePlatform = (platform: Platform): platform is MultiInstancePlatform =>
   MULTI_INSTANCE_PLATFORMS.includes(platform as MultiInstancePlatform);
-
-const serializeAnalyticsList = (values: string[]): string | undefined => {
-  const normalizedValues = values
-    .map(value => value.trim())
-    .filter(Boolean);
-  return normalizedValues.length > 0 ? normalizedValues.join(',') : undefined;
-};
-
-const getModelAnalyticsSource = (model: Model | null): 'package' | 'custom' | undefined => {
-  if (!model) return undefined;
-  if (model.providerKey === ProviderName.LobsteraiServer) {
-    return 'package';
-  }
-  return 'custom';
-};
 
 interface AgentCreateModalProps {
   isOpen?: boolean;
@@ -83,7 +51,6 @@ const AgentCreateModal: React.FC<AgentCreateModalProps> = ({
   isOpen = true,
   onClose,
   presentation = 'modal',
-  source = AGENT_CREATE_ANALYTICS_DEFAULT_SOURCE,
 }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -104,13 +71,7 @@ const AgentCreateModal: React.FC<AgentCreateModalProps> = ({
   const agents = useSelector((state: RootState) => state.agent.agents);
   const currentAgentId = useSelector((state: RootState) => state.agent.currentAgentId);
   const coworkConfig = useSelector((state: RootState) => state.cowork.config);
-  const skills = useSelector((state: RootState) => state.skill.skills);
   const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<{
-    id: string;
-    name: string;
-    skillCount: number;
-  } | null>(null);
   const initialWorkingDirectoryRef = useRef('');
   const initialModelRef = useRef('');
   const initialUserInfoRef = useRef('');
@@ -135,95 +96,6 @@ const AgentCreateModal: React.FC<AgentCreateModalProps> = ({
     if (boundKeys.size > 0) changedFields.push('imBindings');
     return changedFields;
   }, [boundKeys.size, description, icon, identity, model, name, skillIds.length, subagentAllowAgentIds.length, systemPrompt, userInfo, workingDirectory]);
-
-  const isDirty = useCallback((): boolean => {
-    return getChangedFields().length > 0;
-  }, [getChangedFields]);
-
-  const getSelectedSkills = useCallback((): Skill[] => (
-    skillIds
-      .map(skillId => skills.find(skill => skill.id === skillId))
-      .filter((skill): skill is Skill => Boolean(skill))
-  ), [skillIds, skills]);
-
-  const getImPlatformsForAnalytics = useCallback((): string[] => {
-    const platforms = new Set<string>();
-    boundKeys.forEach((key) => {
-      const platform = key.split(':')[0]?.trim();
-      if (platform) {
-        platforms.add(platform);
-      }
-    });
-    return Array.from(platforms).sort();
-  }, [boundKeys]);
-
-  const reportAgentCreateAction = useCallback((
-    actionType: AgentCreateActionType,
-    options: {
-      activeTab?: AgentDetailTab;
-      changedFields?: string[];
-      errorCode?: 'user_info_write_failed' | 'create_agent_failed' | 'unknown';
-      includeConfigDetails?: boolean;
-      isDirty?: boolean;
-      result?: 'success' | 'failed';
-      targetTab?: AgentDetailTab;
-      template?: {
-        id: string;
-        name: string;
-        skillCount: number;
-      } | null;
-    } = {},
-  ): void => {
-    const changedFields = options.changedFields ?? [];
-    const selectedSkills = options.includeConfigDetails ? getSelectedSkills() : [];
-    const imPlatforms = options.includeConfigDetails ? getImPlatformsForAnalytics() : [];
-    const template = options.template === undefined ? selectedTemplate : options.template;
-    console.debug(`[AgentCreateModal] reporting analytics action ${actionType}`);
-    void reportYdAnalyzer({
-      action: LogReporterAction.AgentCreateAction,
-      source,
-      actionType,
-      activeTab: options.activeTab ?? activeTab,
-      targetTab: options.targetTab,
-      creationMode: template ? 'template' : 'blank',
-      isDirty: options.isDirty,
-      changedFieldCount: changedFields.length,
-      changedFields: changedFields.length > 0 ? changedFields.join(',') : undefined,
-      templateId: template?.id,
-      templateName: template?.name,
-      templateSkillCount: template?.skillCount,
-      skillCount: skillIds.length,
-      imBindingCount: boundKeys.size,
-      hasModel: Boolean(model),
-      hasWorkingDirectory: workingDirectory.trim().length > 0,
-      result: options.result,
-      errorCode: options.errorCode,
-      modelId: options.includeConfigDetails ? model?.id : undefined,
-      modelName: options.includeConfigDetails ? model?.name : undefined,
-      modelSource: options.includeConfigDetails ? getModelAnalyticsSource(model) : undefined,
-      providerKey: options.includeConfigDetails ? model?.providerKey : undefined,
-      provider: options.includeConfigDetails ? model?.provider : undefined,
-      skillIds: options.includeConfigDetails ? serializeAnalyticsList(selectedSkills.map(skill => skill.id)) : undefined,
-      skillNames: options.includeConfigDetails ? serializeAnalyticsList(selectedSkills.map(skill => skill.name)) : undefined,
-      builtInSkillCount: options.includeConfigDetails
-        ? selectedSkills.filter(skill => skill.isBuiltIn).length
-        : undefined,
-      customSkillCount: options.includeConfigDetails
-        ? selectedSkills.filter(skill => !skill.isBuiltIn).length
-        : undefined,
-      imPlatforms: options.includeConfigDetails ? serializeAnalyticsList(imPlatforms) : undefined,
-    });
-  }, [
-    activeTab,
-    boundKeys.size,
-    getImPlatformsForAnalytics,
-    getSelectedSkills,
-    model,
-    selectedTemplate,
-    skillIds.length,
-    source,
-    workingDirectory,
-  ]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -250,13 +122,7 @@ const AgentCreateModal: React.FC<AgentCreateModalProps> = ({
     setActiveTab(AgentDetailTab.Identity);
     setShowUnsavedConfirm(false);
     setShowTemplatePicker(false);
-    setSelectedTemplate(null);
     setBoundKeys(new Set());
-    reportAgentCreateAction('open', {
-      activeTab: AgentDetailTab.Identity,
-      isDirty: false,
-      template: null,
-    });
     imService.loadConfig().then((cfg) => {
       if (cfg) setImConfig(cfg);
     });
@@ -264,7 +130,7 @@ const AgentCreateModal: React.FC<AgentCreateModalProps> = ({
     agentService.getPresetTemplates()
       .then(setPresetTemplates)
       .finally(() => setTemplatesLoading(false));
-  }, [agents, coworkConfig.workingDirectory, currentAgentId, globalSelectedModel, isOpen, reportAgentCreateAction]);
+  }, [agents, coworkConfig.workingDirectory, currentAgentId, globalSelectedModel, isOpen]);
 
   useEffect(() => {
     if (!isOpen || model || !globalSelectedModel) return;
@@ -290,30 +156,18 @@ const AgentCreateModal: React.FC<AgentCreateModalProps> = ({
     setSubagentAllowAgentIds([]);
     setActiveTab(AgentDetailTab.Identity);
     setShowTemplatePicker(false);
-    setSelectedTemplate(null);
     setBoundKeys(new Set());
   };
 
   const handleApplyTemplate = (preset: PresetAgent) => {
     const isEn = i18nService.getLanguage() === 'en';
     const templateName = isEn && preset.nameEn ? preset.nameEn : preset.name;
-    const template = {
-      id: preset.id,
-      name: templateName,
-      skillCount: preset.skillIds?.length ?? 0,
-    };
     setName(templateName);
     setDescription(isEn && preset.descriptionEn ? preset.descriptionEn : preset.description);
     setSystemPrompt(isEn && preset.systemPromptEn ? preset.systemPromptEn : preset.systemPrompt);
     setIdentity(isEn && preset.identityEn ? preset.identityEn : preset.identity);
     setIcon(preset.icon?.trim() || DefaultAgentAvatarIcon);
     setSkillIds(preset.skillIds ?? []);
-    setSelectedTemplate(template);
-    reportAgentCreateAction('template_selected', {
-      activeTab: AgentDetailTab.Identity,
-      isDirty: true,
-      template,
-    });
     setActiveTab(AgentDetailTab.Identity);
     setShowTemplatePicker(false);
   };
@@ -321,52 +175,28 @@ const AgentCreateModal: React.FC<AgentCreateModalProps> = ({
   const handleClose = () => {
     const changedFields = getChangedFields();
     if (changedFields.length > 0) {
-      reportAgentCreateAction('discard_confirm_open', {
-        changedFields,
-        isDirty: true,
-      });
       setShowUnsavedConfirm(true);
     } else {
-      reportAgentCreateAction('close', { isDirty: false });
       onClose();
     }
   };
 
   const handleConfirmDiscard = () => {
-    reportAgentCreateAction('discard_confirm_submit', {
-      changedFields: getChangedFields(),
-      isDirty: true,
-    });
     setShowUnsavedConfirm(false);
     onClose();
   };
 
   const handleCancelDiscard = () => {
-    reportAgentCreateAction('discard_confirm_cancel', {
-      changedFields: getChangedFields(),
-      isDirty: true,
-    });
     setShowUnsavedConfirm(false);
   };
 
   const handleTabChange = (targetTab: AgentDetailTab) => {
     if (targetTab === activeTab) return;
-    reportAgentCreateAction('tab_change', {
-      activeTab,
-      isDirty: isDirty(),
-      targetTab,
-    });
     setActiveTab(targetTab);
   };
 
   const handleCreate = async () => {
     if (!name.trim()) return;
-    const changedFields = getChangedFields();
-    reportAgentCreateAction('create_submit', {
-      changedFields,
-      includeConfigDetails: true,
-      isDirty: changedFields.length > 0,
-    });
     setCreating(true);
     try {
       const agent = await agentService.createAgent({
@@ -401,32 +231,12 @@ const AgentCreateModal: React.FC<AgentCreateModalProps> = ({
           await imService.saveAndSyncConfig();
         }
         agentService.switchAgent(agent.id);
-        reportAgentCreateAction('create_success', {
-          changedFields,
-          includeConfigDetails: true,
-          isDirty: false,
-          result: 'success',
-        });
         onClose();
         resetForm();
       } else {
-        reportAgentCreateAction('create_failed', {
-          changedFields,
-          errorCode: 'create_agent_failed',
-          includeConfigDetails: true,
-          isDirty: changedFields.length > 0,
-          result: 'failed',
-        });
         window.dispatchEvent(new CustomEvent('app:showToast', { detail: i18nService.t('agentCreateFailed') }));
       }
     } catch {
-      reportAgentCreateAction('create_failed', {
-        changedFields,
-        errorCode: 'unknown',
-        includeConfigDetails: true,
-        isDirty: changedFields.length > 0,
-        result: 'failed',
-      });
       window.dispatchEvent(new CustomEvent('app:showToast', { detail: i18nService.t('agentCreateFailed') }));
     } finally {
       setCreating(false);
@@ -604,9 +414,6 @@ const AgentCreateModal: React.FC<AgentCreateModalProps> = ({
           <button
             type="button"
             onClick={() => {
-              reportAgentCreateAction('open_template_picker', {
-                isDirty: isDirty(),
-              });
               setShowTemplatePicker(true);
             }}
             className="h-8 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-foreground hover:bg-surface-raised transition-colors"
@@ -830,9 +637,6 @@ const AgentCreateModal: React.FC<AgentCreateModalProps> = ({
   );
 
   const closeTemplatePicker = () => {
-    reportAgentCreateAction('close_template_picker', {
-      isDirty: isDirty(),
-    });
     setShowTemplatePicker(false);
   };
 

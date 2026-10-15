@@ -41,22 +41,6 @@ interface AgentTaskRowProps {
   onRename: (title: string) => Promise<void>;
   onToggleSelection: () => void;
   onEnterBatchMode: () => void;
-  onSidebarAction?: (actionType: string, params?: {
-    agentType?: 'main' | 'custom';
-    hasActiveSubagent?: boolean;
-    isCurrentSession?: boolean;
-    isPinned?: boolean;
-    result?: 'success' | 'failed';
-    targetPinned?: boolean;
-    taskStatus?: string;
-  }) => void;
-  analyticsParams?: {
-    agentType: 'main' | 'custom';
-    hasActiveSubagent?: boolean;
-    isCurrentSession: boolean;
-    isPinned: boolean;
-    taskStatus: string;
-  };
 }
 
 const ACTION_MENU_VIEWPORT_PADDING = 8;
@@ -80,8 +64,6 @@ const AgentTaskRow: React.FC<AgentTaskRowProps> = ({
   onRename,
   onToggleSelection,
   onEnterBatchMode,
-  onSidebarAction,
-  analyticsParams,
 }) => {
   const baseDisplayTitle = task.isScheduledTask
     ? getScheduledTaskDisplayTitle(task.title)
@@ -136,7 +118,6 @@ const AgentTaskRow: React.FC<AgentTaskRowProps> = ({
 
     const position = calculateMenuPosition();
     if (position) {
-      onSidebarAction?.('task_menu_open', analyticsParams);
       setMenuPosition(position);
     }
   };
@@ -243,8 +224,7 @@ const AgentTaskRow: React.FC<AgentTaskRowProps> = ({
     menuItems[nextIndex]?.focus();
   };
 
-  const startRename = (actionType: 'task_rename_start' | 'task_rename_double_click') => {
-    onSidebarAction?.(actionType, analyticsParams);
+  const startRename = () => {
     setIsRenaming(true);
   };
 
@@ -254,7 +234,7 @@ const AgentTaskRow: React.FC<AgentTaskRowProps> = ({
     if (isBatchMode || isSelectionDisabled) return;
     event.stopPropagation();
     window.getSelection()?.removeAllRanges();
-    startRename('task_rename_double_click');
+    startRename();
   };
 
   const handleRenameSave = async () => {
@@ -266,7 +246,6 @@ const AgentTaskRow: React.FC<AgentTaskRowProps> = ({
   };
 
   const handleRenameCancel = () => {
-    onSidebarAction?.('task_rename_cancel', analyticsParams);
     setRenameValue(editableTitle);
     setIsRenaming(false);
   };
@@ -493,7 +472,7 @@ const AgentTaskRow: React.FC<AgentTaskRowProps> = ({
             onClick={(event) => {
               event.stopPropagation();
               closeMenu();
-              startRename('task_rename_start');
+              startRename();
             }}
             className={menuItemClassName}
             role="menuitem"
@@ -532,7 +511,6 @@ const AgentTaskRow: React.FC<AgentTaskRowProps> = ({
             onClick={(event) => {
               event.stopPropagation();
               closeMenu();
-              onSidebarAction?.('task_delete_confirm_open', analyticsParams);
               setShowConfirmDelete(true);
             }}
             className={menuItemClassName}
@@ -566,7 +544,6 @@ const AgentTaskRow: React.FC<AgentTaskRowProps> = ({
             <button
               type="button"
               onClick={() => {
-                onSidebarAction?.('task_delete_cancel', analyticsParams);
                 setShowConfirmDelete(false);
               }}
               className="px-4 py-2 text-sm font-medium rounded-lg text-secondary hover:bg-surface-raised transition-colors"
@@ -576,7 +553,6 @@ const AgentTaskRow: React.FC<AgentTaskRowProps> = ({
             <button
               type="button"
               onClick={() => {
-                onSidebarAction?.('task_delete_submit', analyticsParams);
                 setShowConfirmDelete(false);
                 void onDelete();
               }}

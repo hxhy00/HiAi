@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-import { reportOnboardingAction } from '../../services/onboardingAnalytics';
+
 import ChatLoginExperienceModal from '../cowork/ChatLoginExperienceModal';
 
 const INTRODUCTION_SEEN_STORAGE_KEY = 'login_introduction_seen';
@@ -34,7 +34,6 @@ const FirstRunLoginIntroduction: React.FC<FirstRunLoginIntroductionProps> = ({
 
   useEffect(() => {
     if (hasSeenIntroduction !== false) return;
-    reportOnboardingAction('login_introduction_exposure', { source: 'first_run_gate' });
     // Record exposure, so restarting without clicking an action also counts as seen.
     void window.electron.store.set(INTRODUCTION_SEEN_STORAGE_KEY, true)
       .catch((error) => {
@@ -49,7 +48,6 @@ const FirstRunLoginIntroduction: React.FC<FirstRunLoginIntroductionProps> = ({
     <ChatLoginExperienceModal
       loginPending={loginPending}
       onClose={() => {
-        reportOnboardingAction('login_introduction_skip_click', { source: 'first_run_gate' });
         setHasSeenIntroduction(true);
       }}
       onStart={() => {

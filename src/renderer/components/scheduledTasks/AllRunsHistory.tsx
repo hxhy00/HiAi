@@ -9,7 +9,7 @@ import type { RunFilter, ScheduledTaskRunWithName } from '../../../scheduledTask
 import { i18nService } from '../../services/i18n';
 import { scheduledTaskService } from '../../services/scheduledTask';
 import { RootState } from '../../store';
-import { getFilterAnalyticsParams, getRunAnalyticsParams, reportScheduledTaskAction } from './analytics';
+
 import DateInput from './DateInput';
 import RunSessionModal from './RunSessionModal';
 import ScheduledTaskDataState from './ScheduledTaskDataState';
@@ -93,11 +93,6 @@ const AllRunsHistory: React.FC<AllRunsHistoryProps> = ({ searchText = '' }) => {
   };
 
   const handleClearFilter = () => {
-    reportScheduledTaskAction('history_filter_clear', {
-      source: 'scheduled_tasks_history',
-      resultCount: displayedRuns.length,
-      ...getFilterAnalyticsParams(filter),
-    });
     handleFilterChange(EMPTY_FILTER);
   };
 
@@ -106,41 +101,20 @@ const AllRunsHistory: React.FC<AllRunsHistoryProps> = ({ searchText = '' }) => {
       ...filter,
       status: filter.status === status ? undefined : status,
     };
-    reportScheduledTaskAction('history_filter_status', {
-      source: 'scheduled_tasks_history',
-      targetStatus: status,
-      selected: nextFilter.status === status,
-      resultCount: displayedRuns.length,
-      ...getFilterAnalyticsParams(nextFilter),
-    });
     handleFilterChange(nextFilter);
   };
 
   const handleLoadMore = () => {
-    reportScheduledTaskAction('history_load_more', {
-      source: 'scheduled_tasks_history',
-      loadedCount: allRuns.length,
-      ...getFilterAnalyticsParams(filter),
-    });
     scheduledTaskService.loadAllRuns(50, allRuns.length, filter);
   };
 
   const handleViewSession = (run: ScheduledTaskRunWithName) => {
     if (run.sessionId || run.sessionKey || run.summary || run.error || hasRunDeliveryFailure(run)) {
-      reportScheduledTaskAction('history_view_session', {
-        source: 'scheduled_tasks_history',
-        ...getRunAnalyticsParams(run),
-      });
       setViewingRun(run);
     }
   };
 
   const handleDateFilterChange = (newFilter: RunFilter) => {
-    reportScheduledTaskAction('history_filter_date', {
-      source: 'scheduled_tasks_history',
-      resultCount: displayedRuns.length,
-      ...getFilterAnalyticsParams(newFilter),
-    });
     handleFilterChange(newFilter);
   };
 
@@ -152,10 +126,6 @@ const AllRunsHistory: React.FC<AllRunsHistoryProps> = ({ searchText = '' }) => {
         status={allRunsStatus}
         error={allRunsError}
         onRetry={() => {
-          reportScheduledTaskAction('retry_load_history', {
-            source: 'scheduled_tasks_history',
-            ...getFilterAnalyticsParams(filter),
-          });
           loadInitial(filter);
         }}
       />

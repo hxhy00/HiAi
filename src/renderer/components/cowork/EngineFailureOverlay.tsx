@@ -1,10 +1,9 @@
 import { ArrowPathIcon, ChevronDownIcon, ExclamationTriangleIcon, ShieldCheckIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline';
 import React, { useEffect, useState } from 'react';
 
-import { OpenClawEngineErrorCode, OpenClawEnginePhase, OpenClawLoopbackRepairOutcome } from '../../../shared/openclawEngine/constants';
+import { OpenClawEngineErrorCode, OpenClawEnginePhase } from '../../../shared/openclawEngine/constants';
 import { coworkService } from '../../services/cowork';
 import { i18nService } from '../../services/i18n';
-import { LogReporterAction, reportYdAnalyzer } from '../../services/logReporter';
 import { resolveOpenClawLoopbackRepairMessage, resolveOpenClawRepairError } from '../../services/openclawRepair';
 import type { OpenClawEngineStatus } from '../../types/cowork';
 import type { SettingsOpenOptions } from '../Settings';
@@ -77,13 +76,6 @@ const EngineFailureOverlay: React.FC<EngineFailureOverlayProps> = ({
     setGatewayRepairError(null);
     try {
       const result = await coworkService.repairOpenClawGatewayState();
-      void reportYdAnalyzer({
-        action: LogReporterAction.AgentEngineMaintenanceAction,
-        actionType: 'repair_gateway_state',
-        result: result.success ? 'success' : 'failed',
-        errorCode: result.success ? undefined : result.errorCode ?? 'unknown',
-        source: 'cowork_engine_failure_overlay',
-      });
       if (!result.success) {
         setGatewayRepairError(resolveOpenClawRepairError(result));
       }
@@ -91,13 +83,6 @@ const EngineFailureOverlay: React.FC<EngineFailureOverlayProps> = ({
       console.error('[EngineFailureOverlay] Failed to repair gateway state:', error);
       const message = error instanceof Error ? error.message.trim() : '';
       setGatewayRepairError(message || i18nService.t('openClawRepairFailed'));
-      void reportYdAnalyzer({
-        action: LogReporterAction.AgentEngineMaintenanceAction,
-        actionType: 'repair_gateway_state',
-        result: 'failed',
-        errorCode: 'unknown',
-        source: 'cowork_engine_failure_overlay',
-      });
     } finally {
       setIsRepairingGateway(false);
     }
@@ -111,14 +96,6 @@ const EngineFailureOverlay: React.FC<EngineFailureOverlayProps> = ({
     setGatewayRepairError(null);
     try {
       const result = await coworkService.repairOpenClawLoopbackFirewall();
-      const repaired = result.outcome === OpenClawLoopbackRepairOutcome.Repaired;
-      void reportYdAnalyzer({
-        action: LogReporterAction.AgentEngineMaintenanceAction,
-        actionType: 'allow_loopback_firewall',
-        result: repaired ? 'success' : 'failed',
-        errorCode: repaired ? undefined : result.outcome,
-        source: 'cowork_engine_failure_overlay',
-      });
       setGatewayRepairError(resolveOpenClawLoopbackRepairMessage(result) ?? null);
     } catch (error) {
       console.error('[EngineFailureOverlay] Failed to allow loopback connections:', error);

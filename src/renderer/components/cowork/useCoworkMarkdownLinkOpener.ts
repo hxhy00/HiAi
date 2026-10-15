@@ -9,7 +9,6 @@ import {
 } from '../../services/artifactLinkOpen';
 import { addLinkedFileArtifact, openArtifactPreviewTab } from '../../store/slices/artifactSlice';
 import { type Artifact, ArtifactTypeValue } from '../../types/artifact';
-import { ArtifactPreviewActionSource, reportArtifactPreviewAction } from '../artifacts/artifactAnalytics';
 import type { MarkdownLinkOpener } from '../markdownLinkOpener';
 
 interface CoworkMarkdownLinkOpenerOptions {
@@ -43,14 +42,6 @@ export const useCoworkMarkdownLinkOpener = ({
 
     const showArtifact = (artifact: Artifact) => {
       const isHtmlFile = artifact.type === ArtifactTypeValue.Html && Boolean(artifact.filePath);
-      reportArtifactPreviewAction({
-        actionType: 'link_open',
-        source: ArtifactPreviewActionSource.ConversationMessageLink,
-        artifact,
-        params: {
-          openTarget: isHtmlFile ? 'lobster_browser' : 'preview_panel',
-        },
-      });
       if (isHtmlFile) {
         latestRef.current.onOpenHtmlFile(artifact);
         return;
@@ -81,14 +72,6 @@ export const useCoworkMarkdownLinkOpener = ({
       openWebLink: (url: string) => {
         const artifact = findLocalServiceArtifactForUrl(url, latestRef.current.sessionArtifacts);
         if (!artifact) return false;
-        reportArtifactPreviewAction({
-          actionType: 'link_open',
-          source: ArtifactPreviewActionSource.ConversationMessageLink,
-          artifact,
-          params: {
-            openTarget: 'lobster_browser',
-          },
-        });
         // Go to the address the link names; the card only lends its project context.
         latestRef.current.onOpenLocalService({ ...artifact, url, content: url });
         return true;
