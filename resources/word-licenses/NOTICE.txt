@@ -1,6 +1,6 @@
-LobsterAI Word editing — third-party notices
+HiAi Word editing — third-party notices
 
-LobsterAI's own integration code is MIT licensed. Third-party components retain
+HiAi's own integration code is MIT licensed. Third-party components retain
 their original licenses below. No proprietary @docx-editor.dev/pro or editor-api
 package is part of this integration. Only the listed OFL fonts are redistributed;
 the mixed-license @docx-editor.dev/fonts package is not a runtime dependency.
@@ -14,7 +14,7 @@ are redistributed without modification. HarfBuzz WASM notices are included in
 the core package section, including licenses/HarfBuzz-COPYING.txt.
 
 This inventory covers the Word dependency graph and assets, not unrelated
-LobsterAI dependencies. Versions and license materials are verified at build time.
+HiAi dependencies. Versions and license materials are verified at build time.
 
 ## @docx-editor.dev/core@2.22.0 — Apache-2.0
 
