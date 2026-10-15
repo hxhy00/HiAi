@@ -1,5 +1,7 @@
 # LobsterAI 产品使用日志上报设计文档
 
+> **状态（2026-10-15）：功能已移除。** 使用日志上报链路已随 `74734f2 refactor(telemetry): remove usage analytics and telemetry reporting` 整体删除（含 `logReporter`、`installationId`、`analyticsIdentity` 等）。本文仅作历史设计记录保留，不再维护；相关使用统计开关与事件清单（§2.4）一并失效。
+
 ## 1. 概述
 
 ### 1.1 问题/背景

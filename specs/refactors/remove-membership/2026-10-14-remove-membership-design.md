@@ -172,7 +172,7 @@
 | LLM 直连 provider、token proxy 条件化 | FR-1（已落地），本文档不重复 |
 | 媒体 provider 本地化 | FR-2（已落地），本文档只收尾门控 |
 | 语音 SenseVoice 化 | FR-3（**已完成**，2026-10-14：`asrQuotaSlice`、`voiceInput/quota.ts` 与语音额度 i18n 键已随 FR-3 删除，本地推理无配额） |
-| 分享/部署入口关闭 | FR-4（未开工），其订阅门控弹窗删除与本文档 RM-1 重叠，需协调 |
+| 分享/部署入口关闭 | FR-4（**已完成**）：订阅门控弹窗已按本文档 RM-1 删除（`ArtifactSubscriptionPromptDialog.tsx` 已不存在）；`artifactSubscriptionGate.ts` 退化为 13 行纯常量（仅剩埋点打标用途，无门控判定），FR-4 只断入口、保留服务层 |
 
 > **重叠项必须明确归属**：`asrQuotaSlice` 建议归 FR-3 一并删（避免两次动同一处）；订阅门控弹窗建议归本文档 RM-1（因 FR-4 只断入口，不删门控组件）。
 

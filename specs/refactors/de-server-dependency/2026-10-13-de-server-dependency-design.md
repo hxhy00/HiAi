@@ -182,10 +182,12 @@ CoworkPromptInput（语音按钮）
 
 ### FR-4：关闭 HTML 分享与站点部署
 
-- **FR-4.1** 新增编译期 flag（沿用 `src/shared/featureFlags.ts:11` 的写法）：`ENABLE_HTML_SHARE`、`ENABLE_SITE_DEPLOYMENT`，均置 `false`。
-- **FR-4.2** 分享入口 gate：`artifactToolbarPublishPolicy.ts:29-58`、`ArtifactPanel.tsx:139-143,769-772,882-913`、`LibraryView.tsx:1497-1522,1587,1607,1645`。
-- **FR-4.3** 部署入口 gate：`SitesView.tsx`、`App.tsx:2183-2186`、`LibrarySharedFilesView.tsx:1707`。
-- **FR-4.4** 服务层保留不删（`htmlShare/*`、`site/*`、`shareDeployment/*`），仅断 UI 入口 —— 后续可能复用。
+> **实现状态（2026-10-15 回填）：已全部落地。** 行号会随重构漂移，以符号名为准。
+
+- **FR-4.1（已实现）** 新增编译期 flag（`src/shared/featureFlags.ts`）：`ENABLE_HTML_SHARE`、`ENABLE_SITE_DEPLOYMENT`，均置 `false`。
+- **FR-4.2（已实现）** 分享入口 gate：`artifactToolbarPublishPolicy.ts`（`resolveArtifactPreviewToolbarPublishTarget` 首行 `if (!ENABLE_HTML_SHARE) return null`）、`ArtifactPreviewCard.tsx`（`canShare`）、`libraryItemActionPolicy.ts`（`LibraryItemAction.ShareLocal` 过滤）、`ArtifactPanel.tsx`（经 publish policy 间接 gate）。
+- **FR-4.3（已实现）** 部署入口 gate：`artifactToolbarPublishPolicy.ts`（`resolveBrowserToolbarPublishTarget` 的 `if (!ENABLE_SITE_DEPLOYMENT) return null`）、`ArtifactPreviewCard.tsx`（`canDeploy`）、`libraryItemActionPolicy.ts`（`LibraryItemAction.ManageSite` 过滤）、`App.tsx`（`sitesHidden={!ENABLE_SITE_DEPLOYMENT || ...}` → `LibraryView` 隐藏 Site 分类）。
+- **FR-4.4（已遵守）** 服务层保留不删（`src/main/libs/htmlShare/*`、`site/*`、`shareDeployment/*` 均在位，仅断 UI 入口）。
 
 ### FR-5：移除商业壳（最后执行）
 
@@ -336,10 +338,12 @@ CoworkPromptInput（语音按钮）
 按 FR 逐条验收，每条必须给出可复现的验证方式。
 
 > **实现状态（2026-10-14 回填）**：FR-1/2/4/5 已实现，FR-3 已实现（U-9 已决：**方案 A 随包分发**）。
+> **FR-4 补记（2026-10-15）**：AC-4.1 / AC-4.2 已由用户手动验证通过（分享/部署入口不可见）。
+> FR-5 由 `specs/refactors/remove-membership/` 承接并已闭环（10 条 AC 全绿）。
 > 验证结果：`tsc --noEmit` 通过；`npm run compile:electron` 通过；`vite build`（用户执行）通过；
 > 全量 vitest 6429 用例仅 3 个失败，均为无关遗留（openclawConfigSync.runtime / popo-sdk / markdownEditorCommands）；
-> 改动文件 eslint 零错误零警告。AC-2.2 / AC-2.5 / AC-3.1 / AC-4.1 / AC-4.2 / AC-G1 等
-> 手动/抓包项待用户验收。
+> 改动文件 eslint 零错误零警告。AC-2.2 / AC-2.5 / AC-3.1 / AC-G1 等
+> 手动/抓包项待用户验收；AC-4.1 / AC-4.2 已于 2026-10-15 验证通过。
 >
 > **AC-3.2 补验（2026-10-14 真实环境联调）**：首次接线暴露了两个打包脚本缺陷，均已修复并补测，
 > 详见 §7.1。修复后 mac-arm64 侧车可真实运行，离线识别实测通过。
@@ -383,8 +387,8 @@ checkout。
 | AC-3.1 | 语音输入可用，且不产生服务端请求 | 抓包确认无 `/api/asr` 请求 |
 | AC-3.2 | sherpa-onnx 侧车在 mac-arm64 上可打包运行 | **已通过**（2026-10-14 实测）：`npm run setup:sherpa-onnx` 拉取 `osx-universal2-shared` 包并落到 `bin/mac-arm64/`；离线识别实测 `今天天气真不错我们出去散步吧`，耗时 0.23s（RTF 0.066） |
 | AC-3.3 | 侧车损坏时应用能提示而非静默失败 | **部分通过**：`checkSenseVoiceAvailability()` 覆盖"文件缺失"路径（返回 `unavailable` 并置灰按钮）；**已修缺陷**：`bin/lib/` 缺失时原先静默判为"已就绪"，实际 `dyld` 崩溃并误报为 `recognitionFailed`（见下方缺陷记录） |
-| AC-4.1 | HTML 分享入口不可见 | 手动操作 |
-| AC-4.2 | 站点部署入口不可见 | 手动操作 |
+| AC-4.1 | HTML 分享入口不可见 | ✅ **已通过**（2026-10-15 手动）：`ENABLE_HTML_SHARE=false`，3 处 gate 生效（`artifactToolbarPublishPolicy` / `ArtifactPreviewCard` / `libraryItemActionPolicy`，见 FR-4.2） |
+| AC-4.2 | 站点部署入口不可见 | ✅ **已通过**（2026-10-15 手动）：`ENABLE_SITE_DEPLOYMENT=false`，4 处 gate 生效（`App.tsx` `sitesHidden` + 3 处，见 FR-4.3） |
 | AC-5.1 | 全局搜索无 `enterprise` 相关请求 | 抓包 + 代码审查 |
 | AC-5.2 | 无订阅/积分/banner UI | 手动操作 |
 | AC-G1 | 服务端域名不可达时，应用启动与核心功能正常 | 修改 hosts 屏蔽 `lobsterai-server.youdao.com` |
@@ -430,7 +434,7 @@ checkout。
 | 轮次 | 待确认项 | 状态 |
 | --- | --- | --- |
 | 第 1 轮（FR-1） | LLM provider 首启引导方式（设置页 / 首启向导 / 两者）；OpenClaw 配置中 provider 直连的字段落点 | **已关闭**（见 10.4） |
-| 第 2 轮（FR-2） | U-1、U-10 | **已关闭**（见 10.5） |
+| 第 2 轮（FR-2 + FR-4） | U-1、U-10（FR-4 无未决项） | **已关闭**（见 10.5） |
 | 第 3 轮（FR-3） | U-9（SenseVoice 模型：随包分发 vs 首次下载；int8 约 200MB 级） | **已关闭**：随包分发（见 §7.1） |
 | 第 4 轮（FR-5） | U-5（升级场景旧登录态清理策略）；`subscriptionStatus` 收敛后 `resolveMediaGenerationAccess` 的废弃方式 | **已关闭**：U-5 已决（清理旧登录态，登录能力整体移除）；`resolveMediaGenerationAccess` 整体删除（见 `specs/refactors/remove-membership/` §11 D1/D2） |
 
@@ -441,8 +445,10 @@ checkout。
 | 轮次 | 完成日期 | 实际范围 | 偏差 | 关联修订 |
 | --- | --- | --- | --- | --- |
 | 第 1 轮（FR-1） | 2026-10-13 | `main.ts` 条件化 token proxy 启动；`openclawRuntimeAdapter.ts` 删除 `isLobsterAILoginExpiredMetadata` 及两处调用；同步删除对应测试 | 原计划"配置落点"改为**不新增配置分支**，仅让 proxy 端口天然为 null 触发回落 | 见 10.4 |
+| 第 2 轮（FR-2 + FR-4） | 2026-10-14 | FR-2：主进程媒体适配层（`mediaProvider/*`）落地，媒体 `action=list/generate/status/cancel` 与三处 IPC 全部切本地 provider，独立 kv `mediaProviders`，移除媒体门控（FR-2.6）。FR-4：新增 `ENABLE_HTML_SHARE` / `ENABLE_SITE_DEPLOYMENT`（均 false），分享 3 处 + 部署 4 处入口全部 gate，服务层保留 | 媒体配置落点由"复用 `app_config.providers`"改为**独立 kv key `mediaProviders`**（方案 A1，原结构无 `category` 且被聊天链路消费）；媒体 UI 手填表单顺延（FR-2.2a） | 见 10.5、FR-4 |
 | 第 3 轮（FR-3） | 2026-10-14 | 运行时按原设计实现完毕；联调阶段修复打包脚本两处缺陷（资产名映射、共享库拷贝）并加入自愈与单测 | 原计划未预见上游资产命名与 `lib/` 布局差异；打包脚本从"只校验可执行文件"升级为"可执行文件 + 共享库"完整性判断 | 见 §7.1、U-9 |
 | 第 3 轮（FR-3 补记） | 2026-10-14 | 二/三轮联调再修：`setup-sherpa-onnx.js` 新增 `materializeSymlinks()` 物化符号链接、`isBinaryPrepared` 增加悬空链接检测；`electron-builder-hooks.cjs` 增加打包前 `assertSidecarHasNoSymlinks()` 断言；`sidecar.ts` 合并 stderr+stdout 并新增 `onDiagnostics` | 发现第三处缺陷 D-3（识别结果打到 stderr）与符号链接打包缺陷（悬空链接会随包分发到用户机器崩溃） | 见 §7.1 D-3 及"自愈能力" |
+| 第 4 轮（FR-5） | 2026-10-14 | 移除商业壳：企业账号/请求头注入、订阅积分态与 UI、banner/活动、登录能力整体移除（含 `authSlice`、`authSessionManager`、`openclawTokenProxy` 删除），i18n 会员文案清零 | FR-5 拆分为独立文档 `specs/refactors/remove-membership/` 承接；登录能力由 M-1 决策**整体移除**（原计划仅清理登录态）；分享/部署服务层字段按 M-4 保留 | 见 `remove-membership` §11 D1-D5 |
 
 ### 10.4 第 1 轮已关闭决策
 
