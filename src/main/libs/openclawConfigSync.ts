@@ -35,6 +35,7 @@ import type {
 } from '../../shared/providers';
 import {
   AuthType,
+  buildCustomModelThinkingConfig,
   findKimiK3ReservedCustomParamKeys,
   getModelRuntimeProfileDefinition,
   ModelRuntimeProfile,
@@ -2174,6 +2175,9 @@ export class OpenClawConfigSync {
 
       for (const p of resolveAllEnabledProviderConfigs()) {
         for (const m of p.models) {
+          // 用户自配 provider 没有服务端下发的 thinkingConfig，只有布尔开关。
+          // 勾选思考时按通用档位合成声明，否则网关不产生 thinking 事件。
+          const customThinkingConfig = buildCustomModelThinkingConfig(m.supportsThinking);
           const sel = buildProviderSelection({
             apiKey: p.apiKey,
             baseURL: p.baseURL,
@@ -2188,8 +2192,10 @@ export class OpenClawConfigSync {
             modelName: m.name,
             contextWindow: m.contextWindow,
             maxTokens: m.maxTokens,
+            thinkingConfig: customThinkingConfig,
           });
           collectCompatibilityOwnerProfile(candidateModelProfiles, sel);
+          collectThinkingProfile(candidateThinkingProfiles, sel, customThinkingConfig);
           if (!allProvidersMap[sel.providerId]) {
             allProvidersMap[sel.providerId] = { ...sel.providerConfig, models: [] };
           }

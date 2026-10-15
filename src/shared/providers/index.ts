@@ -44,6 +44,7 @@ export type {
   ModelThinkingOption,
 } from './modelThinking';
 export {
+  buildCustomModelThinkingConfig,
   getModelThinkingLevels,
   ModelThinkingLevel,
   OpenClawThinkingLevel,

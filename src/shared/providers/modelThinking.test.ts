@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import {
+  buildCustomModelThinkingConfig,
   getModelThinkingLevels,
   ModelThinkingLevel,
   OpenClawThinkingLevel,
@@ -69,5 +70,40 @@ describe('parseModelThinkingConfig', () => {
     expect(getModelThinkingLevels(config)).toEqual(['off', 'high', 'max']);
     expect(resolveOpenClawThinkingLevel(config, ModelThinkingLevel.Max)).toBe('xhigh');
     expect(resolveProductThinkingLevel(config, OpenClawThinkingLevel.XHigh)).toBe('max');
+  });
+});
+
+describe('buildCustomModelThinkingConfig', () => {
+  test('returns undefined unless thinking is explicitly enabled', () => {
+    expect(buildCustomModelThinkingConfig(undefined)).toBeUndefined();
+    expect(buildCustomModelThinkingConfig(false)).toBeUndefined();
+  });
+
+  test('builds a generic OpenAI-compatible ladder when enabled', () => {
+    const config = buildCustomModelThinkingConfig(true);
+    expect(config).toBeDefined();
+    if (!config) return;
+
+    expect(getModelThinkingLevels(config)).toEqual(['off', 'low', 'medium', 'high']);
+    expect(config.defaultLevel).toBe(ModelThinkingLevel.Medium);
+    // Every declared effort must fall inside OpenClaw's native reasoning set.
+    expect(config.options.map(option => option.openclawLevel)).toEqual([
+      'off',
+      'low',
+      'medium',
+      'high',
+    ]);
+  });
+
+  test('survives the server-side parser so downstream config stays valid', () => {
+    const config = buildCustomModelThinkingConfig(true);
+    expect(parseModelThinkingConfig(config)).toEqual(config);
+  });
+
+  test('returns a fresh, mutable copy each call', () => {
+    const first = buildCustomModelThinkingConfig(true);
+    const second = buildCustomModelThinkingConfig(true);
+    expect(first).not.toBe(second);
+    expect(first?.options).not.toBe(second?.options);
   });
 });

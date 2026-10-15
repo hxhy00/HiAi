@@ -458,6 +458,50 @@ describe('OpenClawConfigSync runtime config output', () => {
     });
   });
 
+  describe('custom provider thinking declaration', () => {
+    test('emits reasoning capabilities when a custom model opts into thinking', async () => {
+      mockRuntimeState.enabledProviders = [{
+        providerName: 'custom_0',
+        baseURL: 'https://api.example.com/v1',
+        apiKey: 'fixture-key',
+        apiType: 'openai',
+        codingPlanEnabled: false,
+        models: [{ id: 'deepseek-flash', name: 'DeepSeek Flash', supportsThinking: true }],
+      }];
+
+      const sync = await createSync();
+      expect(sync.sync('custom-thinking')).toMatchObject({ ok: true, changed: true });
+
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      const model = config.models.providers.custom_0.models[0];
+      expect(model.reasoning).toBe(true);
+      expect(model.thinkingLevelMap).toMatchObject({ off: 'off', low: 'low', medium: 'medium', high: 'high' });
+      expect(model.compat).toMatchObject({
+        supportsReasoningEffort: true,
+        supportedReasoningEfforts: ['low', 'medium', 'high'],
+      });
+    });
+
+    test('omits reasoning capabilities when the custom model does not opt into thinking', async () => {
+      mockRuntimeState.enabledProviders = [{
+        providerName: 'custom_0',
+        baseURL: 'https://api.example.com/v1',
+        apiKey: 'fixture-key',
+        apiType: 'openai',
+        codingPlanEnabled: false,
+        models: [{ id: 'deepseek-flash', name: 'DeepSeek Flash' }],
+      }];
+
+      const sync = await createSync();
+      sync.sync('custom-no-thinking');
+
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      const model = config.models.providers.custom_0.models[0];
+      expect(model.thinkingLevelMap).toBeUndefined();
+      expect(model.compat?.supportedReasoningEfforts).toBeUndefined();
+    });
+  });
+
   test('preserves IM, routing, and gateway auth while models are unavailable and after recovery', async () => {
     const sync = await createSync({
       getAgents: () => ['main', 'worker'].map(id => ({

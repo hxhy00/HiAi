@@ -24,6 +24,33 @@ LobsterAI 在 2026 年 5 月 20 日合入 PR #2019（`feat/model-custom-params`�
 顺序分块方案。模型协议侧的 reasoning/thinking 回放不在本文范围，详见
 `specs/bugfixes/deepseek-mimo-reasoning-content-replay/`。
 
+### 1.1.1 上游前置条件：模型必须在生成的 OpenClaw 配置中声明推理能力
+
+本文档描述的是**展示层**。它成立的前提是 OpenClaw 网关确实产生了 thinking 事件或结构化
+thinking history，而这要求模型条目在生成的 `openclaw.json` 里声明了推理能力。
+
+OpenClaw 侧的判定是：`models.providers.<provider>.models[].reasoning === true` **且**
+`compat.supportsReasoningEffort === true` 配合非空 `compat.supportedReasoningEfforts`
+（取值限定 `minimal|low|medium|high|xhigh|max|ultra`）。仅 `reasoning: true` 不足以产生
+`agent stream=thinking`（依据 `docs/concepts/agent-runtimes.md` 与 `docs/tools/thinking.md`）。
+
+两类 provider 的声明来源不同：
+
+- **服务端（lobsterai-server）模型**：`thinkingConfig` 由服务端元数据下发，配置同步时经
+  `buildOpenClawThinkingRuntimeConfig` 转成 `thinkingLevelMap` / `supportedReasoningEfforts`。
+- **用户自配 provider 模型**：用户侧只有布尔 `supportsThinking`，没有 `thinkingConfig`
+  概念。此前该路径**未做桥接**，导致即使用户在「模型编辑」勾选了思考输出，生成的配置仍只有
+  `reasoning: true`，网关不产生 thinking 事件，前端无可展示内容。
+
+修复：`buildCustomModelThinkingConfig`（`src/shared/providers/modelThinking.ts`）在
+`supportsThinking === true` 时按通用 OpenAI 兼容档位合成 thinkingConfig（`off`/`low`/
+`medium`/`high`，默认 `medium`），由 `openclawConfigSync.ts` 的用户 provider 分支传入
+`buildProviderSelection` 与 `collectThinkingProfile`。未勾选的模型不受影响（返回 `undefined`）。
+
+排查此类"勾选了思考但仍看不到思考过程"的问题时，应先确认生成的
+`openclaw/state/openclaw.json` 中目标模型是否带 `thinkingLevelMap` 与
+`supportedReasoningEfforts`，再判断是否属于展示层缺陷。
+
 ### 1.2 目标
 
 1. 每一轮工具调用前的 thinking 独立展示，并位于对应 `tool_use` 之前。
@@ -184,6 +211,8 @@ thinking 已经离开这个窗口，旧对账逻辑因而误判它们不存在�
 | 文件                                                        | 职责                                                             |
 | ----------------------------------------------------------- | ---------------------------------------------------------------- |
 | `src/common/openclawSession.ts`                             | OpenClaw session reasoning level 常量与类型                      |
+| `src/shared/providers/modelThinking.ts`                     | 用户自配 provider 的 thinkingConfig 合成（`buildCustomModelThinkingConfig`） |
+| `src/main/libs/openclawConfigSync.ts`                       | 用户 provider 分支桥接 thinkingConfig，写出 `thinkingLevelMap` / `supportedReasoningEfforts` |
 | `src/main/libs/agentEngine/openclawRuntimeAdapter.ts`       | OpenClaw 事件路由，并把 thinking 与 history 同步委托给独立控制器 |
 | `src/main/libs/agentEngine/thinking/blocks.ts`              | history thinking 分块和稳定 key                                  |
 | `src/main/libs/agentEngine/thinking/controller.ts`          | thinking 状态与实时消息生命周期                                  |
