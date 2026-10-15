@@ -1,5 +1,25 @@
 # LobsterAI 生图生视频托管工具设计文档
 
+> **已废弃（2026-10-15 确认）——请勿按本文档实现。**
+>
+> 废弃原因：本文档描述的「走 `lobsterai-server` + 订阅计费 + 额度冻结」架构已不存在。
+> 后续连续重构移除了服务端媒体链路与会员体系，媒体生成改为**本地 provider adapter**：
+>
+> - `feat(media): localize image generation behind a media provider adapter`
+> - `feat(media): localize video generation and drop the server media flow`
+> - `refactor(membership): remove subscription, credits and server-model remnants`
+>
+> 当前架构：用户在**设置页手填** `baseUrl` / `apiKey` / `modelId`，配置存SQLite
+> （密钥经 `safeStorage` 加密），由 `src/main/libs/mediaProvider/` 的 adapter
+> （OpenAI 兼容图片 / MiniMax 视频）直接请求上游，经 MCP bridge 以工具形式暴露给
+> agent。**没有服务端、没有计费、没有额度。**
+>
+> 仍然有效的部分：4.2「OpenClaw 插件形态」与 4.3「MCP bridge回调路由」的结构被
+> 现状继承（`POST /media-generation/tool`），4.1 架构图与 4.4/4.5 的 server 契约已失效。
+>
+> 现行设计见
+> [媒体生成模型设置界面设计](./2026-10-14-media-model-settings-ui-design.md)。
+
 > 模型生成视频的服务端 NOS 持久化、历史任务恢复和客户端分享能力，见
 > [模型生成视频分享设计](../artifacts/2026-09-01-generated-video-share-design.md)。
 
