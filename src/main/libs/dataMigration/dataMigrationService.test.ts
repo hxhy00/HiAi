@@ -270,8 +270,8 @@ test('createMigrationArchive excludes cache and log data and writes a manifest',
   writeFile(path.join(userData, 'SharedStorage'), 'shared-storage');
   writeFile(path.join(userData, 'SharedStorage-wal'), 'shared-storage-wal');
   writeFile(path.join(userData, 'logs', 'main.log'), 'log');
-  writeFile(path.join(userData, 'backups', 'sqlite', 'snapshots', 'lobsterai-latest.sqlite'), 'old-snapshot');
-  writeFile(path.join(userData, 'sqlite-backups', 'lobsterai-latest.sqlite'), 'legacy-snapshot');
+  writeFile(path.join(userData, 'backups', 'sqlite', 'snapshots', 'hiai-latest.sqlite'), 'old-snapshot');
+  writeFile(path.join(userData, 'sqlite-backups', 'hiai-latest.sqlite'), 'legacy-snapshot');
   writeFile(path.join(userData, 'Cookies'), 'cookies');
   writeFile(path.join(userData, 'DIPS-journal'), 'dips');
   writeFile(path.join(userData, '.com.github.Electron.test'), 'electron-marker');
@@ -686,8 +686,8 @@ test('performPendingDataMigrationRestoreSync replaces data in place and preserve
 
   writeSqliteFixture(path.join(sourceUserData, DB_FILENAME), 'source');
   writeFile(path.join(sourceUserData, 'openclaw', 'state', 'openclaw.json'), '{"source":true}');
-  writeFile(path.join(sourceUserData, 'backups', 'sqlite', 'snapshots', 'lobsterai-latest.sqlite'), 'source-backup');
-  writeFile(path.join(sourceUserData, 'sqlite-backups', 'lobsterai-latest.sqlite'), 'source-legacy-backup');
+  writeFile(path.join(sourceUserData, 'backups', 'sqlite', 'snapshots', 'hiai-latest.sqlite'), 'source-backup');
+  writeFile(path.join(sourceUserData, 'sqlite-backups', 'hiai-latest.sqlite'), 'source-legacy-backup');
   writeFile(path.join(sourceUserData, 'cowork', 'bin', 'node.cmd'), 'source-shim');
   writeFile(path.join(sourceUserData, 'install-timing.log'), 'source-install-log');
   writeFile(path.join(sourceUserData, 'skill-migrate.log'), 'source-skill-migrate-log');
@@ -710,8 +710,8 @@ test('performPendingDataMigrationRestoreSync replaces data in place and preserve
   writeFile(path.join(targetUserData, `${DB_FILENAME}-wal`), 'target-wal');
   writeFile(path.join(targetUserData, `${DB_FILENAME}-shm`), 'target-shm');
   writeFile(path.join(targetUserData, 'old-only.txt'), 'old');
-  writeFile(path.join(targetUserData, 'backups', 'sqlite', 'snapshots', 'lobsterai-latest.sqlite'), 'target-backup');
-  writeFile(path.join(targetUserData, 'sqlite-backups', 'lobsterai-latest.sqlite'), 'target-legacy-backup');
+  writeFile(path.join(targetUserData, 'backups', 'sqlite', 'snapshots', 'hiai-latest.sqlite'), 'target-backup');
+  writeFile(path.join(targetUserData, 'sqlite-backups', 'hiai-latest.sqlite'), 'target-legacy-backup');
   writeFile(path.join(targetUserData, 'cowork', 'bin', 'node.cmd'), 'target-shim');
   writeFile(path.join(targetUserData, 'install-timing.log'), 'target-install-log');
   writeFile(path.join(targetUserData, 'skill-migrate.log'), 'target-skill-migrate-log');
@@ -732,8 +732,8 @@ test('performPendingDataMigrationRestoreSync replaces data in place and preserve
 
   createMigrationArchiveSync({ userDataPath: sourceUserData, outputPath: archivePath });
   const extractRoot = extractArchive(archivePath);
-  writeFile(path.join(extractRoot, 'HiAi', 'backups', 'sqlite', 'snapshots', 'lobsterai-latest.sqlite'), 'legacy-source-backup');
-  writeFile(path.join(extractRoot, 'HiAi', 'sqlite-backups', 'lobsterai-latest.sqlite'), 'legacy-source-legacy-backup');
+  writeFile(path.join(extractRoot, 'HiAi', 'backups', 'sqlite', 'snapshots', 'hiai-latest.sqlite'), 'legacy-source-backup');
+  writeFile(path.join(extractRoot, 'HiAi', 'sqlite-backups', 'hiai-latest.sqlite'), 'legacy-source-legacy-backup');
   writeFile(path.join(extractRoot, 'HiAi', 'cowork', 'bin', 'node.cmd'), 'legacy-source-shim');
   writeFile(path.join(extractRoot, 'HiAi', 'install-timing.log'), 'legacy-source-install-log');
   writeFile(path.join(extractRoot, 'HiAi', 'skill-migrate.log'), 'legacy-source-skill-migrate-log');
@@ -779,9 +779,9 @@ test('performPendingDataMigrationRestoreSync replaces data in place and preserve
   expect(fs.existsSync(path.join(targetUserData, `${DB_FILENAME}-wal`))).toBe(false);
   expect(fs.existsSync(path.join(targetUserData, `${DB_FILENAME}-shm`))).toBe(false);
   expect(fs.existsSync(path.join(targetUserData, 'old-only.txt'))).toBe(false);
-  expect(fs.readFileSync(path.join(targetUserData, 'backups', 'sqlite', 'snapshots', 'lobsterai-latest.sqlite'), 'utf8'))
+  expect(fs.readFileSync(path.join(targetUserData, 'backups', 'sqlite', 'snapshots', 'hiai-latest.sqlite'), 'utf8'))
     .toBe('target-backup');
-  expect(fs.readFileSync(path.join(targetUserData, 'sqlite-backups', 'lobsterai-latest.sqlite'), 'utf8'))
+  expect(fs.readFileSync(path.join(targetUserData, 'sqlite-backups', 'hiai-latest.sqlite'), 'utf8'))
     .toBe('target-legacy-backup');
   expect(fs.readFileSync(path.join(targetUserData, 'cowork', 'bin', 'node.cmd'), 'utf8')).toBe('target-shim');
   expect(fs.readFileSync(path.join(targetUserData, 'install-timing.log'), 'utf8')).toBe('target-install-log');
@@ -874,7 +874,7 @@ test('performDataMigrationRestoreSync rejects unreadable backup sqlite before to
   writeFile(path.join(sourceUserData, 'SKILLs', 'demo', 'SKILL.md'), '# Demo');
   writeManifestFixture(sourceUserData);
   writeSqliteFixture(path.join(targetUserData, DB_FILENAME), 'target');
-  writeFile(path.join(targetUserData, 'backups', 'sqlite', 'snapshots', 'lobsterai-latest.sqlite'), 'target-backup');
+  writeFile(path.join(targetUserData, 'backups', 'sqlite', 'snapshots', 'hiai-latest.sqlite'), 'target-backup');
 
   tar.create({
     sync: true,
@@ -894,7 +894,7 @@ test('performDataMigrationRestoreSync rejects unreadable backup sqlite before to
   expect(result?.error).toContain(`unreadable ${DB_FILENAME}`);
   expect(readSqliteString(path.join(targetUserData, DB_FILENAME), 'SELECT value FROM kv WHERE key = ?', ['app_config']))
     .toContain('target-model');
-  expect(fs.readFileSync(path.join(targetUserData, 'backups', 'sqlite', 'snapshots', 'lobsterai-latest.sqlite'), 'utf8'))
+  expect(fs.readFileSync(path.join(targetUserData, 'backups', 'sqlite', 'snapshots', 'hiai-latest.sqlite'), 'utf8'))
     .toBe('target-backup');
   expect(fs.existsSync(path.join(targetUserData, 'SKILLs', 'demo', 'SKILL.md'))).toBe(false);
 });

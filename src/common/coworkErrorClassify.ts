@@ -9,7 +9,6 @@ import { ProviderName } from '../shared/providers/constants';
 
 export const CoworkErrorI18nKey = {
   AuthInvalid: 'coworkErrorAuthInvalid',
-  LobsterAILoginExpired: 'coworkErrorLobsterAILoginExpired',
   OAuthInvalid: 'coworkErrorOAuthInvalid',
   ModelAccessDenied: 'coworkErrorModelAccessDenied',
   QuotaExhausted: 'coworkErrorQuotaExhausted',

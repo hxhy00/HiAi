@@ -29,18 +29,16 @@ import {
 } from '../../shared/providers';
 import { type AppConfig, defaultConfig, FontPreferences, getProviderDisplayName, getVisibleProviders, isCustomProvider, normalizeFontPreference, resolveArtifactAutoPreviewEnabled, ShortcutAction, type ShortcutConfig } from '../config';
 import {
-  ACCEPTED_EXPORT_FORMAT_TYPES,
   APP_ID,
   EXPORT_FORMAT_TYPE,
   EXPORT_PASSWORD,
-  EXPORT_PASSWORD_CANDIDATES,
 } from '../constants/app';
 import { OPEN_SOURCE_ENTERPRISE_UI_KEY } from '../constants/openSource';
 import { useSkin } from '../providers/SkinProvider';
 import { apiService } from '../services/api';
 import { configService } from '../services/config';
 import { coworkService } from '../services/cowork';
-import { decryptSecret, decryptWithPasswordCandidates, EncryptedPayload, encryptWithPassword, PasswordEncryptedPayload } from '../services/encryption';
+import { decryptSecret, decryptWithPassword, EncryptedPayload, encryptWithPassword, PasswordEncryptedPayload } from '../services/encryption';
 import { i18nService, LanguageType } from '../services/i18n';
 import { imService } from '../services/im';
 import { LogReporterAction, reportYdAnalyzer } from '../services/logReporter';
@@ -4418,12 +4416,13 @@ const Settings: React.FC<SettingsProps> = ({
         return;
       }
 
-      // Accepts the pre-rename marker too, so a file exported under the old name
-      // still imports instead of being rejected as an invalid format.
+      // Exact match on the current marker. Files exported before the rename are
+      // intentionally rejected: exports are read back by one build of the app,
+      // so carrying a second accepted marker would only mask a stale file.
       if (
         !payload
         || typeof payload.type !== 'string'
-        || !ACCEPTED_EXPORT_FORMAT_TYPES.includes(payload.type)
+        || payload.type !== EXPORT_FORMAT_TYPE
         || !payload.providers
       ) {
         console.warn(`[Settings] import failed: invalid format, type=${payload?.type}, hasProviders=${!!payload?.providers}`);
@@ -4560,11 +4559,10 @@ const Settings: React.FC<SettingsProps> = ({
         } else if (providerData.apiKey && typeof providerData.apiKey === 'object') {
           const apiKeyObj = providerData.apiKey as PasswordEncryptedPayload;
           if (apiKeyObj.salt) {
-            // Version 2 password-based encryption. Each candidate is tried in
-            // turn so a file exported before the rename still decrypts, without
-            // weakening the current password for anything we write.
+            // Version 2 password-based encryption, keyed by the current export
+            // password only.
             try {
-              apiKey = await decryptWithPasswordCandidates(apiKeyObj, EXPORT_PASSWORD_CANDIDATES);
+              apiKey = await decryptWithPassword(apiKeyObj, EXPORT_PASSWORD);
               console.log(`[Settings] v2 import: decrypted key for ${providerKey}`);
             } catch (error) {
               hadDecryptFailure = true;

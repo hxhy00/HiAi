@@ -223,25 +223,5 @@ export const decryptWithPassword = async (payload: PasswordEncryptedPayload, pas
   return new TextDecoder().decode(decrypted);
 };
 
-/**
- * Tries each password in turn and returns the first successful decryption.
- *
- * Exists so a password change can stay readable-only: files written before the
- * change must still open, while everything written afterwards keeps using the
- * current password only. Candidates are tried in order, so the current password
- * is attempted first.
- */
-export const decryptWithPasswordCandidates = async (
-  payload: PasswordEncryptedPayload,
-  passwords: readonly string[],
-): Promise<string> => {
-  let lastError: unknown;
-  for (const password of passwords) {
-    try {
-      return await decryptWithPassword(payload, password);
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError ?? new Error('No password candidates provided');
-};
+// Export files are only ever read back by the same build that wrote them, so a
+// single password is enough; there is no candidate list to try.
