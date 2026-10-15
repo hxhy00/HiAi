@@ -46,7 +46,7 @@ LobsterAI 更名 HiAi。改名涉及三层：
 | AC-RB-7 | 改动文件 CI 同款 eslint `--max-warnings 0` 零告警 | ✅（`6ed84c4` 时点逐文件通过；remove-membership 复核亦确认 133 文件零告警） |
 | AC-RB-8 | `npm test` 全绿 | ✅（复验 6301 用例通过；唯一失败为 `tests/openclaw-plugin-patches-popo-sdk.test.ts` 既有失败，与改动无关） |
 | AC-RB-9 | `npm run compile:electron` / `npm run build` 通过 | ✅（复验退出码 0） |
-| AC-RB-10 | GUI 冒烟：首次启动目录/库文件迁移、模型列表无「套餐模型」分组、导出文件名与 scheme | ⏳ 部分完成（见 §3.1；迁移与 scheme 待人工） |
+| AC-RB-10 | GUI 冒烟：首次启动目录/库文件迁移、模型列表无「套餐模型」分组、导出文件名与 scheme | ✅ 已完成（见 §3.1；迁移与 scheme 经用户决定不做人工验证，理由见下） |
 | AC-RB-11 | 数据迁移备份/回滚文件名为 `hiai-backup-*` / `hiai-rollback-*` | ✅（§3.2 缺陷修复后） |
 | AC-RB-12 | 归档内部标识为 `hiai-data-migration` / `.hiai-migration.json` | ✅（clean cut，旧备份不再可导入，用户已确认接受） |
 
@@ -57,8 +57,13 @@ LobsterAI 更名 HiAi。改名涉及三层：
 | 模型列表无「套餐模型」分组（同时满足 remove-membership AC-SM-9） | ✅ 通过 |
 | 媒体生成模型页：图片/视频两块上下排列、左列表右表单、块内滚动、独立保存 | ✅ 通过（同媒体 spec AC-4/11） |
 | 导出/备份文件名 | ❌ **首次冒烟不通过**——文件名仍为 `lobsterai-backup-20261015-165254.tar.gz`，详见 §3.2 |
-| 启动目录/库文件迁移 | ⏳ 未执行（用户反馈不知如何构造升级场景；需保留旧 `LobsterAI` 数据目录后启动新版） |
-| `hiai://` scheme 唤起 | ⏳ 未执行 |
+| 导出/备份文件名（复查） | ✅ 通过——`hiai-backup-*.tar.gz`，用户确认 |
+| 启动目录/库文件迁移 | ⏭️ **用户决定不做人工验证** |
+| `hiai://` scheme 唤起 | ⏭️ **用户决定不做人工验证** |
+
+**跳过依据**：这两项需人工构造环境（前项要保留旧 `LobsterAI` 数据目录再启动新版，后项要在浏览器地址栏敲 scheme），
+用户评估成本后决定跳过。二者的实现逻辑均有单元测试覆盖（`userDataDirMigration`、`appConstants` 的 scheme 常量断言）。
+此决定为**已知风险接受**，非「无法验证」：若后续线上出现迁移未生效或 scheme 无法唤起，应回到本项重新排查。
 
 ### 3.2 缺陷修复：备份文件名遗漏（2026-10-15）
 
@@ -132,8 +137,7 @@ LobsterAI 更名 HiAi。改名涉及三层：
 
 ## 5. 遗留与下一步
 
-- [ ] AC-RB-10 剩余两项：**启动目录/库文件迁移**与 **`hiai://` scheme 唤起**（需人工）。
-      迁移场景构造方式：保留一份旧版数据目录（`~/Library/Application Support/LobsterAI`）不改名，
-      再启动新版 HiAi，观察是否迁移为 `HiAi` 并保留历史会话与技能。
-- [ ] 分支合并：验收全部通过后合回 `develop`（Git Flow），推送由用户手动执行。
+- [x] AC-RB-10：GUI 冒烟完成。迁移与 scheme 两项**经用户决定跳过**（依据见 §3.1），
+      不阻塞验收；如线上出现对应问题再回本单排查。
+- [ ] 分支合并：验收已全部闭环，可合回 `develop`（Git Flow）。**推送由用户手动执行**。
 - §4 表格是「允许保留」的权威清单；后续若发现表中之外的旧品牌命中，按品牌残留处理并更新本单。
