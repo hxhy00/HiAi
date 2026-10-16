@@ -484,7 +484,7 @@ class SkillService {
   async fetchMarketplaceSource(
     source: SkillMarketplaceSource,
     query: { query?: string; limit?: number; cursor?: string } = {},
-  ): Promise<{ skills: MarketplaceSkill[]; nextCursor?: string }> {
+  ): Promise<{ skills: MarketplaceSkill[]; nextCursor?: string; error?: string }> {
     try {
       const result = await window.electron.skills.fetchMarketplaceSource(source, query);
       if (!result.success) {
@@ -492,8 +492,10 @@ class SkillService {
       }
       return { skills: result.skills ?? [], nextCursor: result.nextCursor };
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // Surfaced to the UI: an unreachable source must not look like an empty one.
       console.error(`Failed to fetch marketplace source "${source}":`, error);
-      return { skills: [] };
+      return { skills: [], error: message };
     }
   }
 

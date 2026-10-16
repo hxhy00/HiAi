@@ -110,6 +110,8 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
   const [installOrigins, setInstallOrigins] = useState<Record<string, SkillInstallOrigin>>({});
   const [marketplaceCursor, setMarketplaceCursor] = useState<string | undefined>(undefined);
   const [isLoadingMoreMarketplace, setIsLoadingMoreMarketplace] = useState(false);
+  const [marketplaceError, setMarketplaceError] = useState<string>('');
+  const [marketSourceReloadToken, setMarketSourceReloadToken] = useState(0);
   const [installingSkillId, setInstallingSkillId] = useState<string | null>(null);
   const [selectedMarketplaceSkill, setSelectedMarketplaceSkill] = useState<MarketplaceSkill | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
@@ -177,6 +179,7 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     setIsLoadingMarketplace(true);
     setActiveMarketTag('all');
     setMarketplaceCursor(undefined);
+    setMarketplaceError('');
 
     const load = marketSource === DefaultSkillMarketplaceSource
       // The official store keeps its own legacy endpoint and tag taxonomy.
@@ -184,12 +187,14 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
           skills: data.skills,
           tags: data.tags,
           cursor: undefined as string | undefined,
+          error: undefined as string | undefined,
         }))
       // Every other source is normalised by the main process; tags are omitted.
       : skillService.fetchMarketplaceSource(marketSource).then(data => ({
           skills: data.skills,
           tags: [] as MarketTag[],
           cursor: data.nextCursor,
+          error: data.error,
         }));
 
     load.then((data) => {
@@ -197,10 +202,11 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       setMarketplaceSkills(data.skills);
       setMarketTags(data.tags);
       setMarketplaceCursor(data.cursor);
+      setMarketplaceError(data.error ?? '');
       setIsLoadingMarketplace(false);
     });
     return () => { isActive = false; };
-  }, [marketSource]);
+  }, [marketSource, marketSourceReloadToken]);
 
   // Sources without a list API (SkillHub is search-driven, skills.sh has none)
   // are queried remotely as the user types. Debounce so each keystroke does not
@@ -220,6 +226,7 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
           setMarketplaceSkills(data.skills);
           setMarketTags([]);
           setMarketplaceCursor(data.nextCursor);
+          setMarketplaceError(data.error ?? '');
           setIsLoadingMarketplace(false);
         });
     }, term ? 350 : 0);
@@ -572,6 +579,10 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     setIsLoadingMoreMarketplace(true);
     try {
       const data = await skillService.fetchMarketplaceSource(marketSource, { cursor: marketplaceCursor });
+      if (data.error) {
+        setMarketplaceError(data.error);
+        return;
+      }
       setMarketplaceSkills(current => appendMarketplacePage(current, data.skills));
       setMarketplaceCursor(data.nextCursor);
     } finally {
@@ -1301,7 +1312,25 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
           <>
             {filteredMarketplaceSkills.length === 0 ? (
               <div className="text-center py-12 text-sm text-secondary">
-                {i18nService.t('skillMarketplaceEmpty')}
+                {marketplaceError ? (
+                  <>
+                    <div className="font-medium text-foreground">
+                      {i18nService.t('skillMarketplaceLoadFailed')}
+                    </div>
+                    <div className="mx-auto mt-2 max-w-md break-words text-xs text-muted">
+                      {marketplaceError}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMarketSourceReloadToken(token => token + 1)}
+                      className={`${CARD_ACTION_PILL_CLASS} mt-4`}
+                    >
+                      {i18nService.t('retry')}
+                    </button>
+                  </>
+                ) : (
+                  i18nService.t('skillMarketplaceEmpty')
+                )}
               </div>
             ) : (
               <div className={SKILL_LIST_CONTAINER_CLASS}>
