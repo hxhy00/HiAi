@@ -5,8 +5,8 @@ import {
   ExclamationTriangleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
-import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 
@@ -391,13 +391,58 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     );
   };
 
-  // The aggregated list can hold hundreds of rows, so only render the visible ones.
-  const marketplaceVirtualizer = useWindowVirtualizer({
+  // The aggregated list can hold hundreds of rows, so only render the visible
+  // ones. Visibility must be measured against the real scroll container, which
+  // lives outside this component; when it cannot be resolved we render
+  // everything rather than risk an under-filled container.
+  const marketplaceListRef = useRef<HTMLDivElement>(null);
+  const [marketplaceScrollEl, setMarketplaceScrollEl] = useState<HTMLElement | null>(null);
+  const [marketplaceListOffset, setMarketplaceListOffset] = useState(0);
+
+  useLayoutEffect(() => {
+    const list = marketplaceListRef.current;
+    if (!list) {
+      setMarketplaceScrollEl(null);
+      return;
+    }
+    let ancestor: HTMLElement | null = list.parentElement;
+    let scrollParent: HTMLElement | null = null;
+    while (ancestor) {
+      const overflowY = window.getComputedStyle(ancestor).overflowY;
+      if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') {
+        scrollParent = ancestor;
+        break;
+      }
+      ancestor = ancestor.parentElement;
+    }
+    if (!scrollParent) {
+      setMarketplaceScrollEl(null);
+      return;
+    }
+    // Offset of the list inside the scroll container's content box; virtual row
+    // offsets are measured from that box, so they must be shifted back by this.
+    const listRect = list.getBoundingClientRect();
+    const scrollRect = scrollParent.getBoundingClientRect();
+    setMarketplaceListOffset(listRect.top - scrollRect.top + scrollParent.scrollTop);
+    setMarketplaceScrollEl(scrollParent);
+  }, [activeTab, isLoadingMarketplace, filteredMarketplaceSkills.length]);
+
+  const marketplaceVirtualizer = useVirtualizer({
     count: filteredMarketplaceSkills.length,
+    getScrollElement: () => marketplaceScrollEl,
     estimateSize: () => MARKETPLACE_ROW_ESTIMATED_HEIGHT_PX,
     getItemKey: index => filteredMarketplaceSkills[index]?.id ?? index,
     overscan: 6,
+    scrollMargin: marketplaceListOffset,
   });
+
+  const marketplaceVirtualRows = marketplaceScrollEl
+    ? marketplaceVirtualizer.getVirtualItems()
+    : null;
+
+  /** Virtual rows when the scroll container is known, every row otherwise. */
+  const marketplaceRows = marketplaceVirtualRows
+    ?? filteredMarketplaceSkills.map((_, index) => ({ index, start: undefined as number | undefined }));
 
   const formatSkillDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -1310,24 +1355,29 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
               </div>
             ) : (
               <div
+                ref={marketplaceListRef}
                 className={`${SKILL_LIST_CONTAINER_CLASS} relative`}
-                style={{ height: marketplaceVirtualizer.getTotalSize() }}
+                style={marketplaceVirtualRows
+                  ? { height: marketplaceVirtualizer.getTotalSize() }
+                  : undefined}
               >
-                {marketplaceVirtualizer.getVirtualItems().map(virtualRow => {
-                  const skill = filteredMarketplaceSkills[virtualRow.index];
-                  if (!skill) return null;
-                  return (
-                    <div
-                      key={skill.id}
-                      ref={marketplaceVirtualizer.measureElement}
-                      data-index={virtualRow.index}
-                      className="absolute left-0 top-0 w-full"
-                      style={{ transform: `translateY(${virtualRow.start}px)` }}
-                    >
-                      {renderMarketplaceRow(skill)}
-                    </div>
-                  );
-                })}
+                {marketplaceRows.map(row => {
+                    const skill = filteredMarketplaceSkills[row.index];
+                    if (!skill) return null;
+                    return (
+                      <div
+                        key={skill.id}
+                        ref={row.start === undefined ? undefined : marketplaceVirtualizer.measureElement}
+                        data-index={row.index}
+                        className={row.start === undefined ? undefined : 'absolute left-0 top-0 w-full'}
+                        style={row.start === undefined
+                          ? undefined
+                          : { transform: `translateY(${row.start - marketplaceListOffset}px)` }}
+                      >
+                        {renderMarketplaceRow(skill)}
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </>
