@@ -205,6 +205,10 @@ export default defineConfig({
         '**/.work/**',
         path.resolve(__dirname, 'artifacts'),
         '**/dist-electron/**',
+        // The codegraph daemon keeps a unix socket in the repo root. fs.watch on
+        // a socket fails with UNKNOWN (errno -102) on macOS, and the unhandled
+        // watcher error takes the whole dev server down.
+        '**/.codegraph/**',
       ],
     },
   },
