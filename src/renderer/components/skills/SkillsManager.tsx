@@ -6,7 +6,7 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 
@@ -205,21 +205,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       window.clearTimeout(timer);
     };
   }, [skillSearchQuery, marketReloadToken]);
-
-  const handleRefreshMarketplace = useCallback(() => {
-    const term = skillSearchQuery.trim();
-    setIsLoadingMarketplace(true);
-    setMarketplaceError('');
-    void skillService
-      .fetchMarketplaceSkills(term ? { query: term } : {}, true)
-      .then((skills) => {
-        setMarketplaceSkills(skills);
-        setIsLoadingMarketplace(false);
-        const errors = skillService.getMarketplaceErrors();
-        const message = Object.values(errors)[0];
-        setMarketplaceError(skills.length === 0 && message ? message : '');
-      });
-  }, [skillSearchQuery]);
 
   useEffect(() => {
     if (!ENABLE_OPENCLAW_SKILL_SYNC) return;
@@ -1212,21 +1197,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
           )}
         </div>
 
-        {/* One aggregated list: no source switch, no categories. Only refresh. */}
-        {activeTab === SkillTab.Marketplace && (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleRefreshMarketplace}
-              disabled={isLoadingMarketplace}
-              data-testid="skill-market-refresh"
-              className="inline-flex items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1 text-xs font-medium text-secondary transition-colors hover:text-foreground disabled:opacity-60"
-            >
-              <ArrowPathIcon className={`h-3 w-3 ${isLoadingMarketplace ? 'animate-spin' : ''}`} />
-              {i18nService.t('skillMarketplaceRefresh')}
-            </button>
-          </div>
-        )}
       </div>
 
       <div>
@@ -1339,7 +1309,10 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                 )}
               </div>
             ) : (
-              <div className="relative w-full" style={{ height: marketplaceVirtualizer.getTotalSize() }}>
+              <div
+                className={`${SKILL_LIST_CONTAINER_CLASS} relative`}
+                style={{ height: marketplaceVirtualizer.getTotalSize() }}
+              >
                 {marketplaceVirtualizer.getVirtualItems().map(virtualRow => {
                   const skill = filteredMarketplaceSkills[virtualRow.index];
                   if (!skill) return null;
