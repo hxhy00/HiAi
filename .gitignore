@@ -67,5 +67,11 @@ logs/
 # codegraph tool cache
 codegraph-cache/
 
+# CodeGraph local index (pre-built code knowledge graph)
+.codegraph/
+
+# Serena per-project data (memories, caches)
+.serena/
+
 # TypeScript incremental build info
 *.tsbuildinfo
