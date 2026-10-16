@@ -1,7 +1,7 @@
 # Skill 市场多源聚合设计（ClawHub / SkillHub / skills.sh）
 
 日期：2026-10-16
-状态：已实现并于同日按用户决策重构为**统一聚合**（源切换 UI 与分类过滤已下线，见 §11）。U-1/U-2 已修，U-3~U-7 见第 8 章。
+状态：已实现并于同日按用户决策重构为**统一聚合**（源切换 UI 与分类过滤已下线），收尾见第 11 章。U-1/U-2 已修，U-3~U-7 见第 8 章。
 关联：`specs/refactors/de-server-dependency/2026-10-13-de-server-dependency-design.md` 的 U-6（更新检查与 Skill Store 后续处置）中的「多源聚合」子项。
 
 行号会随重构漂移，一律以符号名为准。
@@ -178,10 +178,10 @@
 | 共享契约 | `src/shared/skills/marketplaceSources.ts`（含 `SkillInstallOrigin` / `SkillInstallOriginInput`） |
 | 匹配与分页纯函数 | `src/renderer/components/skills/marketplaceInstallMatch.ts`（+ 同名 `.test.ts`） |
 | 安装来源存储 | `src/main/skills/skillManager.ts`（kv `skills_install_origins`；+ `skillManager.origins.test.ts`） |
-| 适配层 | `src/main/libs/skillMarketplace/{index,types,http,clawhubAdapter,skillhubAdapter}.ts` |
+| 适配层 | `src/main/libs/skillMarketplace/{index,types,http,youdaoAdapter,skillhubAdapter}.ts` |
 | 适配层测试 | `src/main/libs/skillMarketplace/adapters.test.ts` |
-| IPC | `src/main/ipcHandlers/skills/handlers.ts`；类型 `src/renderer/types/electron.d.ts` |
-| preload | `src/main/preload.ts`（`skills.fetchMarketplaceSource`） |
+| IPC | `src/main/ipcHandlers/skills/handlers.ts`（`skills:fetchMarketplace` 为唯一入口，见 §11.1）；类型 `src/renderer/types/electron.d.ts` |
+| preload | `src/main/preload.ts`（`skills.fetchMarketplace`） |
 | 渲染服务 | `src/renderer/services/skill.ts` |
 | UI | `src/renderer/components/skills/{SkillsManager.tsx,skillTabs.ts}` |
 | i18n | `src/renderer/services/i18n.ts`（`marketSourceOfficial/ClawHub/SkillHub/SkillsSh`） |
@@ -290,3 +290,25 @@
 | AC-10.5 | 重进市场不阻塞（缓存命中）；列表保留原有圆角边框容器 | ✅ 代码核对；**端到端待手工验证** |
 | AC-10.6 | 长列表滚动流畅（虚拟化） | ✅ 代码核对；**端到端待手工验证** |
 | AC-10.7 | 双端编译、改动文件 eslint 零告警、`npm test` 无回归 | ✅ `compile:electron` + `tsc --noEmit` + lint 通过；全量 6167 通过，仅 `popo-sdk` 遗留失败 |
+
+## 11. 收尾（2026-10-16 自检后）
+
+### 11.1 单源 IPC 通道下线
+
+统一聚合后 `skills:fetchMarketplaceSource` 已无调用方（列表走 `skills:fetchMarketplace`），源切换 UI 也已移除，属死代码，本轮一并删除：
+
+- 主进程 handler `skills:fetchMarketplaceSource`、`preload` 的同名桥、`electron.d.ts` 类型声明、渲染层 `skillService.fetchMarketplaceSource` 全部移除。
+- 适配层内部仍保留 `fetchMarketplacePage` / `hasMarketplaceAdapter`：前者是 `fetchUnifiedMarketplace` 的派发原语，后者供注册表一致性用例断言。
+- 由此闭环原 U-7 中「IPC handler 层无 marketplace 用例」的一半：通道面收敛，handler 只剩一个聚合入口（仍无用例，待补）。
+
+### 11.2 安装后市场状态刷新（回归修复）
+
+**缺陷**：安装 / 升级 / 删除技能后，市场列表用于判定的已安装版本、来源映射都变了，但 `marketplaceCache` 的 TTL 是 10 分钟，重进市场会拿旧行渲染，条目仍显示「安装」或旧版本号。
+
+**处置**：服务层新增 `invalidateMarketplaceCache()`（清缓存 + 清 `marketplaceErrors`，后者描述的是旧列表的加载结果，留着会让失败提示与新列表错配）与 `refreshMarketplaceAfterInstall()`（先等在途请求落地，再清缓存并重取无查询词的那一桶），接入 `deleteSkill` / `downloadSkill` / `confirmInstall` / `upgradeSkill` 四条路径。待安全审核确认的安装（`pendingInstallId`）不刷新——此时来源记录尚未写入。
+
+**放弃的方案**：把 `marketplaceCache` 并入「列表加安装状态」的合并视图。回归的根因不止在版本映射——`SkillInstallOrigin` 缺失时回退 id 全等、且来源表本身在安装过程中变化，正确修法只能是重取列表。
+
+### 11.3 错误态收口
+
+`SkillsManager` 的市场 effect 改从服务读 `getMarketplaceErrors()`（不再先置空），并在 effect 内注明 `marketReloadToken` 是纯重跑触发器。

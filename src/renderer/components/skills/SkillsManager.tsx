@@ -178,6 +178,7 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     const term = skillSearchQuery.trim();
     const query = term ? { query: term } : {};
 
+    // A cached list is rendered immediately; the service refreshes it behind us.
     const cached = skillService.getCachedMarketplaceSkills(query);
     if (cached) {
       setMarketplaceSkills(cached);
@@ -185,7 +186,9 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     } else {
       setIsLoadingMarketplace(true);
     }
-    setMarketplaceError('');
+    // The service owns the error state: reading it is how the previous failure
+    // (or its absence) reaches the UI right away.
+    setMarketplaceError(Object.values(skillService.getMarketplaceErrors())[0] ?? '');
 
     const timer = window.setTimeout(() => {
       skillService
@@ -204,6 +207,8 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       isActive = false;
       window.clearTimeout(timer);
     };
+    // `marketReloadToken` only exists to re-run this effect; it is intentionally
+    // not read inside it.
   }, [skillSearchQuery, marketReloadToken]);
 
   useEffect(() => {

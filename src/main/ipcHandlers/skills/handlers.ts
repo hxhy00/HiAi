@@ -4,7 +4,7 @@ import type {
   SkillInstallOrigin,
   SkillInstallOriginInput,
 } from '../../../shared/skills/marketplaceSources';
-import { fetchMarketplacePage, fetchUnifiedMarketplace } from '../../libs/skillMarketplace';
+import { fetchUnifiedMarketplace } from '../../libs/skillMarketplace';
 import { updatePluginSkillIdsFromReport } from '../../skills';
 import type { SkillManager } from '../../skills/skillManager';
 
@@ -175,24 +175,6 @@ export function registerSkillHandlers(deps: SkillHandlerDeps): void {
         errors: {} as Record<string, string>,
         nextCursors: {} as Record<string, string>,
         localSkills: [] as unknown[],
-        error: error instanceof Error ? error.message : 'Failed to fetch skill marketplace',
-      };
-    }
-  });
-
-  ipcMain.handle('skills:fetchMarketplaceSource', async (
-    _event,
-    source: unknown,
-    query?: { query?: string; limit?: number; cursor?: string },
-  ) => {
-    try {
-      const page = await fetchMarketplacePage(source, query ?? {});
-      return { success: true, skills: page.skills, nextCursor: page.nextCursor };
-    } catch (error) {
-      console.error('[SkillMarketplace] source fetch failed:', error);
-      return {
-        success: false,
-        skills: [],
         error: error instanceof Error ? error.message : 'Failed to fetch skill marketplace',
       };
     }

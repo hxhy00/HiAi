@@ -1,7 +1,6 @@
 import type {
   SkillInstallOrigin,
   SkillInstallOriginInput,
-  SkillMarketplaceSource,
 } from '../../shared/skills/marketplaceSources';
 import { BUNDLED_SKILL_DISPLAY_NAMES } from '../components/skills/bundledSkillNames';
 import { LocalizedText, LocalSkillInfo, MarketplaceSkill, Skill } from '../types/skill';
@@ -163,6 +162,7 @@ class SkillService {
         if (this.installOrigins) {
           await this.refreshInstallOrigins();
         }
+        await this.refreshMarketplaceAfterInstall();
       }
       return result;
     } catch (error) {
@@ -183,8 +183,11 @@ class SkillService {
       const result = await window.electron.skills.download(source, origin);
       if (result.success && result.skills) {
         this.skills = result.skills;
+        // A pending install still awaits confirmation; its origin is only real
+        // once confirmed, and so is the "installed" state of its market row.
         if (!result.pendingInstallId) {
           await this.refreshInstallOrigins();
+          await this.refreshMarketplaceAfterInstall();
         }
       }
       return result;
@@ -204,6 +207,7 @@ class SkillService {
       if (result.success && result.skills) {
         this.skills = result.skills;
         await this.refreshInstallOrigins();
+        await this.refreshMarketplaceAfterInstall();
       }
       return result;
     } catch (error) {
@@ -226,6 +230,9 @@ class SkillService {
         this.skills = result.skills;
         if (!result.pendingInstallId) {
           await this.refreshInstallOrigins();
+          // The market row shows the installed version, so it must not keep the
+          // pre-upgrade one.
+          await this.refreshMarketplaceAfterInstall();
         }
       }
       return result;
@@ -265,6 +272,41 @@ class SkillService {
 
   private async refreshInstallOrigins(): Promise<void> {
     await this.loadInstallOrigins(true);
+  }
+
+  /**
+   * Drop the aggregated marketplace cache.
+   *
+   * `marketplaceErrors` goes with it: it describes the load that produced the
+   * cached rows, so keeping it after a refresh would surface a stale failure
+   * next to a list that no longer matches it.
+   */
+  private invalidateMarketplaceCache(): void {
+    this.marketplaceCache.clear();
+    this.marketplaceErrors = {};
+  }
+
+  /**
+   * An installed/removed skill is resolved against the marketplace list, so the
+   * rows go stale the moment the installed set changes. The view is showing the
+   * cached rows, so refresh them in place; failing that, drop the cache and let
+   * the next read refetch.
+   */
+  private async refreshMarketplaceAfterInstall(): Promise<void> {
+    const pending = [...this.marketplaceFetchPromises.values()];
+    if (pending.length > 0) {
+      try {
+        await Promise.all(pending);
+      } catch {
+        // The list is already cached; a failed load leaves the previous rows.
+      }
+    }
+    this.invalidateMarketplaceCache();
+    try {
+      await this.fetchMarketplaceSkills();
+    } catch {
+      // Nothing rendered depends on this Promise; the cache is dropped either way.
+    }
   }
 
   async getSkillsRoot(): Promise<string | null> {
@@ -539,28 +581,6 @@ class SkillService {
         this.marketplaceSkillNames.set(ms.id, ms.displayName);
       }
       if (ms.icon) this.skillIcons.set(ms.id, ms.icon);
-    }
-  }
-
-  /**
-   * Fetch one page from a single source. The marketplace list uses the
-   * aggregated call above; this stays for source-scoped refreshes.
-   */
-  async fetchMarketplaceSource(
-    source: SkillMarketplaceSource,
-    query: { query?: string; limit?: number; cursor?: string } = {},
-  ): Promise<{ skills: MarketplaceSkill[]; nextCursor?: string; error?: string }> {
-    try {
-      const result = await window.electron.skills.fetchMarketplaceSource(source, query);
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to fetch marketplace source');
-      }
-      return { skills: result.skills ?? [], nextCursor: result.nextCursor };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      // Surfaced to the UI: an unreachable source must not look like an empty one.
-      console.error(`Failed to fetch marketplace source "${source}":`, error);
-      return { skills: [], error: message };
     }
   }
 

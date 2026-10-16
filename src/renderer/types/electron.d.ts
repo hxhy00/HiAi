@@ -616,15 +616,6 @@ interface IElectronAPI {
       localSkills?: import('../types/skill').LocalSkillInfo[];
       error?: string;
     }>;
-    fetchMarketplaceSource: (
-      source: string,
-      query?: { query?: string; limit?: number; cursor?: string },
-    ) => Promise<{
-      success: boolean;
-      skills: import('../types/skill').MarketplaceSkill[];
-      nextCursor?: string;
-      error?: string;
-    }>;
     detectFromOpenClaw: () => Promise<{
       skills: Array<{ name: string; description: string; skillKey: string; baseDir: string }>;
       error?: string;
