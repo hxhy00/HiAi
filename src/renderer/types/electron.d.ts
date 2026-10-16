@@ -47,6 +47,7 @@ import type {
   CoworkContextUsageFailureReason,
   CoworkContextUsageSource,
   CoworkSessionsChangedPayload,
+  type PromptPolishResult,
 } from '../../shared/cowork/constants';
 import type { CoworkGoal } from '../../shared/cowork/goal';
 import type { CoworkTurnUsage, CoworkTurnUsageAnchor } from '../../shared/cowork/llmTurnUsage';
@@ -1137,6 +1138,7 @@ interface IElectronAPI {
     setConfig: (config: CoworkConfigUpdate) => Promise<{ success: boolean; error?: string }>;
     getTempStorageUsage: () => Promise<CoworkTempStorageUsageResult>;
     cleanTempStorage: (options?: { cwds?: string[] }) => Promise<CoworkTempStorageCleanResult>;
+    polishPrompt: (options: { text: string }) => Promise<PromptPolishResult>;
     notifyOpenSessionFromNotificationReady: () => Promise<{ success: boolean; error?: string }>;
     onOpenSessionFromNotification: (
       callback: (data: { sessionId: string }) => void,

@@ -105,8 +105,25 @@ export const CoworkIpcChannel = {
   BootstrapWrite: 'cowork:bootstrap:write',
   TempStorageUsage: 'cowork:tempStorage:usage',
   TempStorageClean: 'cowork:tempStorage:clean',
+  PolishPrompt: 'cowork:prompt:polish',
 } as const;
 export type CoworkIpcChannel = typeof CoworkIpcChannel[keyof typeof CoworkIpcChannel];
+
+/** Failure kinds for the prompt-polish one-shot call. */
+export const PromptPolishFailureReason = {
+  /** Input was empty after trimming; no request was made. */
+  Empty: 'empty',
+  /** No enabled provider with credentials was configured. */
+  NoModel: 'no-model',
+  /** Provider request failed or timed out. */
+  Failed: 'failed',
+} as const;
+export type PromptPolishFailureReason =
+  typeof PromptPolishFailureReason[keyof typeof PromptPolishFailureReason];
+
+export type PromptPolishResult =
+  | { ok: true; text: string }
+  | { ok: false; reason: PromptPolishFailureReason; message?: string };
 
 export interface CoworkSessionsChangedPayload {
   sessionIds: string[];

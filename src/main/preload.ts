@@ -658,6 +658,9 @@ contextBridge.exposeInMainWorld('electron', {
     getTempStorageUsage: () => ipcRenderer.invoke(CoworkIpcChannel.TempStorageUsage),
     cleanTempStorage: (options?: { cwds?: string[] }) =>
       ipcRenderer.invoke(CoworkIpcChannel.TempStorageClean, options),
+    // One-shot prompt polishing (no session/message side effects)
+    polishPrompt: (options: { text: string }) =>
+      ipcRenderer.invoke(CoworkIpcChannel.PolishPrompt, options),
     listMemoryEntries: (input: {
       query?: string;
       status?: 'created' | 'stale' | 'deleted' | 'all';

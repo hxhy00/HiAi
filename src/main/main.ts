@@ -97,6 +97,7 @@ import {
   CoworkForkMode,
   CoworkIpcChannel,
   CoworkOnboardingMessageKind,
+  type PromptPolishResult,
 } from '../shared/cowork/constants';
 import {
   buildCoworkImageAttachmentPreviews,
@@ -480,6 +481,11 @@ import { readOpenClawRepairQuarantinedStoreCount } from './libs/openclawRepairPr
 import { collectReferencedEnvVarNames, pickReferencedSecretEnvVars } from './libs/openclawSecretEnv';
 import { runLegacyWeixinAllowFromMigration } from './libs/openclawWeixinPairingMigration';
 import { migrateMainAgentWorkspace } from './libs/openclawWorkspaceMigration';
+import {
+  type OneShotLlmAppConfig,
+  polishPrompt,
+  resolveOneShotLlmConfig,
+} from './libs/promptPolisher';
 import { ensurePythonRuntimeReady } from './libs/pythonRuntime';
 import { sanitizeUrlForLog, serializeForLog } from './libs/sanitizeForLog';
 import { SqliteBackupTrigger } from './libs/sqliteBackup/constants';
@@ -3669,46 +3675,9 @@ const getIMGatewayManager = () => {
 
     // Initialize with LLM config provider
     imGatewayManager.initialize({
-      getLLMConfig: async () => {
-        type LlmProviderConfig = {
-          enabled?: boolean;
-          apiKey?: string;
-          baseUrl?: string;
-          models?: Array<{ id: string }>;
-        };
-        type LlmAppConfig = {
-          providers?: Record<string, LlmProviderConfig>;
-          api?: { key?: string; baseUrl?: string };
-          model?: { defaultModel?: string };
-        };
-        const appConfig = sqliteStore.get<LlmAppConfig>('app_config');
-        if (!appConfig) return null;
-
-        // Find first enabled provider
-        const providers = appConfig.providers || {};
-        for (const [providerName, providerConfig] of Object.entries(providers)) {
-          if (providerConfig.enabled && providerConfig.apiKey) {
-            const model = providerConfig.models?.[0]?.id;
-            return {
-              apiKey: providerConfig.apiKey,
-              baseUrl: providerConfig.baseUrl,
-              model: model,
-              provider: providerName,
-            };
-          }
-        }
-
-        // Fallback to legacy api config
-        if (appConfig.api?.key) {
-          return {
-            apiKey: appConfig.api.key,
-            baseUrl: appConfig.api.baseUrl,
-            model: appConfig.model?.defaultModel,
-          };
-        }
-
-        return null;
-      },
+      getLLMConfig: async () => resolveOneShotLlmConfig(
+        sqliteStore.get<OneShotLlmAppConfig>('app_config'),
+      ),
       getSkillsPrompt: async () => {
         return getSkillManager().buildAutoRoutingPrompt();
       },
@@ -8909,6 +8878,17 @@ if (!gotTheLock) {
           error: error instanceof Error ? error.message : 'Failed to clean temp storage',
         };
       }
+    },
+  );
+
+  ipcMain.handle(
+    CoworkIpcChannel.PolishPrompt,
+    async (_event, options?: { text?: string }): Promise<PromptPolishResult> => {
+      const text = typeof options?.text === 'string' ? options.text : '';
+      const llmConfig = resolveOneShotLlmConfig(
+        getStore().get<OneShotLlmAppConfig>('app_config'),
+      );
+      return polishPrompt({ draft: text, llmConfig });
     },
   );
 

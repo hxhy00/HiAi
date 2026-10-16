@@ -29,7 +29,7 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 | 2 | 彻底移除云端模块 | ⏳ 待执行 | 已审计：仍有多条会真实发请求的云端链路，无法断网运行 |
 | 3 | 建立规则系统（对标 CodeBuddy） | 🔜 暂缓 | 支持项目级/用户级规则文档，注入 agent 提示词 |
 | 4 | 建立 Hook 系统（对标 CodeBuddy） | 🔜 暂缓 | 在关键生命周期点支持用户自定义钩子 |
-| 5 | 增加提示词润色功能 | ⏳ 待执行 | 输入框支持一键润色当前提示词 |
+| 5 | 增加提示词润色功能 | ✅ 已完成 | 输入框「润色」按钮（语音键左侧）一键润色当前提示词 |
 | 6 | 思考过程展示问题 | ✅ 已完成 | 用户自配 provider 缺 thinking 声明导致网关无事件；已桥接修复 |
 | 7 | Skill 市场切换功能 | ✅ 已完成 | 诉求改由多源统一聚合落地（见任务 13） |
 | 8 | 移除模型凭据冷却期 | ✅ 已完成 | 全局禁用模型凭据冷却期 |
@@ -93,15 +93,15 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 
 **验收要点**：注册钩子后能在对应事件触发；钩子失败不影响主流程或有明确阻断语义。
 
-### 任务 5 · 增加提示词润色功能 ⏳
+### 任务 5 · 增加提示词润色功能 ✅
 
-**现状**：输入组件为 `src/renderer/components/cowork/CoworkPromptInput.tsx`，无润色入口。
+**已落地**：输入框工具栏中、语音按钮**左侧**新增「润色」按钮（`SparklesIcon`，加载态为旋转 `ArrowPathIcon`）。点击后经 IPC `cowork:prompt:polish` 调用主进程 `polishPrompt()`，用**当前首个启用 provider** 做一次非流式改写并回填输入框，成功后在输入框上方显示「已润色 · 撤销」提示条。
 
-**目标**：在输入框提供「润色」入口，调用 LLM 优化当前提示词后回填。
+- 服务层：`src/main/libs/promptPolisher.ts`（含 `resolveOneShotLlmConfig`，已与 IM 的 LLM 解析共用一份口径）。
+- 无模型 / 失败 / 空文本均有明确分支，原文不被破坏。
+- 详细设计见 `specs/features/prompt-polish/2026-10-17-prompt-polish-design.md`。
 
-**待确认项**：触发方式（按钮/快捷键）、使用的模型与 provider、失败与取消处理、是否保留原文可回退。
-
-**验收要点**：点击润色后输入框内容被改写，可撤回；无可用模型时给出提示。
+**验收要点**：见设计文档 §4.3（AC-P1.1 ~ AC-P7.1）。
 
 ### 任务 6 · 思考过程展示问题 ✅ 已完成
 
@@ -228,3 +228,5 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 | 2026-10-16 | 完成任务 2 云端残留审计（R1–R4 清单），结论：**未完成**——Skill/Kit/MCP 三个商店与 server baseUrl 余下调用点仍会真实发请求，入口对用户可见。任务 2 说明区由"待独立成文"改为审计结论。 |
 | 2026-10-16 | 核实任务 9 已落地（`endpoints.ts` 更新检查已走 GitHub Releases，`hxhy00/HiAi`）并标记为已完成；余下灰度更新检查归入任务 2 R4。 |
 | 2026-10-16 | 任务 2 验收要点改为「屏蔽 `api-overmind` + `lobsterai-server` 后三界面仍可用」为硬验收；原「断网能启动」不足以判别，因登录摘除后请求多因无 token 静默跳过，R1–R4 全未处理亦可通过。同步回填 `de-server-dependency` §2.1 调用清单与 U-6。 |
+| 2026-10-17 | 完成任务 5（提示词润色）：输入框语音键左侧新增「润色」按钮，主进程 `promptPolisher.ts` 做一次性改写，`resolveOneShotLlmConfig` 与 IM 共用。设计文档 `specs/features/prompt-polish/2026-10-17-prompt-polish-design.md`。 |
+| 2026-10-17 | 完成任务 12（A2A）：`coworkStore` 新键 `a2aEnabled` / `a2aAllowAgentIds`；`openclawConfigSync` 写入 `tools.agentToAgent` 并在开启时同步 `tools.sessions.visibility='agent'`（缺失则该特性不可用，已补入设计文档 §4.0）。 |

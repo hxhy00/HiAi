@@ -1,4 +1,5 @@
 import {
+  ArrowPathIcon,
   ArrowTurnDownRightIcon,
   CheckIcon,
   ChevronDownIcon,
@@ -6,6 +7,7 @@ import {
   ExclamationTriangleIcon,
   PauseCircleIcon,
   PlayCircleIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
 import { ArrowUpIcon } from '@heroicons/react/24/solid';
 import {
@@ -483,6 +485,11 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     // While the input holds quick-action template text, pin the textarea to
     // maxHeight so switching templates doesn't bounce the layout around it.
     const [isTemplateHeightLocked, setIsTemplateHeightLocked] = useState(false);
+    // Prompt polishing: `isPolishing` drives the button spinner and locks
+    // editing; `polishUndo` keeps the pre-polish draft so the user can revert.
+    const [isPolishing, setIsPolishing] = useState(false);
+    const [polishUndo, setPolishUndo] = useState<string | null>(null);
+    const polishRequestIdRef = useRef(0);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const draftKeyRef = useRef(draftKey);
@@ -681,6 +688,67 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     handleVoiceInput,
     isVoiceRecording,
   ]);
+
+  const showInputToast = useCallback((detail: string) => {
+    window.dispatchEvent(new CustomEvent('app:showToast', { detail }));
+  }, []);
+
+  /**
+   * Rewrite the current draft into a clearer prompt via a one-shot model call.
+   *
+   * Not a session action: it never appends a message or touches the agent
+   * runtime. The previous draft is kept in `polishUndo` so the user can revert.
+   * A monotonic request id drops stale results when the user fires again or the
+   * component unmounts mid-flight.
+   */
+  const handlePolishPrompt = useCallback(async () => {
+    const draft = value.trim();
+    if (!draft || disabled || isPolishing) return;
+
+    const requestId = polishRequestIdRef.current + 1;
+    polishRequestIdRef.current = requestId;
+    setIsPolishing(true);
+    try {
+      const result = await window.electron.cowork.polishPrompt({ text: draft });
+      if (polishRequestIdRef.current !== requestId) return;
+      if (!result.ok) {
+        showInputToast(
+          result.reason === 'no-model'
+            ? i18nService.t('promptPolishNoModel')
+            : i18nService.t('promptPolishFailed'),
+        );
+        return;
+      }
+      setPolishUndo(value);
+      setValue(result.text);
+    } catch (error) {
+      if (polishRequestIdRef.current !== requestId) return;
+      console.warn('[CoworkPromptInput] prompt polish failed:', error);
+      showInputToast(i18nService.t('promptPolishFailed'));
+    } finally {
+      if (polishRequestIdRef.current === requestId) {
+        setIsPolishing(false);
+      }
+    }
+  }, [
+    disabled,
+    isPolishing,
+    setValue,
+    showInputToast,
+    value,
+  ]);
+
+  const handleUndoPolish = useCallback(() => {
+    setPolishUndo((previous) => {
+      if (previous !== null) setValue(previous);
+      return null;
+    });
+  }, [setValue]);
+
+  // Invalidate any in-flight polish on unmount so its result is discarded.
+  useEffect(() => () => {
+    polishRequestIdRef.current += 1;
+  }, []);
 
   // Load skills on mount
   useEffect(() => {
@@ -977,6 +1045,8 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
       return;
     }
     setValue(newValue);
+    // A manual edit supersedes the last polish; drop the undo affordance.
+    setPolishUndo(null);
     if (!newValue.trim()) {
       inputSourceOverrideRef.current = null;
     }
@@ -2526,6 +2596,36 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     />
   );
   const hasPromptText = Boolean(value.trim());
+  const isPolishDisabled = disabled || isStreaming || voiceInputLocksEditing || !hasPromptText || isPolishing;
+  const polishButtonTitle = isPolishing
+    ? i18nService.t('promptPolishInProgress')
+    : i18nService.t('promptPolishAction');
+  /**
+   * "Polish" button, rendered immediately left of the voice button. It stays
+   * clickable when the draft is empty (no-op) so the affordance is discoverable;
+   * the actual gate lives in `handlePolishPrompt`.
+   */
+  const renderPolishButton = (buttonClassName: string, iconClassName: string) => (
+    <button
+      type="button"
+      onClick={() => { void handlePolishPrompt(); }}
+      disabled={isPolishDisabled}
+      aria-label={polishButtonTitle}
+      aria-busy={isPolishing}
+      title={polishButtonTitle}
+      className={`${buttonClassName} transition-colors ${
+        isPolishDisabled
+          ? 'cursor-not-allowed text-secondary/50'
+          : 'text-secondary hover:bg-surface-raised hover:text-foreground'
+      }`}
+    >
+      {isPolishing ? (
+        <ArrowPathIcon className={`${iconClassName} animate-spin`} aria-hidden="true" />
+      ) : (
+        <SparklesIcon className={iconClassName} aria-hidden="true" />
+      )}
+    </button>
+  );
   const voiceRecordingUiState = getCoworkVoiceRecordingUiState({
     isLarge,
     isStreaming,
@@ -2541,6 +2641,10 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
   const largeSendButtonSizeClass = useCompactSendButton ? 'h-7 w-7' : 'h-8 w-8';
   const largeSendIconSizeClass = useCompactSendButton ? 'h-4 w-4' : 'h-[18px] w-[18px]';
   const largeVoiceInputButton = !remoteManaged ? renderVoiceInputButton(
+    `flex ${largeSendButtonSizeClass} shrink-0 items-center justify-center rounded-full`,
+    largeSendIconSizeClass,
+  ) : null;
+  const largePolishButton = !remoteManaged ? renderPolishButton(
     `flex ${largeSendButtonSizeClass} shrink-0 items-center justify-center rounded-full`,
     largeSendIconSizeClass,
   ) : null;
@@ -2600,6 +2704,23 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
   const largeAttachmentPreview = hasAttachments ? (
     <div className={`${isCompact ? 'max-h-[88px] px-3 pb-1 pt-2' : 'max-h-[156px] px-4 pb-1 pt-3'} overflow-y-auto`}>
       {attachmentPreviewContent}
+    </div>
+  ) : null;
+
+  // Shown after a successful polish so the rewrite is never a one-way door.
+  const polishUndoBanner = polishUndo !== null ? (
+    <div className={`${isCompact ? 'px-3 pt-2' : 'px-4 pt-3'}`}>
+      <div className="inline-flex items-center gap-2 rounded-lg bg-surface-raised px-2.5 py-1 text-xs text-secondary">
+        <SparklesIcon className="h-3.5 w-3.5" aria-hidden="true" />
+        <span>{i18nService.t('promptPolishApplied')}</span>
+        <button
+          type="button"
+          onClick={handleUndoPolish}
+          className="font-medium text-primary hover:underline"
+        >
+          {i18nService.t('promptPolishUndo')}
+        </button>
+      </div>
     </div>
   ) : null;
 
@@ -3118,6 +3239,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
         </Modal>
       )}
       {!isLarge && compactAttachmentPreview}
+      {!isLarge && polishUndoBanner}
       {!isLarge && selectedTextSnippetPreview}
       {!isLarge && browserAnnotationPreview}
       {!isLarge && steerPreview}
@@ -3171,6 +3293,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                 className="relative z-10 rounded-3xl border border-border bg-surface shadow-composer transition-[border-color,box-shadow] duration-200 focus-within:border-primary/35 focus-within:shadow-elevated"
               >
                 {largeAttachmentPreview}
+                {polishUndoBanner}
                 {selectedTextSnippetPreview}
                 {browserAnnotationPreview}
                 {steerPreview}
@@ -3205,6 +3328,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                   <div className={`flex shrink-0 items-center ${largeToolbarControlGapClass}`}>
                     {contextUsageControl}
                     {voiceRecordingUiState.showLargeModelSelector && largeModelSelector}
+                    {largePolishButton}
                     {largeVoiceInputButton}
                     {largeSendButton}
                   </div>
@@ -3294,6 +3418,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
           ) : (
             <>
               {largeAttachmentPreview}
+              {polishUndoBanner}
               {selectedTextSnippetPreview}
               {browserAnnotationPreview}
               {steerPreview}
@@ -3373,6 +3498,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                 <div className={`flex shrink-0 items-center ${largeToolbarControlGapClass}`}>
                   {contextUsageControl}
                   {voiceRecordingUiState.showLargeModelSelector && largeModelSelector}
+                  {largePolishButton}
                   {largeVoiceInputButton}
                   {largeSendButton}
                 </div>
@@ -3408,6 +3534,10 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                 >
                   <PaperClipIcon className="h-5 w-5" />
                 </button>
+                {renderPolishButton(
+                  'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full',
+                  'h-5 w-5',
+                )}
                 {renderVoiceInputButton(
                   'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full',
                   'h-5 w-5',
