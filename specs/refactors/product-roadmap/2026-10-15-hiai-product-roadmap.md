@@ -31,11 +31,13 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 | 4 | 建立 Hook 系统（对标 CodeBuddy） | ⏳ 待执行 | 在关键生命周期点支持用户自定义钩子 |
 | 5 | 增加提示词润色功能 | ⏳ 待执行 | 输入框支持一键润色当前提示词 |
 | 6 | 思考过程展示问题 | ✅ 已完成 | 用户自配 provider 缺 thinking 声明导致网关无事件；已桥接修复 |
-| 7 | Skill 市场切换功能 | ⏳ 待执行 | 技能市场支持来源切换 |
+| 7 | Skill 市场切换功能 | ✅ 已完成 | 诉求改由多源统一聚合落地（见任务 13） |
 | 8 | 移除模型凭据冷却期 | ✅ 已完成 | 全局禁用模型凭据冷却期 |
 | 9 | 版本更新改 GitHub Releases | ⏳ 待执行 | 更新检查改走 GitHub Releases |
 | 10 | 彻底移除遥测功能 | ✅ 已完成 | 删除使用日志上报链路 |
 | 11 | 删除设置中的「帮助改进 HiAi」 | ✅ 已完成 | 移除使用统计开关（随任务 10 一并删除） |
+| 12 | 开启 Agent 间通信（A2A） | ⏳ 待执行 | 开启 OpenClaw 的 `sessions_send` 跨 Agent 通信门控 |
+| 13 | Skill 市场多源聚合 | ✅ 已完成 | 统一聚合 Youdao + SkillHub，支持跨源搜索与安装 |
 | — | Web Search 方案调研 | 🔜 暂缓 | 调研联网搜索方案，本期不落地 |
 
 ## 3. 各项说明
@@ -100,15 +102,23 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 **后续**：无。若仍看不到思考，先检查生成的 `openclaw.json` 中目标模型是否带
 `thinkingLevelMap` / `supportedReasoningEfforts`。
 
-### 任务 7 · Skill 市场切换功能 ⏳
+### 任务 7 · Skill 市场切换功能 ✅ 已完成
 
 **现状**：技能相关实现见 `src/renderer/components/skills/`（`SkillsManager.tsx` / `skillTabs.ts`）与 `src/main/ipcHandlers/skills/`。
 
 **目标**：技能市场支持来源切换（如不同市场源之间切换）。
 
-**待确认项**：可切换的市场源定义、切换后的安装/更新/卸载语义、与本地已装技能的关系。
+**结论**：原「用户手动切换市场源」的诉求，改为**多源统一聚合**方案落地——同一次搜索/浏览同时命中 Youdao 与 SkillHub，按来源标注，安装时记录来源，不再需要手动切换。ClawHub / skills.sh 源在设计中评估后砍掉，仅保留 Youdao + SkillHub 两个源。
 
-**验收要点**：切换市场源后列表正确刷新；已装技能不被破坏。
+**落地实现**：
+- 统一聚合入口（单源 IPC 通道已下线）、跨源搜索、TTL 缓存失效、虚拟列表滚动。
+- 安装来源记录（FR-7）：记录技能来自哪个源，供后续升级判断。
+
+**验证**：`src/main/libs/skillMarketplace/` 下 adapter 与 http 层用例（含 `http.test.ts` 11 例）通过；`npm test` 无回归；触及文件 ESLint 零警告。
+
+**现有文档**：`specs/features/skill-marketplace-sources/2026-10-16-skill-marketplace-multi-source-design.md`（§10 统一聚合重构、§11 收尾）。
+
+**残留**：无重试/退避/限流（U-5，需先确认上游限流策略）；handler 层用例与 SkillHub 缺 `homepage` 的 URL 拼接断言（U-7 剩余部分）；若干 AC 需 `npm run electron:dev` 手工端到端实测。
 
 ### 任务 8 · 移除模型凭据冷却期 ✅ 已完成
 
@@ -144,6 +154,27 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 **现状核实**：`src/renderer/components/Settings.tsx` 的「数据与隐私」组（`settingsGroupDataPrivacy`）
 现仅含「临时文件占用」与「SQLite 自动备份」两项；全仓已无 `帮助改进 HiAi` / `usageAnalyticsEnabled` 残留。
 
+### 任务 12 · 开启 Agent 间通信（A2A）⏳
+
+**现状**：OpenClaw 已内置完整的 A2A 能力（`sessions_send` 工具 + `tools.agentToAgent` 门控），但 HiAi **从未开启**——`openclawConfigSync.ts` 不写这个配置块，上游默认 `enabled: false`，所有 Agent 被拒绝跨 Agent 发消息。
+
+**目标**：让 HiAi 各 Agent 能互相发送消息协同完成任务，而不是只能人肉在两个会话间复制粘贴。设计阶段 1–6 已完成。
+
+**方案要点**（详见设计文档 §6.3）：
+- **纯配置集成，零 OpenClaw patch**：复用上游 `sessions_send`（定向发送、等待回复、announce 回传、provenance 标注均已内置）。
+- **全局开关，默认关闭**：设置里新增「Agent 间通信」开关；开启后才写 `tools.agentToAgent.enabled = true`。
+- **白名单放全局**：`tools.agentToAgent.allow` 上游本就是全局匹配（requester 与 target 都须命中），不做每 Agent 粒度；与既有「允许调用的 Agent」（`subagentAllowAgentIds`，管 spawn 委派）语义清晰区分：**spawn 委派按 Agent 配置，跨 Agent 直接通信走全局开关**。
+
+**改动面**：`openclawConfigSync.ts`（写 `agentToAgent` 块）、`coworkStore.ts`（两个配置键）、设置 UI 开关 + 白名单多选、i18n、`AGENTS.md` 管理段 A2A 使用指引。
+
+**验收要点**：开关关闭时生成配置不含 `agentToAgent`；开启后端到端委托另一 Agent 并回传结果（AC-A5.1）；保存后 gateway 热重载生效。
+
+**现有文档**：`specs/features/agent-a2a/2026-10-16-agent-to-agent-communication-design.md`（阶段 1–6 已定稿，待确认后进入实现）。
+
+### 任务 13 · Skill 市场多源聚合 ✅ 已完成
+
+**结论**：即任务 7 的落地形态，已独立成文并完成实现（详见任务 7 说明与设计文档）。
+
 ### Web Search 方案调研 🔜 暂缓
 
 **说明**：联网搜索（Web Search）方案调研已识别，但本期不排期，暂缓。
@@ -154,8 +185,8 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 
 - **任务 2（移除云端）** 与 **任务 9（改 GitHub Releases）** 存在重叠：更新检查端点属云端残留，建议**先做 9，再收口 2**，避免重复审计。
 - **任务 3 / 4（规则 / Hook）** 同属"agent 可扩展机制"，可共享一套配置与加载框架，建议**一起设计**。
-- **任务 5 / 7（润色 / 技能市场）** 相互独立，可并行推进。
-- **任务 6 / 8 / 10 / 11** 已完成，无需再排期。
+- **任务 5（润色）** 与 **任务 12（A2A）** 相互独立，可并行推进。
+- **任务 6 / 7（含 13）/ 8 / 10 / 11** 已完成，无需再排期。
 
 ## 5. 变更记录
 
@@ -164,3 +195,5 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 | 2026-10-15 | 建档；归档 10 项任务状态。其中任务 8（凭据冷却期）、任务 10（遥测）已完成；任务 6（思考展示）已定位根因为上游未下发数据；Web Search 暂缓。 |
 | 2026-10-15 | 任务 6 修复完成：用户自配 provider 桥接 thinkingConfig（`buildCustomModelThinkingConfig`）。任务 3（规则系统）、任务 4（Hook 系统）按用户决定暂缓。 |
 | 2026-10-15 | 登记任务 11（删除「帮助改进 HiAi」开关），核实其已随任务 10 的 `74734f2` 一并删除，标记为已完成。 |
+| 2026-10-16 | 登记任务 12（开启 Agent 间通信 A2A），设计阶段 1–6 已完成，待确认方案后进入实现。 |
+| 2026-10-16 | 更新任务 7（Skill 市场）为已完成：诉求改由多源统一聚合落地（Youdao + SkillHub），并同步登记任务 13 作为其落地条目。 |
