@@ -66,6 +66,8 @@ const COWORK_SYNC_FIELDS = new Set([
   'openClawHeartbeatEnabled',
   'openClawSkillReviewEnabled',
   'openClawMemoryFlushEnabled',
+  'a2aEnabled',
+  'a2aAllowAgentIds',
   'embeddingEnabled',
   'embeddingProvider',
   'embeddingModel',

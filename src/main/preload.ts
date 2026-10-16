@@ -643,6 +643,8 @@ contextBridge.exposeInMainWorld('electron', {
       openClawHeartbeatEnabled?: boolean;
       openClawSkillReviewEnabled?: boolean;
       openClawMemoryFlushEnabled?: boolean;
+      a2aEnabled?: boolean;
+      a2aAllowAgentIds?: string[];
       embeddingEnabled?: boolean;
       embeddingProvider?: string;
       embeddingModel?: string;

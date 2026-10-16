@@ -191,6 +191,8 @@ test('setConfig preserves loaded OpenClaw session policy', () => {
     openClawHeartbeatEnabled: false,
     openClawSkillReviewEnabled: true,
     openClawMemoryFlushEnabled: true,
+    a2aEnabled: false,
+    a2aAllowAgentIds: [],
     embeddingEnabled: false,
     embeddingProvider: 'openai',
     embeddingModel: '',

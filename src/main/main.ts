@@ -9318,6 +9318,8 @@ if (!gotTheLock) {
     openClawHeartbeatEnabled?: boolean;
     openClawSkillReviewEnabled?: boolean;
     openClawMemoryFlushEnabled?: boolean;
+    a2aEnabled?: boolean;
+    a2aAllowAgentIds?: string[];
     embeddingEnabled?: boolean;
     embeddingProvider?: string;
     embeddingModel?: string;
@@ -9367,6 +9369,12 @@ if (!gotTheLock) {
       const normalizedOpenClawMemoryFlushEnabled = typeof config.openClawMemoryFlushEnabled === 'boolean'
         ? config.openClawMemoryFlushEnabled
         : undefined;
+      const normalizedA2aEnabled = typeof config.a2aEnabled === 'boolean'
+        ? config.a2aEnabled
+        : undefined;
+      const normalizedA2aAllowAgentIds = Array.isArray(config.a2aAllowAgentIds)
+        ? config.a2aAllowAgentIds.filter((id): id is string => typeof id === 'string')
+        : undefined;
       const normalizedEmbedding = normalizeEmbeddingConfig(config);
       const normalizedConfig: Parameters<CoworkStore['setConfig']>[0] = {
         ...config,
@@ -9381,6 +9389,8 @@ if (!gotTheLock) {
         openClawHeartbeatEnabled: normalizedOpenClawHeartbeatEnabled,
         openClawSkillReviewEnabled: normalizedOpenClawSkillReviewEnabled,
         openClawMemoryFlushEnabled: normalizedOpenClawMemoryFlushEnabled,
+        a2aEnabled: normalizedA2aEnabled,
+        a2aAllowAgentIds: normalizedA2aAllowAgentIds,
         ...normalizedEmbedding,
       };
       const previousConfig = getCoworkStore().getConfig();
@@ -9417,6 +9427,14 @@ if (!gotTheLock) {
       ) {
         console.log(
           `[Cowork] OpenClaw memory flush setting changed: enabled=${nextConfig.openClawMemoryFlushEnabled}, previous=${previousConfig.openClawMemoryFlushEnabled}, impact=${impactDecision.impact}`,
+        );
+      }
+      if (
+        normalizedConfig.a2aEnabled !== undefined
+        && previousConfig.a2aEnabled !== nextConfig.a2aEnabled
+      ) {
+        console.log(
+          `[Cowork] A2A setting changed: enabled=${nextConfig.a2aEnabled}, allow=${JSON.stringify(nextConfig.a2aAllowAgentIds ?? [])}, impact=${impactDecision.impact}`,
         );
       }
       if (impactDecision.impact !== OpenClawConfigImpact.None) {

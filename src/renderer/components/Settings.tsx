@@ -1,4 +1,4 @@
-import { ArchiveBoxIcon, ArrowPathIcon, ArrowPathRoundedSquareIcon, ChatBubbleLeftIcon, CheckCircleIcon, CpuChipIcon, CubeIcon, EnvelopeIcon, ExclamationTriangleIcon, GlobeAltIcon, InformationCircleIcon, MagnifyingGlassIcon, SignalIcon, SunIcon, TrashIcon, WrenchScrewdriverIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArchiveBoxIcon, ArrowPathIcon, ArrowPathRoundedSquareIcon, ArrowsRightLeftIcon, ChatBubbleLeftIcon, CheckCircleIcon, CpuChipIcon, CubeIcon, EnvelopeIcon, ExclamationTriangleIcon, GlobeAltIcon, InformationCircleIcon, MagnifyingGlassIcon, SignalIcon, SunIcon, TrashIcon, WrenchScrewdriverIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import React, { useCallback,useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
@@ -140,6 +140,14 @@ const formatBackupSize = (sizeBytes?: number): string => {
     unitIndex += 1;
   }
   return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+};
+
+/** Order-insensitive comparison for id lists saved as JSON arrays. */
+const isSameStringSet = (a: readonly string[], b: readonly string[]): boolean => {
+  if (a.length !== b.length) return false;
+  const left = [...a].sort();
+  const right = [...b].sort();
+  return left.every((value, index) => value === right[index]);
 };
 
 const normalizeProvidersForSettingsSave = (providers: ProvidersConfig): ProvidersConfig => (
@@ -1163,6 +1171,12 @@ const Settings: React.FC<SettingsProps> = ({
   }, [isExportingLogs]);
 
   const coworkConfig = useSelector(selectCoworkConfig);
+  // Agents that can be picked as A2A peers. Read directly off the slice to
+  // avoid widening the settings component's prop surface.
+  const a2aPeerAgents = useSelector(
+    (state: { agent?: { agents?: Array<{ id: string; name: string; enabled: boolean }> } }) =>
+      state.agent?.agents ?? [],
+  );
 
   const [coworkAgentEngine, setCoworkAgentEngine] = useState<CoworkAgentEngine>(coworkConfig.agentEngine || 'openclaw');
   const [coworkMemoryEnabled, setCoworkMemoryEnabled] = useState<boolean>(coworkConfig.memoryEnabled ?? true);
@@ -1179,6 +1193,8 @@ const Settings: React.FC<SettingsProps> = ({
   const [openClawHeartbeatEnabled, setOpenClawHeartbeatEnabled] = useState<boolean>(coworkConfig.openClawHeartbeatEnabled ?? false);
   const [openClawSkillReviewEnabled, setOpenClawSkillReviewEnabled] = useState<boolean>(coworkConfig.openClawSkillReviewEnabled ?? false);
   const [openClawMemoryFlushEnabled, setOpenClawMemoryFlushEnabled] = useState<boolean>(coworkConfig.openClawMemoryFlushEnabled ?? false);
+  const [a2aEnabled, setA2aEnabled] = useState<boolean>(coworkConfig.a2aEnabled ?? false);
+  const [a2aAllowAgentIds, setA2aAllowAgentIds] = useState<string[]>(coworkConfig.a2aAllowAgentIds ?? []);
   const [embeddingEnabled, setEmbeddingEnabled] = useState<boolean>(coworkConfig.embeddingEnabled ?? false);
   const [embeddingProvider, setEmbeddingProvider] = useState<string>(coworkConfig.embeddingProvider ?? 'openai');
   const [embeddingModel, setEmbeddingModel] = useState<string>(coworkConfig.embeddingModel ?? '');
@@ -1223,6 +1239,8 @@ const Settings: React.FC<SettingsProps> = ({
     setOpenClawHeartbeatEnabled(coworkConfig.openClawHeartbeatEnabled ?? false);
     setOpenClawSkillReviewEnabled(coworkConfig.openClawSkillReviewEnabled ?? false);
     setOpenClawMemoryFlushEnabled(coworkConfig.openClawMemoryFlushEnabled ?? false);
+    setA2aEnabled(coworkConfig.a2aEnabled ?? false);
+    setA2aAllowAgentIds(coworkConfig.a2aAllowAgentIds ?? []);
     setEmbeddingEnabled(coworkConfig.embeddingEnabled ?? false);
     setEmbeddingProvider(coworkConfig.embeddingProvider ?? 'openai');
     setEmbeddingModel(coworkConfig.embeddingModel ?? '');
@@ -1244,6 +1262,8 @@ const Settings: React.FC<SettingsProps> = ({
     coworkConfig.openClawHeartbeatEnabled,
     coworkConfig.openClawSkillReviewEnabled,
     coworkConfig.openClawMemoryFlushEnabled,
+    coworkConfig.a2aEnabled,
+    coworkConfig.a2aAllowAgentIds,
     coworkConfig.embeddingEnabled,
     coworkConfig.embeddingProvider,
     coworkConfig.embeddingModel,
@@ -2269,6 +2289,8 @@ const Settings: React.FC<SettingsProps> = ({
     || openClawHeartbeatEnabled !== (coworkConfig.openClawHeartbeatEnabled ?? false)
     || openClawSkillReviewEnabled !== (coworkConfig.openClawSkillReviewEnabled ?? false)
     || openClawMemoryFlushEnabled !== (coworkConfig.openClawMemoryFlushEnabled ?? false)
+    || a2aEnabled !== (coworkConfig.a2aEnabled ?? false)
+    || !isSameStringSet(a2aAllowAgentIds, coworkConfig.a2aAllowAgentIds ?? [])
     || openClawSessionKeepAlive !== (coworkConfig.openClawSessionPolicy?.keepAlive || OpenClawSessionKeepAliveValues.ThirtyDays)
     || embeddingEnabled !== (coworkConfig.embeddingEnabled ?? false)
     || embeddingProvider !== (coworkConfig.embeddingProvider ?? 'openai')
@@ -2887,6 +2909,8 @@ const Settings: React.FC<SettingsProps> = ({
           openClawHeartbeatEnabled,
           openClawSkillReviewEnabled,
           openClawMemoryFlushEnabled,
+          a2aEnabled,
+          a2aAllowAgentIds,
           embeddingEnabled,
           embeddingProvider,
           embeddingModel,
@@ -4513,6 +4537,79 @@ const Settings: React.FC<SettingsProps> = ({
                         <p className="mt-1.5 text-[13px] leading-5 text-secondary">
                           {i18nService.t('openClawMemoryFlushEnabledDescription')}
                         </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-surface p-4">
+                    <div className="flex items-start gap-3.5">
+                      <span
+                        className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                          a2aEnabled
+                            ? 'bg-primary-muted text-primary'
+                            : 'bg-surface-raised text-secondary'
+                        }`}
+                      >
+                        <ArrowsRightLeftIcon className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <h4 className="min-w-0 text-sm font-medium leading-5 text-foreground">
+                            {i18nService.t('a2aEnabled')}
+                          </h4>
+                          <SettingsSwitch
+                            checked={a2aEnabled}
+                            label={i18nService.t('a2aEnabled')}
+                            onClick={() => {
+                              setA2aEnabled((prev) => !prev);
+                            }}
+                          />
+                        </div>
+                        <p className="mt-1.5 text-[13px] leading-5 text-secondary">
+                          {i18nService.t('a2aEnabledDescription')}
+                        </p>
+
+                        {a2aEnabled && (
+                          <div className="mt-3 space-y-2">
+                            <p className="text-[13px] leading-5 text-secondary">
+                              {i18nService.t('a2aAllowAgentIdsDescription')}
+                            </p>
+                            {a2aPeerAgents.filter((agent) => agent.enabled).length === 0 ? (
+                              <p className="text-[13px] leading-5 text-secondary">
+                                {i18nService.t('a2aNoPeerAgents')}
+                              </p>
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {a2aPeerAgents
+                                  .filter((agent) => agent.enabled)
+                                  .map((agent) => {
+                                    const selected = a2aAllowAgentIds.includes(agent.id);
+                                    return (
+                                      <button
+                                        key={agent.id}
+                                        type="button"
+                                        aria-pressed={selected}
+                                        onClick={() => {
+                                          setA2aAllowAgentIds((prev) => (
+                                            prev.includes(agent.id)
+                                              ? prev.filter((id) => id !== agent.id)
+                                              : [...prev, agent.id]
+                                          ));
+                                        }}
+                                        className={`rounded-lg border px-2.5 py-1 text-[13px] transition-colors ${
+                                          selected
+                                            ? 'border-primary bg-primary-muted text-primary'
+                                            : 'border-border bg-surface-raised text-secondary hover:text-foreground'
+                                        }`}
+                                      >
+                                        {agent.name || agent.id}
+                                      </button>
+                                    );
+                                  })}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

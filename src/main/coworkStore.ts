@@ -666,6 +666,10 @@ export interface CoworkConfig {
   openClawHeartbeatEnabled: boolean;
   openClawSkillReviewEnabled: boolean;
   openClawMemoryFlushEnabled: boolean;
+  /** Agent-to-agent messaging gate (`tools.agentToAgent`). Default off. */
+  a2aEnabled: boolean;
+  /** Allowed peer agent ids for A2A. Empty = every enabled agent. */
+  a2aAllowAgentIds: string[];
   embeddingEnabled: boolean;
   embeddingProvider: string;
   embeddingModel: string;
@@ -693,6 +697,8 @@ CoworkConfig,
   | 'openClawHeartbeatEnabled'
   | 'openClawSkillReviewEnabled'
   | 'openClawMemoryFlushEnabled'
+  | 'a2aEnabled'
+  | 'a2aAllowAgentIds'
   | 'embeddingEnabled'
   | 'embeddingProvider'
   | 'embeddingModel'
@@ -2645,6 +2651,8 @@ export class CoworkStore {
       'openClawHeartbeatEnabled',
       'openClawSkillReviewEnabled',
       'openClawMemoryFlushEnabled',
+      'a2aEnabled',
+      'a2aAllowAgentIds',
       'embeddingEnabled',
       'embeddingProvider',
       'embeddingModel',
@@ -2685,6 +2693,8 @@ export class CoworkStore {
       openClawHeartbeatEnabled: parseBooleanConfig(cfg.get('openClawHeartbeatEnabled'), false),
       openClawSkillReviewEnabled: parseBooleanConfig(cfg.get('openClawSkillReviewEnabled'), false),
       openClawMemoryFlushEnabled: parseBooleanConfig(cfg.get('openClawMemoryFlushEnabled'), false),
+      a2aEnabled: parseBooleanConfig(cfg.get('a2aEnabled'), false),
+      a2aAllowAgentIds: parseStringIdList(cfg.get('a2aAllowAgentIds')),
       embeddingEnabled: parseBooleanConfig(cfg.get('embeddingEnabled'), DEFAULT_EMBEDDING_ENABLED),
       embeddingProvider: cfg.get('embeddingProvider') || DEFAULT_EMBEDDING_PROVIDER,
       embeddingModel: cfg.get('embeddingModel') || DEFAULT_EMBEDDING_MODEL,
@@ -2737,6 +2747,12 @@ export class CoworkStore {
     }
     if (config.openClawMemoryFlushEnabled !== undefined) {
       this.upsertConfig('openClawMemoryFlushEnabled', config.openClawMemoryFlushEnabled ? '1' : '0', now);
+    }
+    if (config.a2aEnabled !== undefined) {
+      this.upsertConfig('a2aEnabled', config.a2aEnabled ? '1' : '0', now);
+    }
+    if (config.a2aAllowAgentIds !== undefined) {
+      this.upsertConfig('a2aAllowAgentIds', JSON.stringify(normalizeStringIdList(config.a2aAllowAgentIds)), now);
     }
     if (config.embeddingEnabled !== undefined) {
       this.upsertConfig('embeddingEnabled', config.embeddingEnabled ? '1' : '0', now);

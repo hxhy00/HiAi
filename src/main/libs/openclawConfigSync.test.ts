@@ -5,6 +5,7 @@ import {
   OpenClawProviderId,
   ProviderName,
 } from '../../shared/providers';
+import { buildAgentToAgentToolsConfig, normalizeA2aAllowAgentIds } from './openclawConfigSync';
 
 const providerApiKeyEnvVar = (providerName: string): string => {
   const envName = providerName.toUpperCase().replace(/[^A-Z0-9]/g, '_');
@@ -379,5 +380,94 @@ describe('provider registry coverage', () => {
       const d = resolveDescriptor(name, false);
       expect(d.providerId.length).toBeGreaterThan(0);
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+// Agent-to-agent messaging (AC-A1.1 / AC-A1.2 / AC-A1.3)
+// ═══════════════════════════════════════════════════════
+
+const a2aAgents = [
+  { id: 'main', enabled: true },
+  { id: 'writer', enabled: true },
+  { id: 'retired', enabled: false },
+];
+
+describe('buildAgentToAgentToolsConfig', () => {
+  test('omits the block entirely while the feature is off (AC-A1.1)', () => {
+    const result = buildAgentToAgentToolsConfig(
+      { a2aEnabled: false, a2aAllowAgentIds: [] },
+      a2aAgents,
+    );
+    expect(result).toEqual({});
+    expect(result).not.toHaveProperty('agentToAgent');
+    expect(result).not.toHaveProperty('sessions');
+  });
+
+  test('treats a missing flag as off', () => {
+    const result = buildAgentToAgentToolsConfig(
+      { a2aAllowAgentIds: ['writer'] },
+      a2aAgents,
+    );
+    expect(result).toEqual({});
+  });
+
+  test('enabling with an empty allowlist emits no `allow` and widens visibility (AC-A1.2)', () => {
+    const result = buildAgentToAgentToolsConfig(
+      { a2aEnabled: true, a2aAllowAgentIds: [] },
+      a2aAgents,
+    );
+    expect(result).toEqual({
+      sessions: { visibility: 'agent' },
+      agentToAgent: { enabled: true },
+    });
+    expect((result.agentToAgent as Record<string, unknown>)).not.toHaveProperty('allow');
+  });
+
+  test('enabling with an allowlist emits exactly the selected ids (AC-A1.3)', () => {
+    const result = buildAgentToAgentToolsConfig(
+      { a2aEnabled: true, a2aAllowAgentIds: ['writer', 'main'] },
+      a2aAgents,
+    );
+    expect(result).toEqual({
+      sessions: { visibility: 'agent' },
+      agentToAgent: { enabled: true, allow: ['writer', 'main'] },
+    });
+  });
+
+  test('drops stale ids for deleted or disabled agents', () => {
+    const result = buildAgentToAgentToolsConfig(
+      { a2aEnabled: true, a2aAllowAgentIds: ['retired', 'ghost', 'writer'] },
+      a2aAgents,
+    );
+    expect((result.agentToAgent as Record<string, unknown>).allow).toEqual(['writer']);
+  });
+
+  test('drops stale ids down to an unrestricted gate rather than an empty allow array', () => {
+    const result = buildAgentToAgentToolsConfig(
+      { a2aEnabled: true, a2aAllowAgentIds: ['retired'] },
+      a2aAgents,
+    );
+    expect((result.agentToAgent as Record<string, unknown>)).toEqual({ enabled: true });
+  });
+});
+
+describe('normalizeA2aAllowAgentIds', () => {
+  test('returns empty for undefined or empty input', () => {
+    expect(normalizeA2aAllowAgentIds(undefined, a2aAgents)).toEqual([]);
+    expect(normalizeA2aAllowAgentIds([], a2aAgents)).toEqual([]);
+  });
+
+  test('removes duplicates while preserving order', () => {
+    expect(normalizeA2aAllowAgentIds(['writer', 'writer', 'main'], a2aAgents))
+      .toEqual(['writer', 'main']);
+  });
+
+  test('ignores blank and whitespace-only entries', () => {
+    expect(normalizeA2aAllowAgentIds(['', '   ', 'writer'], a2aAgents)).toEqual(['writer']);
+  });
+
+  test('trims ids before matching', () => {
+    expect(normalizeA2aAllowAgentIds(['  writer  '], a2aAgents)).toEqual(['writer']);
   });
 });

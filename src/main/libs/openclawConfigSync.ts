@@ -338,6 +338,62 @@ const MANAGED_TOOL_LOOP_DETECTION = {
 const EMAIL_PLUGIN_ID = 'email';
 const NIM_CHANNEL_PLUGIN_ID = 'nimsuite-openclaw-nim-channel';
 
+/**
+ * Normalize the A2A allowlist against the agents that actually exist.
+ *
+ * A whitelisted agent may have been deleted or disabled since the user saved
+ * the list; writing a stale id would silently widen or narrow access. Deleted
+ * or disabled ids are dropped, duplicates removed. An empty result means "no
+ * restriction" — the caller then omits `allow` entirely so OpenClaw treats
+ * every agent as reachable (matching the documented empty-list semantics).
+ */
+export function normalizeA2aAllowAgentIds(
+  allowAgentIds: string[] | undefined,
+  agents: Array<{ id: string; enabled: boolean }>,
+): string[] {
+  if (!Array.isArray(allowAgentIds) || allowAgentIds.length === 0) return [];
+  const selectable = new Set(
+    agents.filter(agent => agent.enabled).map(agent => agent.id.trim()),
+  );
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const id of allowAgentIds) {
+    const normalized = id.trim();
+    if (!normalized || seen.has(normalized) || !selectable.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+}
+
+/**
+ * Build the `tools`-block fragment for agent-to-agent messaging (AC-A1.1-3).
+ *
+ * Returns `{}` while the feature is off so the emitted config never mentions
+ * `agentToAgent`, keeping OpenClaw's default (disabled) in effect.
+ *
+ * Enabling it must also widen `tools.sessions.visibility` to `agent`. The
+ * default is `tree` (this session plus sessions it spawned), which cannot see
+ * a peer agent's session, so `sessions_send` would still be rejected even with
+ * the gate open. See the A2A design doc §4.0.
+ */
+export function buildAgentToAgentToolsConfig(
+  coworkConfig: Pick<CoworkConfig, 'a2aEnabled' | 'a2aAllowAgentIds'>,
+  agents: Array<{ id: string; enabled: boolean }>,
+): Record<string, unknown> {
+  if (coworkConfig.a2aEnabled !== true) {
+    return {};
+  }
+  const allow = normalizeA2aAllowAgentIds(coworkConfig.a2aAllowAgentIds, agents);
+  return {
+    sessions: { visibility: 'agent' },
+    agentToAgent: {
+      enabled: true,
+      ...(allow.length > 0 ? { allow } : {}),
+    },
+  };
+}
+
 const MANAGED_SKILL_ENTRY_OVERRIDES: Record<string, { enabled: boolean }> = {
   // QQ plugin ships a legacy reminder skill that steers the model toward a
   // channel-specific cron wrapper/subagent flow. Hide that path so native IM
@@ -520,6 +576,22 @@ const MANAGED_HEARTBEAT_POLICY_PROMPT = [
   '- Remove each item as soon as it is done or cancelled.',
   '- Prefer cron/scheduled tasks for anything with an exact time or schedule.',
   '- On a heartbeat poll with nothing that needs attention, reply `HEARTBEAT_OK`; do not go looking for work.',
+].join('\n');
+
+/**
+ * Injected only while agent-to-agent messaging is enabled. States the reach and
+ * the limits explicitly so the model does not over-reach into other agents'
+ * sessions just because the visibility setting allows it.
+ */
+const MANAGED_AGENT_TO_AGENT_POLICY_PROMPT = [
+  '## Agent-to-Agent Messaging',
+  '',
+  'Agent-to-agent messaging is enabled. You can discover other agents and hand work off or ask them questions directly.',
+  '',
+  '- Use `sessions_list` to find a peer agent\'s session, then `sessions_send` to message it. Do not fake a handoff by writing to a file and hoping the other side notices.',
+  '- The user may have restricted which agents you can reach. If a send is rejected, report the restriction instead of working around it.',
+  '- Widen visibility means you *can* read other sessions owned by the same agent, not that you should. Read only sessions relevant to the task at hand.',
+  '- Do not use another agent as a generic tool: keep delegation purposeful and tell the user when you have handed work off.',
 ].join('\n');
 
 const FALLBACK_OPENCLAW_AGENTS_TEMPLATE = [
@@ -2053,7 +2125,10 @@ export class OpenClawConfigSync {
     };
   }
 
-  private buildWebToolsConfig(browserWebAccess: BrowserWebAccessConfig): Record<string, unknown> {
+  private buildWebToolsConfig(
+    browserWebAccess: BrowserWebAccessConfig,
+    coworkConfig: CoworkConfig,
+  ): Record<string, unknown> {
     const fetch = browserWebAccess.webFetch;
     const fetchConfig = {
       enabled: fetch.enabled,
@@ -2076,7 +2151,23 @@ export class OpenClawConfigSync {
         },
         fetch: fetchConfig,
       },
+      ...this.buildAgentToAgentToolsConfig(coworkConfig),
     };
+  }
+
+  /**
+   * Build the agent-to-agent (A2A) tool gate.
+   *
+   * OpenClaw defaults `tools.agentToAgent.enabled` to false, so the block is
+   * omitted entirely while the feature is off (AC-A1.1). Enabling it also
+   * requires widening `tools.sessions.visibility`: the default is `tree`
+   * (current session + sessions spawned by it), which cannot see another
+   * agent's existing session, so `sessions_send` would be rejected with
+   * `forbidden` even with the gate open. `agent` allows any session owned by
+   * the calling agent id; cross-agent routing still goes through the A2A gate.
+   */
+  private buildAgentToAgentToolsConfig(coworkConfig: CoworkConfig): Record<string, unknown> {
+    return buildAgentToAgentToolsConfig(coworkConfig, this.getAgents?.() ?? []);
   }
 
   /** Prepare the config without writing a running Gateway's source file. */
@@ -2473,7 +2564,7 @@ export class OpenClawConfigSync {
       commands: {
         ownerAllowFrom: MANAGED_OWNER_ALLOW_FROM,
       },
-      tools: this.buildWebToolsConfig(browserWebAccess),
+      tools: this.buildWebToolsConfig(browserWebAccess, coworkConfig),
       browser: this.buildBrowserConfig(browserWebAccess),
       skills: {
         workshop: {
@@ -3812,6 +3903,9 @@ export class OpenClawConfigSync {
       sections.push(MANAGED_MATH_FORMAT_PROMPT);
       sections.push(MANAGED_MEMORY_POLICY_PROMPT);
       sections.push(MANAGED_HEARTBEAT_POLICY_PROMPT);
+      if (coworkConfig.a2aEnabled === true) {
+        sections.push(MANAGED_AGENT_TO_AGENT_POLICY_PROMPT);
+      }
       sections.push(buildManagedSkillCreationPrompt(resolveSkillCreationPath()));
 
       // Keep scheduled-task policy after skills so native channel sessions

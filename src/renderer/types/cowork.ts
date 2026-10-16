@@ -220,6 +220,10 @@ export interface CoworkConfig {
   openClawHeartbeatEnabled: boolean;
   openClawSkillReviewEnabled: boolean;
   openClawMemoryFlushEnabled: boolean;
+  /** Agent-to-agent messaging gate. Off by default. */
+  a2aEnabled: boolean;
+  /** Allowed peer agent ids. Empty = every enabled agent. */
+  a2aAllowAgentIds: string[];
   embeddingEnabled: boolean;
   embeddingProvider: string;
   embeddingModel: string;
@@ -260,6 +264,8 @@ export type CoworkConfigUpdate = Partial<Pick<
   | 'openClawHeartbeatEnabled'
   | 'openClawSkillReviewEnabled'
   | 'openClawMemoryFlushEnabled'
+  | 'a2aEnabled'
+  | 'a2aAllowAgentIds'
   | 'embeddingEnabled'
   | 'embeddingProvider'
   | 'embeddingModel'

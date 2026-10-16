@@ -75,10 +75,25 @@
 
 ## 4. 需求规格
 
+### 4.0 前置约束（实现前必读）
+
+**❗ 关键发现（2026-10-16 核对 OpenClaw 源码）**：仅写 `tools.agentToAgent` **不足以**让 A2A 生效，还须放开 `tools.sessions.visibility`。
+
+`resolveSessionToolsVisibility()`（`openclaw/src/plugin-sdk/session-visibility.ts:107-116`）在配置缺失时默认返回 **`"tree"`**，其语义为「当前会话 + 由本会话派生（spawn）的子会话」。即：
+
+- `sessions_send` 的访问决策由 **visibility 与 a2aPolicy 共同**判定（`resolveSessionToolAccess`，`openclaw/src/agents/tools/sessions-access.ts:216-229`）。
+- 默认 `tree` 下，请求方**根本看不到**目标 Agent 的既有会话 → 即使 `agentToAgent.enabled = true`，定向发送仍被 `forbidden` 拒绝。
+- 必须设为 `"agent"`（本 agent id 下的任意会话）或 `"all"`。跨 Agent 场景下 `"agent"` 已足够。
+
+**决策**：本特性开启 A2A 时，同步写入 `tools.sessions.visibility = "agent"`。注意这是**全局会话可见性**设置，会影响 `sessions_list` / `sessions_history` / `sessions_search` 的可见范围，不只是 `sessions_send`——需在设置页文案中向用户说明。
+
+**沙箱夹逼**：`resolveEffectiveSessionToolsVisibility()`（`session-visibility.ts:119-132`）显示，当 agent 被沙箱化且 `agents.defaults.sandbox.sessionToolsVisibility` 为默认值 `"spawned"` 时，visibility 会被**强制夹回 `"tree"`**。若 HiAi 启用了沙箱模式，A2A 在该模式下将不可用——需在实现阶段确认 HiAi 的沙箱默认态，并在文档中记录该边界。
+
 ### 4.1 功能清单
 
 | 编号 | 需求 | 优先级 |
 | --- | --- | --- |
+| FR-A0 | 配置同步在开启 A2A 时写入 `tools.sessions.visibility = "agent"`（见 §4.0，缺失则本特性完全不可用） | P0 |
 | FR-A1 | 主进程配置同步支持写入 `tools.agentToAgent`（enabled + allow），由 Cowork 配置项驱动 | P0 |
 | FR-A2 | Cowork 设置 UI 新增「Agent 间通信」开关（全局，默认**关闭**） | P0 |
 | FR-A3 | 可选白名单：从已启用 Agent 列表多选；空 = 全部允许 | P1 |
@@ -90,8 +105,8 @@
 
 | 编号 | 标准 | 验证方式 |
 | --- | --- | --- |
-| AC-A1.1 | 开关关闭时，生成的 `openclaw.json` 不含 `tools.agentToAgent`（保持 OpenClaw 默认 false） | 单测：config sync 快照断言 |
-| AC-A1.2 | 开关开启且白名单为空 → `tools.agentToAgent: { enabled: true }`（无 allow = 全部允许） | 同上 |
+| AC-A1.1 | 开关关闭时，生成的 `openclaw.json` 不含 `tools.agentToAgent`，且 `tools.sessions.visibility` 保持默认（不写该键，即 `tree`） | 单测：config sync 快照断言 |
+| AC-A1.2 | 开关开启且白名单为空 → `tools.agentToAgent: { enabled: true }`（无 allow = 全部允许），且 `tools.sessions.visibility === 'agent'` | 同上 |
 | AC-A1.3 | 开关开启且白名单非空 → `allow` 仅含选中的 agent id | 同上 |
 | AC-A2.1 | 设置 UI 开关状态持久化（`cowork_config`），重启后保留 | 单测 + 手工 |
 | AC-A4.1 | 保存后 `openclaw.json` 更新且 gateway 热重载（日志确认） | 手工 |
@@ -140,7 +155,7 @@
 
 | 文件 | 改动 |
 | --- | --- |
-| `src/main/libs/openclawConfigSync.ts` | `buildWebToolsConfig()` 增加 `agentToAgent: { enabled, allow? }`；读取 cowork 配置新键；写 allow 前过滤已删/禁用/自身 agent |
+| `src/main/libs/openclawConfigSync.ts` | `buildWebToolsConfig()` 增加 `agentToAgent: { enabled, allow? }` 与 `sessions: { visibility: 'agent' }`（见 §4.0）；读取 cowork 配置新键；写 allow 前过滤已删/禁用/自身 agent |
 | `src/main/coworkStore.ts` | `cowork_config` 读写支持新键（沿用既有 JSON kv 模式） |
 | 渲染层设置组件 | 新开关 + 白名单多选（复用现有设置面板模式） |
 | `src/renderer/services/i18n.ts` | 中英文案 |
@@ -168,7 +183,7 @@
 
 ## 8. 实现顺序（阶段 7 计划）
 
-1. `cowork_config` 新键 + config sync 写入 + 单测（AC-A1.x）
+1. `cowork_config` 新键 + config sync 写入（含 `sessions.visibility`）+ 单测（AC-A1.x）
 2. 渲染层开关与白名单 UI + i18n
 3. `AGENTS.md` 管理段指引
 4. 手工端到端（AC-A4.1 / AC-A5.1）

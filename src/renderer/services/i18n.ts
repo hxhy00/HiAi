@@ -1317,6 +1317,12 @@ const translations: Record<LanguageType, Record<string, string>> = {
     openClawMemoryFlushEnabled: '启用压缩前记忆保存',
     openClawMemoryFlushEnabledDescription:
       '开启后，Agent 会在长对话整理上下文前，自动提取重要信息并保存为长期记忆，供后续对话使用。保存过程会额外调用模型，长对话可能产生较多 token 消耗，默认关闭。',
+    a2aEnabled: '启用 Agent 之间通信',
+    a2aEnabledDescription:
+      '开启后，本机 Agent 之间可以直接互相发消息、派活和同步进展，无需你手动转述。开启会同时放宽会话可见范围（可读取同一 Agent 下的其他会话），以便跨 Agent 定位目标会话，默认关闭。',
+    a2aAllowAgentIdsDescription:
+      '选择允许互通的对象。不选任何一项表示不限制，所有已启用的 Agent 都可互相通信。',
+    a2aNoPeerAgents: '当前没有其他已启用的 Agent，创建 Agent 后即可选择。',
     openClawGatewayAddress: '网关地址',
     openClawStartupProgressLabel: '启动进度',
     openClawStatusBadgeReady: '已就绪',
@@ -5488,6 +5494,12 @@ const translations: Record<LanguageType, Record<string, string>> = {
     openClawMemoryFlushEnabled: 'Save memory before context compaction',
     openClawMemoryFlushEnabledDescription:
       'When on, the agent extracts important information from long conversations and saves it to long-term memory before context compaction for use in future conversations. Saving requires extra model calls and may use substantial tokens for long conversations. Off by default.',
+    a2aEnabled: 'Enable agent-to-agent messaging',
+    a2aEnabledDescription:
+      'When on, agents on this machine can message each other directly to hand off work and share progress without you relaying it. Turning this on also widens session visibility (the agent can read other sessions owned by the same agent) so cross-agent conversations can be located. Off by default.',
+    a2aAllowAgentIdsDescription:
+      'Pick which agents may talk to each other. Selecting nothing means no restriction: every enabled agent can reach every other.',
+    a2aNoPeerAgents: 'No other enabled agents yet. Create an agent to pick peers.',
     openClawGatewayAddress: 'Gateway address',
     openClawStartupProgressLabel: 'Startup progress',
     openClawStatusBadgeReady: 'Ready',

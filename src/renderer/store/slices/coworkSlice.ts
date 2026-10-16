@@ -171,6 +171,8 @@ const initialState: CoworkState = {
     openClawHeartbeatEnabled: false,
     openClawSkillReviewEnabled: false,
     openClawMemoryFlushEnabled: false,
+    a2aEnabled: false,
+    a2aAllowAgentIds: [],
     embeddingEnabled: false,
     embeddingProvider: 'openai',
     embeddingModel: '',
