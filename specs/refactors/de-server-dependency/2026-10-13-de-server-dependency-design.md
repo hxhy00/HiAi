@@ -7,7 +7,7 @@
 LobsterAI 当前是一个"本地 agent 内核 + 商业服务端外壳"的结构：
 
 - **内核**：OpenClaw agent runtime，本地进程，自带 provider 抽象、媒体生成工具、本地工具链，**本身不依赖 LobsterAI 服务端**。
-- **外壳**：登录鉴权、订阅/积分、媒体生成列表与计费、ASR 实时流、企业账号、HTML 分享、站点部署、更新检查、Skill Store —— 全部经 `getServerApiBaseUrl()`（`src/main/libs/endpoints.ts:31`）打到 `lobsterai-server.youdao.com`。
+- **外壳**：登录鉴权、订阅/积分、媒体生成列表与计费、ASR 实时流、企业账号、HTML 分享、站点部署 —— 经 `getServerApiBaseUrl()`（`src/main/libs/endpoints.ts:31`）打到 `lobsterai-server.youdao.com`；更新检查与 Skill/Kit Store 另有独立端点。
 
 产品定位变更：**本软件将转为纯个人离线使用，不再依赖 LobsterAI 服务端。**
 
@@ -28,7 +28,7 @@ LobsterAI 当前是一个"本地 agent 内核 + 商业服务端外壳"的结构�
 - 不改动 OpenClaw 引擎本身的 agent 能力与工具协议。
 - 不保留任何"服务端可用时增强、不可用时降级"的双轨逻辑 —— 本次是**单向移除**。
 - SenseVoice 采用 **sherpa-onnx 预编译二进制**方案（已定，见 FR-3），不引入 Python 运行时依赖。
-- 不处理更新检查与 Skill Store 的替代方案（本期外，另立需求）。
+- 不处理 Skill Store / Kit Store / MCP Marketplace 的替代方案（本期外，见 U-6）。更新检查已另行改走 GitHub Releases（2026-10-16）。
 
 ### 1.4 关键前提（已验证）
 
@@ -59,10 +59,13 @@ LobsterAI 当前是一个"本地 agent 内核 + 商业服务端外壳"的结构�
 | 订阅/配额 | `/api/user/quota`、`/profile`、`/models/pricing-catalog` 等 | `src/main/main.ts:7786,7860,7896,8104` | 移除 |
 | 企业账号 | `/api/enterprise/context`、`/identities`、`/quota-requests` | `src/main/enterpriseAccount/context.ts:280,369,442` | 移除 |
 | 模型列表 | `GET /api/models/available` | `src/main/main.ts:5942` | 替换为本地 provider 静态清单 |
-| 更新检查 | `api-overmind.youdao.com/.../update` | `src/main/libs/endpoints.ts:55-65` | 本期不动 |
-| Skill/Kit Store | `endpoints.ts:73-91` | 同上 | 本期不动 |
-| HTML 分享 | `/api/html-shares/{id}`、`htmlShareClient.ts` | `src/main/main.ts:8513` | 关闭入口 |
-| 站点部署 | `shareDeploymentClient.ts`、`siteClient.ts` | — | 关闭入口 |
+| 更新检查 | `getUpdateCheckUrl()` | `src/main/libs/endpoints.ts:65-67` | **已完成（2026-10-16 核实）**：已改走 GitHub Releases（`hxhy00/HiAi`），不再使用有道更新服务。注：灰度更新检查 `appUpdateGrayClient.ts:111` 仍打 server baseUrl，见下表 |
+| Skill/Kit Store | `getSkillStoreUrl()` / `getKitStoreUrl()` | `src/main/libs/endpoints.ts:79-89` | **未处理**：两条链路均被 UI 真实调用（技能市场 / 输入框 Kit 按钮），归 `product-roadmap` 任务 2 R1/R2 |
+| MCP Marketplace | `api-overmind.youdao.com/.../mcp-marketplace` | `src/main/ipcHandlers/mcp/handlers.ts:409-410`（硬编码） | **未处理**：`McpManager` 挂载即请求，归任务 2 R3 |
+| HTML 分享 | `/api/html-shares/{id}`、`htmlShareClient.ts` | `src/main/main.ts` 约 18 处 handler（`:6181`–`:6595`） | 入口已 gate（FR-4.2），**服务层代码与 handler 仍保留**，归任务 2 R4 |
+| 站点部署 | `shareDeploymentClient.ts`、`siteClient.ts` | — | **已完成**：服务层与 IPC 已整块删除（FR-4.3/FR-4.4） |
+| 灰度更新检查 | `POST /api/client-updates/check` | `src/main/libs/appUpdateGrayClient.ts:111-124`，注入点 `src/main/main.ts:1848-1850` | **未处理**：session getter 恒为 null 故当前不发请求，代码路径仍在，归任务 2 R4 |
+| 云端素材库 | `GET /api/library/cloud-items` | `src/main/library/libraryCloudClient.ts:317-318` | **未处理**：入口已随 `LibrarySourceFilter.Cloud` 隐藏（FR-4.2），客户端代码保留，归任务 2 R4 |
 | 客户端 banner/活动 | `activityClient.ts:84,99,117` | `src/main/main.ts:7956-8027` | 移除 |
 
 ### 2.2 LLM 推理路径（P0 阻塞点）
@@ -288,7 +291,7 @@ CoworkPromptInput（语音按钮）
 | 旧数据（session 中残留服务端模型 id） | 加载时校验，命中未知 id 时丢弃并回退默认 |
 | 升级场景：旧用户已有登录态 | 本次改造后登录态无意义，需清理本地 token 与相关 kv |
 | `subscriptionStatus === 'enterprise'` 的历史数据 | 企业分支删除后按 `free` 语义处理，不报错 |
-| 无网络环境 | 全部功能可用（本期范围外：更新检查、Skill Store 仍会失败） |
+| 无网络环境 | 全部功能可用（本期范围外：Skill Store / Kit Store / MCP Marketplace 仍会失败，见 U-6） |
 
 ---
 
@@ -409,7 +412,7 @@ checkout。
 | ~~U-3~~ | ~~流式 ASR 改批量识别的体验~~ **已决**：接受批量模式（FR-3.5） | — |
 | ~~U-4~~ | ~~插件禁用机制~~ **已决**：插件保留，后端本地化（FR-2.1） | — |
 | ~~U-5~~ | ~~升级场景：是否需要清理旧登录态与相关 kv~~ **已决**：清理；登录能力整体移除（由 `specs/refactors/remove-membership/` §11 D1 承接） | — |
-| U-6 | 更新检查与 Skill Store 的后续处置 | 本期外，需另立需求 |
+| U-6 | ~~更新检查~~ **已决**（2026-10-16）：`getUpdateCheckUrl()` 已改走 GitHub Releases（`hxhy00/HiAi`）。**剩余**：Skill Store / Kit Store / MCP Marketplace 三条链路仍打有道域名且 UI 入口可见，连同 server baseUrl 余下调用点（HTML 分享 handler、灰度更新、云端素材库）已移交 `specs/refactors/product-roadmap/` 任务 2（R1–R4），本文件不再承接 | — |
 | ~~U-7~~ | ~~皮肤包迁移还是关闭~~ **已决**：保留，随插件后端本地化自动切换（FR-2.7） | — |
 | ~~U-8~~ | ~~mac 侧 Python 运行时打包~~ **已决**：sherpa-onnx 预编译二进制，无 Python 依赖（FR-3.1） | — |
 | ~~U-9~~ | ~~SenseVoice 模型分发方式（随安装包 vs 首次使用时下载）~~ **已决**：**随安装包分发**（`extraResources` 打包 `resources/sherpa-onnx`），终端用户零配置；开发者用 `npm run setup:sherpa-onnx`（自愈） | — |
@@ -456,6 +459,7 @@ checkout。
 | 第 4 轮（FR-5） | 2026-10-14 | 移除商业壳：企业账号/请求头注入、订阅积分态与 UI、banner/活动、登录能力整体移除（含 `authSlice`、`authSessionManager`、`openclawTokenProxy` 删除），i18n 会员文案清零 | FR-5 拆分为独立文档 `specs/refactors/remove-membership/` 承接；登录能力由 M-1 决策**整体移除**（原计划仅清理登录态）；分享/部署服务层字段按 M-4 保留 | 见 `remove-membership` §11 D1-D5 |
 | 第 5 轮（FR-4 收口） | 2026-10-16 | 部署整块**删除**（非 gate）：删除 `src/main/libs/site/*`、`src/main/libs/shareDeployment/*`、`src/main/ipcHandlers/site/*`、`src/renderer/components/sites/*`、`src/shared/site/constants.ts`、`src/shared/shareDeployment/*`；`ArtifactPanel.tsx` 移除全部部署状态/JSX（约 1700 行）；`CoworkSessionDetail.tsx` 移除浏览器本地服务上下文；`artifactToolbarPublishPolicy.ts` 移除 Deploy 目标；`libraryItemActionPolicy.ts` 移除 `ManageSite`；删除 `ENABLE_SITE_DEPLOYMENT` flag；清理 `nodeDeployment*` i18n（渲染层 280 条 + 主进程 2 条）；`libraryCloudClient` 解除对 `shared/site/constants` 的依赖 | 与 FR-4 初版"仅断 UI 入口、保留服务层"的方案**不同**：部署服务层一并删除，仅分享服务层保留（见 FR-4.4 修订）。`DeployedSite` 云库条目与 `sitesStatus_*` i18n 因属保留的 Library 云端展示面而保留 | FR-4.1~FR-4.4、§2.2 |
 | 第 5 轮（FR-4 补记） | 2026-10-16 | 清理 Round 5 残留的死入口：`LibrarySharedFilesView` settings 菜单项改为仅对 `SharedFile` 提供（DeployedSite 条目的"管理网站"在 `ManageSite` action 移除后点击只滚动列表）；删除失去引用的 `libraryManageSite` i18n（中英各 1 条） | `DeployedSite` 兼容读路径与展示按 Round 5 决策保留，仅清死入口与孤儿文案 | 见 FR-4.5 |
+| 文档校正（非代码改动） | 2026-10-16 | 回填 U-6：更新检查已改走 GitHub Releases，§2.1 表补 MCP Marketplace / 灰度更新检查 / 云端素材库三行并更新站点部署为"已完成"；Skill/Kit/MCP 三店与 server baseUrl 余下调用点移交 `product-roadmap` 任务 2（R1–R4），本文件不再承接 | 全文校正，无代码改动 | 见 §1.1、§1.3、§2.1、§5、§8 U-6 |
 
 ### 10.4 第 1 轮已关闭决策
 
