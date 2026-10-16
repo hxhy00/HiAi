@@ -26,14 +26,14 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 
 | # | 任务 | 状态 | 一句话目标 |
 | --- | --- | --- | --- |
-| 2 | 彻底移除云端模块 | ⏳ 待执行 | 清空去服务端依赖改造后残留的云端调用与配置 |
-| 3 | 建立规则系统（对标 CodeBuddy） | ⏳ 待执行 | 支持项目级/用户级规则文档，注入 agent 提示词 |
-| 4 | 建立 Hook 系统（对标 CodeBuddy） | ⏳ 待执行 | 在关键生命周期点支持用户自定义钩子 |
+| 2 | 彻底移除云端模块 | ⏳ 待执行 | 已审计：仍有多条会真实发请求的云端链路，无法断网运行 |
+| 3 | 建立规则系统（对标 CodeBuddy） | 🔜 暂缓 | 支持项目级/用户级规则文档，注入 agent 提示词 |
+| 4 | 建立 Hook 系统（对标 CodeBuddy） | 🔜 暂缓 | 在关键生命周期点支持用户自定义钩子 |
 | 5 | 增加提示词润色功能 | ⏳ 待执行 | 输入框支持一键润色当前提示词 |
 | 6 | 思考过程展示问题 | ✅ 已完成 | 用户自配 provider 缺 thinking 声明导致网关无事件；已桥接修复 |
 | 7 | Skill 市场切换功能 | ✅ 已完成 | 诉求改由多源统一聚合落地（见任务 13） |
 | 8 | 移除模型凭据冷却期 | ✅ 已完成 | 全局禁用模型凭据冷却期 |
-| 9 | 版本更新改 GitHub Releases | ⏳ 待执行 | 更新检查改走 GitHub Releases |
+| 9 | 版本更新改 GitHub Releases | ✅ 已完成 | 更新检查已改走 GitHub Releases API |
 | 10 | 彻底移除遥测功能 | ✅ 已完成 | 删除使用日志上报链路 |
 | 11 | 删除设置中的「帮助改进 HiAi」 | ✅ 已完成 | 移除使用统计开关（随任务 10 一并删除） |
 | 12 | 开启 Agent 间通信（A2A） | ⏳ 待执行 | 开启 OpenClaw 的 `sessions_send` 跨 Agent 通信门控 |
@@ -44,31 +44,48 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 
 ### 任务 2 · 彻底移除云端模块 ⏳
 
-**现状**：`specs/refactors/de-server-dependency/` 与 `remove-membership` 已完成主要剥离，但仍有服务端残留（更新检查、Skill/Kit Store 等，见 de-server-dependency §2.1 表中"本期不动"项）。
+**现状（2026-10-16 审计结论）**：`de-server-dependency` 与 `remove-membership` 已断开登录、媒体生成、ASR、企业账号、分享/部署入口，但**仍有 4 条会真实发起请求的云端链路**，且入口对用户可见。断网环境下应用能启动，但点开对应界面即失败。
 
-**目标**：清空所有指向 LobsterAI / 有道云端的调用与配置，使应用在任何网络条件下不产生云端请求。
+**残留清单（按必须处理排序）**：
 
-**待独立成文**：需先做一次全量云端调用清单审计，确认残留范围后再排期。
+| # | 残留 | 位置 | 触发时机 |
+| --- | --- | --- | --- |
+| R1 | Skill Store | `src/main/libs/skillMarketplace/youdaoAdapter.ts:91` → `getSkillStoreUrl()`（`endpoints.ts:79`） | 技能市场每次搜索/浏览都会请求（youdao 是聚合市场的一等源，非死代码） |
+| R2 | Kit Store | `kits:fetchStore`（`src/main/ipcHandlers/kits/handlers.ts:234`）→ `getKitStoreUrl()` | 输入框工具栏 Kit 按钮每次打开 Popover |
+| R3 | MCP Marketplace | `src/main/ipcHandlers/mcp/handlers.ts:409-410`（硬编码 `api-overmind.youdao.com`） | `McpManager` 组件挂载即请求（设置→技能与连接器） |
+| R4 | Server API 基址 | `getServerApiBaseUrl()`（`endpoints.ts:31`） | 剩余调用点以"依赖登录态"的路径为主：HTML 分享 handler 全套（`main.ts` 约 18 处）、灰度更新 `appUpdateGrayClient.ts:111`、云端素材库 `libraryCloudClient.ts:317`、模型列表 `main.ts:4885`、LLM 代理回退 `claudeSettings.ts:508`。**注**：登录已移除，多数因无 token 而实际不发请求，但代码路径仍在 |
 
-**验收要点**：全局搜索无 `lobsterai-server.youdao.com` / `api-overmind.youdao.com` 等云端域名引用；断网 + 网络抓包确认零云端请求。
+**同时清理的死代码**：`llmTurnUsage.ts` 的 `LLM_TRACE_USAGE_API_PATH`、renderer 侧 `TurnUsageChip → cowork.ts` 的 IPC 残链（对应 handler 已不存在，调用必失败）。
 
-### 任务 3 · 建立规则系统（对标 CodeBuddy）⏳
+**仅文案类（不发请求，最后清理即可）**：i18n 里的 portal 定价链接、`shared/platform/constants.ts` 的 IM 指南 URL、`decisionModelClient.ts:16` 的 OpenRouter Referer 头、`shared/providers/constants.ts:360` 的有道智云 LLM provider（用户配置该 provider 才发请求，属正常业务能力，保留与否需单独决策）。
+
+**待确认项**：R1/R2/R3 三个商店的去向——自建静态托管、改由 GitHub Releases/仓库文件托管，还是随 `ENABLE_*` flag 直接下线入口？`getServerApiBaseUrl()` 余下调用点是"仅删除代码"还是需要替代实现（尤其是 HTML 分享 handler，服务层已断入口但代码未删）？
+
+**验收要点**：全局搜索非测试代码无 `lobsterai-server.youdao.com` / `api-overmind.youdao.com` 的 API 调用引用；断网 + 抓包确认零云端请求；技能市场 / Kit / MCP 市场入口在无网络时行为明确（隐藏或本地兜底）。
+
+**相关文档**：`specs/refactors/de-server-dependency/2026-10-13-de-server-dependency-design.md`（§2.1 表中"本期不动"项即本任务的 R1–R4，U-6 未决项）。
+
+### 任务 3 · 建立规则系统（对标 CodeBuddy）🔜 暂缓
 
 **现状**：仓库当前**无**任何规则系统实现（无 `rules/` 相关模块）。
 
-**目标**：对标 CodeBuddy 的规则能力，支持以文档形式定义项目级 / 用户级规则，并在 agent 运行时注入提示词，约束其行为。
+**状态**：按用户决定暂缓，本期不排期。
 
-**待确认项**：规则文件的位置与命名约定、加载优先级、注入方式（系统提示词 / 上下文）、与现有 AGENTS.md 体系的整合。
+**目标（暂缓前已定）**：对标 CodeBuddy 的规则能力，支持以文档形式定义项目级 / 用户级规则，并在 agent 运行时注入提示词，约束其行为。
+
+**恢复时待确认项**：规则文件的位置与命名约定、加载优先级、注入方式（系统提示词 / 上下文）、与现有 AGENTS.md 体系的整合。
 
 **验收要点**：新增规则文件后，agent 行为随之改变；规则冲突时有明确优先级。
 
-### 任务 4 · 建立 Hook 系统（对标 CodeBuddy）⏳
+### 任务 4 · 建立 Hook 系统（对标 CodeBuddy）🔜 暂缓
 
 **现状**：仓库当前**无** hook 机制。
 
-**目标**：在关键生命周期点（如提交前、工具调用前后、会话事件）支持用户自定义钩子脚本。
+**状态**：按用户决定暂缓，本期不排期。与任务 3 同属"agent 可扩展机制"，恢复时建议一并设计。
 
-**待确认项**：支持的事件点清单、钩子执行环境与安全边界、失败处理策略（阻塞 vs 放行）。
+**目标（暂缓前已定）**：在关键生命周期点（如提交前、工具调用前后、会话事件）支持用户自定义钩子脚本。
+
+**恢复时待确认项**：支持的事件点清单、钩子执行环境与安全边界、失败处理策略（阻塞 vs 放行）。
 
 **验收要点**：注册钩子后能在对应事件触发；钩子失败不影响主流程或有明确阻断语义。
 
@@ -126,15 +143,20 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 
 **说明**：模型凭据的冷却期机制已全局禁用，不再阻断开关键换后的重试。
 
-### 任务 9 · 版本更新改 GitHub Releases ⏳
+### 任务 9 · 版本更新改 GitHub Releases ✅ 已完成
 
-**现状**：更新检查当前走 `api-overmind.youdao.com`（`src/main/libs/endpoints.ts` 的更新检查端点）。
+**现状（2026-10-16 核实）**：`src/main/libs/endpoints.ts` 的更新检查端点已改为 GitHub Releases：
 
-**目标**：更新检查与下载改由 GitHub Releases 驱动，彻底脱离有道更新服务。
+- `GITHUB_RELEASES_OWNER = 'hxhy00'` / `GITHUB_RELEASES_REPO = 'HiAi'`（`endpoints.ts:58-59`）
+- `getUpdateCheckUrl()` 指向 `https://api.github.com/repos/.../releases/latest`（取最新非草稿、非预发布 release）
+- `getManualUpdateCheckUrl()` 与自动检查共用同一端点
+- `getFallbackDownloadUrl()` 指向 releases 页面，供跳转下载
 
-**待确认项**：releases 仓库地址、版本号比对规则（含预发布）、下载与校验方式、与现有自动更新流程的衔接。
+**结论**：有道更新服务（`api-overmind.youdao.com` 的 update 端点）已不再被更新检查使用，"脱离有道更新服务"目标达成。
 
 **验收要点**：发布新 GitHub Release 后应用能检测到并提示更新；断网时不阻塞启动。
+
+**残留归属**：本任务余下的仅是 `getServerApiBaseUrl()` 上的**灰度更新检查**（`appUpdateGrayClient.ts:111`），归任务 2 R4 处理。
 
 ### 任务 10 · 彻底移除遥测功能 ✅ 已完成
 
@@ -183,10 +205,11 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 
 ## 4. 依赖与排序建议
 
-- **任务 2（移除云端）** 与 **任务 9（改 GitHub Releases）** 存在重叠：更新检查端点属云端残留，建议**先做 9，再收口 2**，避免重复审计。
-- **任务 3 / 4（规则 / Hook）** 同属"agent 可扩展机制"，可共享一套配置与加载框架，建议**一起设计**。
+- **任务 9（改 GitHub Releases）已先行完成**，任务 2 的直接依赖已解除；仅剩灰度更新检查一条链路仍需随任务 2 R4 处理。
+- **任务 2（移除云端）内部有顺序**：R1/R2/R3（三个商店）需先定"替代托管方案"再动手；R4（server baseUrl 余下调用点）以删代码为主，可并行；死代码与纯文案清理放在最后。
+- **任务 3 / 4（规则 / Hook）已暂缓**，恢复时同属"agent 可扩展机制"，可共享一套配置与加载框架，建议**一起设计**。
 - **任务 5（润色）** 与 **任务 12（A2A）** 相互独立，可并行推进。
-- **任务 6 / 7（含 13）/ 8 / 10 / 11** 已完成，无需再排期。
+- **任务 6 / 7（含 13）/ 8 / 9 / 10 / 11** 已完成，无需再排期。
 
 ## 5. 变更记录
 
@@ -197,3 +220,6 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 | 2026-10-15 | 登记任务 11（删除「帮助改进 HiAi」开关），核实其已随任务 10 的 `74734f2` 一并删除，标记为已完成。 |
 | 2026-10-16 | 登记任务 12（开启 Agent 间通信 A2A），设计阶段 1–6 已完成，待确认方案后进入实现。 |
 | 2026-10-16 | 更新任务 7（Skill 市场）为已完成：诉求改由多源统一聚合落地（Youdao + SkillHub），并同步登记任务 13 作为其落地条目。 |
+| 2026-10-16 | 任务 3 / 4 按用户决定改为暂缓。 |
+| 2026-10-16 | 完成任务 2 云端残留审计（R1–R4 清单），结论：**未完成**——Skill/Kit/MCP 三个商店与 server baseUrl 余下调用点仍会真实发请求，入口对用户可见。任务 2 说明区由"待独立成文"改为审计结论。 |
+| 2026-10-16 | 核实任务 9 已落地（`endpoints.ts` 更新检查已走 GitHub Releases，`hxhy00/HiAi`）并标记为已完成；余下灰度更新检查归入任务 2 R4。 |
