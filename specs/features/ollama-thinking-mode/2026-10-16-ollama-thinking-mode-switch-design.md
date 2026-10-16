@@ -1,7 +1,7 @@
 # Ollama 模型思考模式开关设计
 
 日期：2026-10-16
-状态：规格已确认第 1–4 章，待第 6 章方案决策后实现（第 8 章 U-1~U-4 未决）
+状态：规格已确认第 1–4 章；U-1 / U-2 已由 Ollama 实测收敛（见 §8.1），U-3 待有思考模型后抓包，U-4 待产品决策
 关联：`specs/features/cowork-thinking-block-display/2026-07-13-cowork-thinking-block-display-design.md`（思考块展示）、`specs/refactors/product-roadmap/2026-10-15-hiai-product-roadmap.md`
 
 行号会随重构漂移，一律以符号名为准。
@@ -78,6 +78,7 @@ Ollama 用户因此处于一个尴尬状态：
 ### FR-3: 档位范围与映射
 
 - Ollama / 自配 provider 使用既有 `CUSTOM_MODEL_THINKING_OPTIONS`（`off / low / medium / high`），默认 `medium`。
+- **实测依据**：Ollama 0.40.4 的 OpenAI 兼容层接受 `reasoning_effort` 参数，四档均可路由（见 §8.1），因此无需为 Ollama 另设参数通道。
 - 不向 OpenClaw 透传产品侧 `max` 档（`OPENCLAW_CONFIGURABLE_THINKING_LEVELS` 不含 `max`）。
 - 每模型记忆沿用 `modelThinkingLevelMemory` 的既有三级优先级，不退回全局单值。
 - 持久化等级在模型不再声明思考时回落到 `defaultLevel`（防止 patch 失败）。
@@ -150,10 +151,36 @@ Ollama 用户因此处于一个尴尬状态：
 
 | 编号 | 未决项 | 影响 | 需要的前置信息 |
 | --- | --- | --- | --- |
-| U-1 | **Ollama 各模型对思考参数的实际接受度**：Ollama 的 OpenAI 兼容层对 `reasoning_effort` 的取值范围与是否透传到 `/v1/chat/completions` 未实测；若不接受，四档映射需要按模型降级 | 决定 FR-3 能否成立 | 对本地 Ollama 实例做一次真实请求验证（至少覆盖 qwen3 与 glm 两类） |
-| U-2 | **Ollama 默认模型是否默认勾选 `supportsThinking`**：勾了开箱即用但可能对不支持思考的模型错声明；不勾则用户需手动勾一次 | 体验 vs 安全 | 需知道两个默认模型（`qwen3-coder-next`、`glm-4.7-flash`）是否真的支持思考 |
-| U-3 | **思考内容回传字段**：Ollama OpenAI 兼容层返回 `reasoning` 还是 `reasoning_content`、是否分块，OpenClaw 侧解析是否已覆盖 | 决定 AC-3.1 能否通过 | 真实响应抓包（`coworkOpenAICompatProxy` 已有 `delta.reasoning_content ?? delta.reasoning` 处理，但 Ollama 走直连不经该代理） |
+| U-1 | **Ollama 各模型对思考参数的实际接受度** | 决定 FR-3 能否成立 | ✅ **已实测**（见 8.1）：协议层接受 `reasoning_effort`，模型不支持时明确报错 |
+| U-2 | **Ollama 默认模型是否默认勾选 `supportsThinking`** | 体验 vs 安全 | ✅ **已有更好答案**（见 8.1）：`/api/show` 暴露 `capabilities`，可自动判定，倾向按能力声明而非硬编码 |
+| U-3 | **思考内容回传字段**：Ollama 返回 `reasoning` 还是 `reasoning_content`、是否分块 | 决定 AC-3.1 能否通过 | ⏳ **仍缺**：本机无可思考模型，需 `ollama pull` 一个思考模型后流式抓包（见 8.1 验证配方） |
 | U-4 | **门槛放宽的影响范围**：`canConfigureModelThinking` 放宽后所有自配 provider 都会出现思考菜单 | 是否只给 Ollama 开特例 | 产品决策：特性对所有自配 provider 一视同仁，还是仅 Ollama |
+
+### 8.1 Ollama 实测结论（2026-10-16，Ollama 0.40.4 / macOS）
+
+验证环境：本地 `http://localhost:11434`，模型 `baihua:latest`（gemma4 系）与 `hf.co/mradermacher/Baihua-Gemma4-E4B-GGUF:Q4_K_M`（均为**不支持思考**的模型）。
+
+| 验证项 | 结果 |
+| --- | --- |
+| OpenAI 兼容层是否接受 `reasoning_effort` 参数 | **接受**。`low/medium/high/max` 四档均未报「未知参数」，请求被正常路由 |
+| 模型不支持思考时的行为 | **直接 400**：`{"error":{"message":"\"baihua:latest\" does not support thinking","type":"invalid_request_error"}}` |
+| 不带 `reasoning_effort` 的普通请求 | 正常，`message` 仅含 `content` / `role` |
+| `/api/show` 是否暴露能力元数据 | **是**。`capabilities: ["tools","completion","vision","audio"]`——不支持思考的模型**不含** `thinking` 项 |
+| 思考内容回传字段（`reasoning` / `reasoning_content`、是否分块） | **无法验证**：本机无支持思考的模型 |
+
+**结论与影响**：
+
+1. **FR-3 四档映射在协议层成立**（Ollama 接受 `reasoning_effort`），无需为 Ollama 另设参数通道。
+2. **「错声明会破坏请求」得到实测印证**：一旦对不支持思考的模型声明 `supportsThinking`，网关会下发 `reasoning_effort`，Ollama 直接返回 400 整轮失败——这与 `dshConfigSync.ts` 「宁可不声明，也不要错声明」的既有立场一致，也说明 U-2 必须走**能力判定**而非默认勾选。
+3. **U-2 的推荐方案改为能力探测**：新增「从 Ollama 拉取模型能力」的只读通道（`/api/show` 的 `capabilities` 含 `thinking`），据此自动写入 `models[].supportsThinking`，而不是在 `PROVIDER_REGISTRY.defaultModels` 里硬编码。该方案同时解决 U-4 的体验问题（LM Studio 等同理），但需新增一次网络/本地端口请求，需确认是否值得（见 U-2 的决策点）。
+4. **U-3 的验证配方**（有思考模型后执行）：
+   ```bash
+   ollama pull qwen3:4b   # 任一确认支持 thinking 的模型
+   curl -N http://localhost:11434/v1/chat/completions \
+     -H 'Content-Type: application/json' \
+     -d '{"model":"qwen3:4b","messages":[{"role":"user","content":"9.11和9.8哪个大？先思考"}],"stream":true,"reasoning_effort":"medium"}'
+   ```
+   逐 chunk 检查 `delta` 中出现的是 `reasoning` 还是 `reasoning_content`，以及是否与 `content` 分离。
 
 ## 9. Mock 台账
 
