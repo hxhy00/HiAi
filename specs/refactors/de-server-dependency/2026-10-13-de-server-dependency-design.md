@@ -67,13 +67,11 @@ LobsterAI 当前是一个"本地 agent 内核 + 商业服务端外壳"的结构�
 
 ### 2.2 LLM 推理路径（P0 阻塞点）
 
-**当前**：agent 的 LLM 请求经 `openclawTokenProxy`（`src/main/libs/openclawTokenProxy.ts:133`）代理到 LobsterAI 服务端换取 token。
+> **状态更新（2026-10-16）：P0 已关闭。** 登录能力已随 `remove-membership` 改造整体移除，`src/main/libs/openclawTokenProxy.ts` 已删除，`startOpenClawTokenProxy` 注入点不再存在。agent 现已直连 provider，本节描述的阻塞已不存在。
 
-**这是唯一在去掉登录后会直接崩溃的核心路径**：登录没了 → 无 token → agent 无法推理。
+**原状（历史）**：agent 的 LLM 请求曾经 `openclawTokenProxy` 代理到 LobsterAI 服务端换取 token；在去掉登录后会直接崩溃（登录没了 → 无 token → agent 无法推理）。
 
-**目标**：让 OpenClaw 直连 provider（Ollama / LM Studio / 自备 API key 的 OpenAI 兼容端点）。
-
-> P0 是所有其他改造的前提。在 P0 完成前，其他改动都无法端到端验证。
+**已达成目标**：OpenClaw 直连 provider（Ollama / LM Studio / 自备 API key 的 OpenAI 兼容端点）。
 
 ### 2.3 媒体生成链路（三段式）
 
@@ -184,10 +182,17 @@ CoworkPromptInput（语音按钮）
 
 > **实现状态（2026-10-15 回填）：已全部落地。** 行号会随重构漂移，以符号名为准。
 
-- **FR-4.1（已实现）** 新增编译期 flag（`src/shared/featureFlags.ts`）：`ENABLE_HTML_SHARE`、`ENABLE_SITE_DEPLOYMENT`，均置 `false`。
-- **FR-4.2（已实现）** 分享入口 gate：`artifactToolbarPublishPolicy.ts`（`resolveArtifactPreviewToolbarPublishTarget` 首行 `if (!ENABLE_HTML_SHARE) return null`）、`ArtifactPreviewCard.tsx`（`canShare`）、`libraryItemActionPolicy.ts`（`LibraryItemAction.ShareLocal` 过滤）、`ArtifactPanel.tsx`（经 publish policy 间接 gate）。
-- **FR-4.3（已实现）** 部署入口 gate：`artifactToolbarPublishPolicy.ts`（`resolveBrowserToolbarPublishTarget` 的 `if (!ENABLE_SITE_DEPLOYMENT) return null`）、`ArtifactPreviewCard.tsx`（`canDeploy`）、`libraryItemActionPolicy.ts`（`LibraryItemAction.ManageSite` 过滤）、`App.tsx`（`sitesHidden={!ENABLE_SITE_DEPLOYMENT || ...}` → `LibraryView` 隐藏 Site 分类）。
-- **FR-4.4（已遵守）** 服务层保留不删（`src/main/libs/htmlShare/*`、`site/*`、`shareDeployment/*` 均在位，仅断 UI 入口）。
+- **FR-4.1（已更新）** 编译期 flag（`src/shared/featureFlags.ts`）：仅保留 `ENABLE_HTML_SHARE`（置 `false`）；`ENABLE_SITE_DEPLOYMENT` 已随部署整块下线一并删除。
+- **FR-4.2（已实现，2026-10-16 补全）** 分享入口 gate：
+  - `artifactToolbarPublishPolicy.ts`：`resolveArtifactPreviewToolbarPublishTarget` 首行 `if (!ENABLE_HTML_SHARE) return null`（`resolveBrowserToolbarPublishTarget` 经其间接 gate）。
+  - `ArtifactPreviewCard.tsx`：`canShare`。
+  - `libraryItemActionPolicy.ts`：`LibraryItemAction.ShareLocal` 过滤（驱动 `LibraryView` 卡片菜单与 `LibraryPreviewModal` 溢出菜单）。
+  - `LibraryPreviewModal.tsx`：头部独立分享按钮 `canShare`（**2026-10-16 补漏**，此前未接 flag）。
+  - `LibraryView.tsx`：云端资源库视角（`LibrarySourceFilter.Cloud`）整体随 flag 隐藏（**2026-10-16 补漏**）——`SOURCE_FILTERS` 只保留 Local，`resolveSource` 对请求进来的 `Cloud` 兜底为 `Local`，使 `LibraryNavigationEvent.OpenCloud` 无法再打开云视角。
+  - `ArtifactPanel.tsx`：经 publish policy 间接 gate。
+- **FR-4.3（已完成，与初版方案不同）** 部署入口 gate 的方案已作废：部署入口不是被 gate 隐藏，而是**整块删除**。`ENABLE_SITE_DEPLOYMENT`、`ArtifactToolbarPublishActionKind.Deploy`、`LibraryItemAction.ManageSite`、`sitesHidden` 等已全部移除。
+- **FR-4.4（已变更）** 分享服务层保留不删（`src/main/libs/htmlShare/*` 在位，仅断 UI 入口）；**部署服务层已删除**（`site/*`、`shareDeployment/*`、Site IPC、`SitesView` 均已移除），与初版"服务层保留"的结论不同。
+- **FR-4.5（2026-10-16 补全）** 旧 `deployed_site` 云库条目的兼容读路径保留（`shared/library/types.ts` 的 `DeployedSiteItem`，读取旧构建产生的云端 payload），但管理 UI 已死入口化并清理：`LibrarySharedFilesView` 的 settings 菜单项仅对 `SharedFile` 条目提供（此前 DeployedSite 条目仍显示"管理网站"，点击后只滚动列表）；失去引用的 `libraryManageSite` i18n key（中英）一并删除。
 
 ### FR-5：移除商业壳（最后执行）
 
@@ -387,7 +392,7 @@ checkout。
 | AC-3.1 | 语音输入可用，且不产生服务端请求 | 抓包确认无 `/api/asr` 请求 |
 | AC-3.2 | sherpa-onnx 侧车在 mac-arm64 上可打包运行 | **已通过**（2026-10-14 实测）：`npm run setup:sherpa-onnx` 拉取 `osx-universal2-shared` 包并落到 `bin/mac-arm64/`；离线识别实测 `今天天气真不错我们出去散步吧`，耗时 0.23s（RTF 0.066） |
 | AC-3.3 | 侧车损坏时应用能提示而非静默失败 | **部分通过**：`checkSenseVoiceAvailability()` 覆盖"文件缺失"路径（返回 `unavailable` 并置灰按钮）；**已修缺陷**：`bin/lib/` 缺失时原先静默判为"已就绪"，实际 `dyld` 崩溃并误报为 `recognitionFailed`（见下方缺陷记录） |
-| AC-4.1 | HTML 分享入口不可见 | ✅ **已通过**（2026-10-15 手动）：`ENABLE_HTML_SHARE=false`，3 处 gate 生效（`artifactToolbarPublishPolicy` / `ArtifactPreviewCard` / `libraryItemActionPolicy`，见 FR-4.2） |
+| AC-4.1 | HTML 分享入口不可见 | ✅ **已通过**（2026-10-15 手动）：`ENABLE_HTML_SHARE=false`，3 处 gate 生效（`artifactToolbarPublishPolicy` / `ArtifactPreviewCard` / `libraryItemActionPolicy`）。**2026-10-16 补充**：另发现 2 处漏点并已 gate（`LibraryPreviewModal` 头部分享按钮、`LibraryView` 云端资源库视角），详见 FR-4.2 |
 | AC-4.2 | 站点部署入口不可见 | ✅ **已通过**（2026-10-15 手动）：`ENABLE_SITE_DEPLOYMENT=false`，4 处 gate 生效（`App.tsx` `sitesHidden` + 3 处，见 FR-4.3） |
 | AC-5.1 | 全局搜索无 `enterprise` 相关请求 | 抓包 + 代码审查 |
 | AC-5.2 | 无订阅/积分/banner UI | 手动操作 |
@@ -449,6 +454,8 @@ checkout。
 | 第 3 轮（FR-3） | 2026-10-14 | 运行时按原设计实现完毕；联调阶段修复打包脚本两处缺陷（资产名映射、共享库拷贝）并加入自愈与单测 | 原计划未预见上游资产命名与 `lib/` 布局差异；打包脚本从"只校验可执行文件"升级为"可执行文件 + 共享库"完整性判断 | 见 §7.1、U-9 |
 | 第 3 轮（FR-3 补记） | 2026-10-14 | 二/三轮联调再修：`setup-sherpa-onnx.js` 新增 `materializeSymlinks()` 物化符号链接、`isBinaryPrepared` 增加悬空链接检测；`electron-builder-hooks.cjs` 增加打包前 `assertSidecarHasNoSymlinks()` 断言；`sidecar.ts` 合并 stderr+stdout 并新增 `onDiagnostics` | 发现第三处缺陷 D-3（识别结果打到 stderr）与符号链接打包缺陷（悬空链接会随包分发到用户机器崩溃） | 见 §7.1 D-3 及"自愈能力" |
 | 第 4 轮（FR-5） | 2026-10-14 | 移除商业壳：企业账号/请求头注入、订阅积分态与 UI、banner/活动、登录能力整体移除（含 `authSlice`、`authSessionManager`、`openclawTokenProxy` 删除），i18n 会员文案清零 | FR-5 拆分为独立文档 `specs/refactors/remove-membership/` 承接；登录能力由 M-1 决策**整体移除**（原计划仅清理登录态）；分享/部署服务层字段按 M-4 保留 | 见 `remove-membership` §11 D1-D5 |
+| 第 5 轮（FR-4 收口） | 2026-10-16 | 部署整块**删除**（非 gate）：删除 `src/main/libs/site/*`、`src/main/libs/shareDeployment/*`、`src/main/ipcHandlers/site/*`、`src/renderer/components/sites/*`、`src/shared/site/constants.ts`、`src/shared/shareDeployment/*`；`ArtifactPanel.tsx` 移除全部部署状态/JSX（约 1700 行）；`CoworkSessionDetail.tsx` 移除浏览器本地服务上下文；`artifactToolbarPublishPolicy.ts` 移除 Deploy 目标；`libraryItemActionPolicy.ts` 移除 `ManageSite`；删除 `ENABLE_SITE_DEPLOYMENT` flag；清理 `nodeDeployment*` i18n（渲染层 280 条 + 主进程 2 条）；`libraryCloudClient` 解除对 `shared/site/constants` 的依赖 | 与 FR-4 初版"仅断 UI 入口、保留服务层"的方案**不同**：部署服务层一并删除，仅分享服务层保留（见 FR-4.4 修订）。`DeployedSite` 云库条目与 `sitesStatus_*` i18n 因属保留的 Library 云端展示面而保留 | FR-4.1~FR-4.4、§2.2 |
+| 第 5 轮（FR-4 补记） | 2026-10-16 | 清理 Round 5 残留的死入口：`LibrarySharedFilesView` settings 菜单项改为仅对 `SharedFile` 提供（DeployedSite 条目的"管理网站"在 `ManageSite` action 移除后点击只滚动列表）；删除失去引用的 `libraryManageSite` i18n（中英各 1 条） | `DeployedSite` 兼容读路径与展示按 Round 5 决策保留，仅清死入口与孤儿文案 | 见 FR-4.5 |
 
 ### 10.4 第 1 轮已关闭决策
 

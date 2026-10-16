@@ -1,7 +1,7 @@
 import {
-  ShareDeploymentCandidateSource,
-  type ShareDeploymentProjectCandidate,
-} from '../../shared/shareDeployment/constants';
+  LocalWebServiceCandidateSource,
+  type LocalWebServiceProjectCandidate,
+} from '../../shared/localWebServices/constants';
 import {
   type Artifact,
   ArtifactMediaOriginType,
@@ -604,9 +604,9 @@ function commonProjectDirectory(directories: string[]): string {
 }
 
 function addProjectDirectoryCandidate(
-  candidates: ShareDeploymentProjectCandidate[],
+  candidates: LocalWebServiceProjectCandidate[],
   inputDirectory: string,
-  source: ShareDeploymentProjectCandidate['source'],
+  source: LocalWebServiceProjectCandidate['source'],
   confidence: number,
   options: {
     fallbackProjectDirectory?: string;
@@ -623,7 +623,7 @@ function addProjectDirectoryCandidate(
   if (!normalized) return;
 
   const existing = candidates.find(candidate => normalizeDirectoryForCompare(candidate.directory) === normalized);
-  const candidate: ShareDeploymentProjectCandidate = {
+  const candidate: LocalWebServiceProjectCandidate = {
     directory,
     source,
     confidence,
@@ -642,8 +642,8 @@ function addProjectDirectoryCandidate(
 }
 
 function selectBestProjectDirectoryCandidate(
-  candidates: ShareDeploymentProjectCandidate[],
-): ShareDeploymentProjectCandidate | undefined {
+  candidates: LocalWebServiceProjectCandidate[],
+): LocalWebServiceProjectCandidate | undefined {
   return [...candidates].sort((a, b) => b.confidence - a.confidence)[0];
 }
 
@@ -651,8 +651,8 @@ export function collectProjectDirectoryCandidatesFromText(
   messageContent: string,
   fallbackProjectDirectory?: string,
   messageId?: string,
-): ShareDeploymentProjectCandidate[] {
-  const candidates: ShareDeploymentProjectCandidate[] = [];
+): LocalWebServiceProjectCandidate[] {
+  const candidates: LocalWebServiceProjectCandidate[] = [];
 
   const labelRe = new RegExp(PROJECT_DIRECTORY_LABEL_RE.source, 'gi');
   let labelMatch: RegExpExecArray | null;
@@ -660,7 +660,7 @@ export function collectProjectDirectoryCandidatesFromText(
     addProjectDirectoryCandidate(
       candidates,
       labelMatch[1] || labelMatch[2] || '',
-      ShareDeploymentCandidateSource.TextLabeledPath,
+      LocalWebServiceCandidateSource.TextLabeledPath,
       85,
       {
         fallbackProjectDirectory,
@@ -677,7 +677,7 @@ export function collectProjectDirectoryCandidatesFromText(
     addProjectDirectoryCandidate(
       candidates,
       cdMatch[1] || cdMatch[2] || cdMatch[3] || cdMatch[4] || '',
-      ShareDeploymentCandidateSource.TextCdCommand,
+      LocalWebServiceCandidateSource.TextCdCommand,
       80,
       {
         fallbackProjectDirectory,
@@ -698,7 +698,7 @@ export function collectProjectDirectoryCandidatesFromText(
     addProjectDirectoryCandidate(
       candidates,
       directory,
-      ShareDeploymentCandidateSource.TextFileLink,
+      LocalWebServiceCandidateSource.TextFileLink,
       82,
       {
         reason: 'Matched a local file link in the assistant response.',
@@ -713,7 +713,7 @@ export function collectProjectDirectoryCandidatesFromText(
     addProjectDirectoryCandidate(
       candidates,
       commonDirectory,
-      ShareDeploymentCandidateSource.TextCommonParent,
+      LocalWebServiceCandidateSource.TextCommonParent,
       84,
       {
         reason: 'Matched the common parent directory of local file links.',

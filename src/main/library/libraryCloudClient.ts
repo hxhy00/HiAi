@@ -24,7 +24,6 @@ import type {
   SharedFileItem,
 } from '../../shared/library/types';
 import { normalizePublishingSubscriptionRecoveryMode } from '../../shared/publishing/constants';
-import { SiteKind, SiteStatus } from '../../shared/site/constants';
 import { LibraryLocalStore } from './libraryLocalStore';
 
 type FetchWithAuth = (url: string, options?: RequestInit) => Promise<Response>;
@@ -219,9 +218,7 @@ const normalizeCloudItem = (
     const accessMode = readString(input.accessMode);
     if (
       !siteKind
-      || !Object.values(SiteKind).includes(siteKind as SiteKind)
       || !siteStatus
-      || !Object.values(SiteStatus).includes(siteStatus as SiteStatus)
       || !shareStatus
       || !Object.values(HtmlShareStatus).includes(shareStatus as HtmlShareStatus)
       || !accessMode
@@ -239,8 +236,8 @@ const normalizeCloudItem = (
       sortTime,
       createdAt,
       isFavorite: favorites.has(`${LibraryItemKind.DeployedSite}:${itemId}`),
-      siteKind: siteKind as SiteKind,
-      siteStatus: siteStatus as SiteStatus,
+      siteKind,
+      siteStatus,
       shareStatus: shareStatus as HtmlShareStatus,
       accessMode: accessMode as HtmlShareAccessMode,
       ...(latestSession ? { latestSession } : {}),

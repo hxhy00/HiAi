@@ -22,6 +22,7 @@ import React, {
   useState,
 } from 'react';
 
+import { ENABLE_HTML_SHARE } from '../../../shared/featureFlags';
 import {
   LibraryCategory,
   LibraryChangeReason,
@@ -137,8 +138,6 @@ interface LibraryViewProps {
   isSidebarCollapsed: boolean;
   onToggleSidebar: () => void;
   onOpenSession: (session: LibrarySessionRef) => void;
-  sitesHidden?: boolean;
-  sitesReadOnly?: boolean;
   updateBadge?: React.ReactNode;
   requestedSource?: LibrarySourceFilter;
   navigationRequestId?: number;
@@ -197,10 +196,13 @@ const CATEGORY_FILTERS = [
   LibraryCategory.Other,
 ] as const;
 
-const SOURCE_FILTERS = [
-  LibrarySourceFilter.Local,
-  LibrarySourceFilter.Cloud,
-] as const;
+// Cloud library is the share management surface; it talks to the HiAi server
+// and is hidden together with the share entries while ENABLE_HTML_SHARE is off.
+const SOURCE_FILTERS = (
+  ENABLE_HTML_SHARE
+    ? [LibrarySourceFilter.Local, LibrarySourceFilter.Cloud]
+    : [LibrarySourceFilter.Local]
+) as readonly LibrarySourceFilter[];
 
 const getLocalLibraryError = (code?: LibraryErrorCode, fallback?: string): string => {
   if (code === LibraryErrorCode.ProtocolMismatch) return i18nService.t('libraryRestartForUpdate');
@@ -342,14 +344,17 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
   isSidebarCollapsed,
   onToggleSidebar,
   onOpenSession,
-  sitesHidden = false,
-  sitesReadOnly = false,
   updateBadge,
   requestedSource = LibrarySourceFilter.Local,
   navigationRequestId = 0,
 }) => {
   const artifactFileShare = useOptionalArtifactFileShare();
-  const [source, setSource] = useState<LibrarySourceFilter>(requestedSource);
+  const resolveSource = (value: LibrarySourceFilter): LibrarySourceFilter => (
+    !ENABLE_HTML_SHARE && value === LibrarySourceFilter.Cloud
+      ? LibrarySourceFilter.Local
+      : value
+  );
+  const [source, setSource] = useState<LibrarySourceFilter>(resolveSource(requestedSource));
   const [category, setCategory] = useState<LibraryCategory>(LibraryCategory.All);
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -450,8 +455,7 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
   }), [category, favoritesOnly, keyword]);
   const cloudScopeKey = useMemo(() => JSON.stringify({
     isAuthenticated,
-    sitesHidden,
-  }), [isAuthenticated, sitesHidden]);
+  }), [isAuthenticated]);
   const cloudQueryKey = useMemo(() => JSON.stringify({
     category,
     keyword,
@@ -560,12 +564,13 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
   }, []);
 
   const handleSourceChange = (nextSource: LibrarySourceFilter): void => {
-    if (nextSource === source) return;
+    const resolved = resolveSource(nextSource);
+    if (resolved === source) return;
     setActiveItem(undefined);
     setCategory(LibraryCategory.All);
     setKeywordInput('');
     setKeyword('');
-    setSource(nextSource);
+    setSource(resolved);
     scrollContainerRef.current?.scrollTo({ top: 0 });
   };
 
@@ -596,15 +601,9 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
     setCategory(LibraryCategory.All);
     setKeywordInput('');
     setKeyword('');
-    setSource(requestedSource);
+    setSource(resolveSource(requestedSource));
     scrollContainerRef.current?.scrollTo({ top: 0 });
   }, [navigationRequestId, requestedSource]);
-
-  useEffect(() => {
-    if (sitesHidden && category === LibraryCategory.Site) {
-      setCategory(LibraryCategory.All);
-    }
-  }, [category, sitesHidden]);
 
   const loadData = useCallback(async (
     intent: LibraryLoadIntent,
@@ -644,9 +643,7 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
             : {}),
         })
       : Promise.resolve(null);
-    const cloudKind = sitesHidden
-      ? LibraryCloudKind.SharedFile
-      : LibraryCloudKind.All;
+    const cloudKind = LibraryCloudKind.SharedFile;
     const cloudPromise = loadCloudPage && isAuthenticated
       ? window.electron.library.listCloud({
           kind: cloudKind,
@@ -773,7 +770,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
     cloudAvailability,
     restoration,
     settleLibraryLoad,
-    sitesHidden,
     visibleCloudData.hasMore,
     visibleCloudData.nextCursor,
     wantsCloud,
@@ -1358,7 +1354,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
     if (action === LibraryItemAction.OpenWithApp) return i18nService.t('libraryOpenWithApp');
     if (action === LibraryItemAction.RevealLocal) return i18nService.t('libraryRevealFile');
     if (action === LibraryItemAction.CopyLink) return i18nService.t('libraryCopyLink');
-    if (action === LibraryItemAction.ManageSite) return i18nService.t('libraryManageSite');
     if (action === LibraryItemAction.RelatedSessions) {
       return i18nService.t('libraryRelatedSessions');
     }
@@ -1382,7 +1377,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
     if (action === LibraryItemAction.CopyLink) {
       return <ClipboardDocumentIcon className="h-4 w-4" />;
     }
-    if (action === LibraryItemAction.ManageSite) return <GlobeAltIcon className="h-4 w-4" />;
     return <ArrowTopRightOnSquareIcon className="h-4 w-4" />;
   };
 
@@ -1530,8 +1524,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
               onItemUpdated={updateCloudItem}
               onItemDeleted={deleteCloudItem}
               onToggleFavorite={item => void updateFavorite(item)}
-              hideSites={sitesHidden}
-              sitesReadOnly={sitesReadOnly}
             />
           ) : (
         <div className="mx-auto w-full max-w-[1120px] px-4 py-6 sm:px-8">
@@ -1758,7 +1750,6 @@ const LibraryViewContent: React.FC<LibraryViewProps> = ({
             setActiveItem(undefined);
             onOpenSession(session);
           }}
-          onShowSites={() => undefined}
         />
       )}
     </div>

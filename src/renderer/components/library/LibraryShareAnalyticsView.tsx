@@ -8,7 +8,7 @@ import {
   MANAGEMENT_META_TEXT,
   MANAGEMENT_TITLE_TEXT,
 } from '../common/managementTypography';
-import SiteAnalyticsChart from '../sites/SiteAnalyticsChart';
+import TrafficAnalyticsChart from '../common/TrafficAnalyticsChart';
 
 const LibraryShareAnalyticsRange = {
   SevenDays: 7,
@@ -171,7 +171,7 @@ const LibraryShareAnalyticsView: React.FC<LibraryShareAnalyticsViewProps> = ({ s
               </p>
             </div>
           </div>
-          <SiteAnalyticsChart
+          <TrafficAnalyticsChart
             trend={chartTrend}
             title={i18nService.t('libraryShareAnalyticsTrend')}
             subtitle={i18nService.t('libraryShareAnalyticsDaily')}

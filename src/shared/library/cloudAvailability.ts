@@ -1,5 +1,4 @@
 import { HtmlShareStatus } from '../htmlShare/constants';
-import { SiteStatus } from '../site/constants';
 import {
   LibraryCloudAvailabilityFilter,
   type LibraryCloudAvailabilityFilter as LibraryCloudAvailabilityFilterValue,
@@ -28,7 +27,7 @@ export const getLibraryCloudAvailability = (
       ? LibraryCloudAvailabilityFilter.Available
       : LibraryCloudAvailabilityFilter.Unavailable;
   }
-  return item.siteStatus === SiteStatus.Online
+  return item.siteStatus === 'online'
     && item.shareStatus === HtmlShareStatus.Live
     && item.effectiveAvailable !== false
     ? LibraryCloudAvailabilityFilter.Available

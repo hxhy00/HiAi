@@ -19,12 +19,3 @@ export const ENABLE_OPENCLAW_SKILL_SYNC = false;
  * kept (see FR-4.4) so the feature can be revived later by flipping this flag.
  */
 export const ENABLE_HTML_SHARE = false;
-
-/**
- * Whether to expose site deployment.
- *
- * Deployment targets the HiAi server (`shareDeploymentClient` / `siteClient`).
- * Same reasoning as ENABLE_HTML_SHARE: hide the entry points, keep the service
- * layer. See FR-4.3 / FR-4.4.
- */
-export const ENABLE_SITE_DEPLOYMENT = false;

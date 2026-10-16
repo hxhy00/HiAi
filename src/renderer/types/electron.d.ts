@@ -125,38 +125,9 @@ import type {
   PublishingTrialPolicy,
 } from '../../shared/publishing/constants';
 import type {
-  ShareDeploymentAnalyzeProjectInput,
-  ShareDeploymentCreateNodeInput,
-  ShareDeploymentDetectCandidatesInput,
-  ShareDeploymentDetectCandidatesResult,
-  ShareDeploymentDownloadPersistenceInput,
-  ShareDeploymentDownloadPersistenceResult,
-  ShareDeploymentGetByLocalServiceInput,
-  ShareDeploymentPersistenceInfoResult,
-  ShareDeploymentProjectAnalysis,
-  ShareDeploymentResult,
-  ShareDeploymentSelectPersistencePathInput,
-  ShareDeploymentSelectPersistencePathResult,
-} from '../../shared/shareDeployment/constants';
-import type {
   ShellGetBrowserAppsInput,
   ShellOpenFailureReason,
 } from '../../shared/shell/constants';
-import type {
-  SiteAnalytics,
-  SiteAnalyticsOptions,
-  SiteDeploymentQuota,
-  SiteDeploymentQuotaOptions,
-  SiteDetail,
-  SiteListData,
-  SiteListOptions,
-  SiteQuotaReservation,
-  SiteQuotaReservationInput,
-  SiteResult,
-  SiteUpdateAccessModeInput,
-  SiteUpdateAccessStatusInput,
-  SiteUpdateTitleInput,
-} from '../../shared/site/constants';
 import type {
   SkinApplyResponse,
   SkinBindThemeResponse,
@@ -624,6 +595,15 @@ interface IElectronAPI {
       config: Record<string, string>,
     ) => Promise<{ success: boolean; result?: EmailConnectivityTestResult; error?: string }>;
     fetchMarketplace: () => Promise<{ success: boolean; data?: string; error?: string }>;
+    fetchMarketplaceSource: (
+      source: string,
+      query?: { query?: string; limit?: number; cursor?: string },
+    ) => Promise<{
+      success: boolean;
+      skills: import('../types/skill').MarketplaceSkill[];
+      nextCursor?: string;
+      error?: string;
+    }>;
     detectFromOpenClaw: () => Promise<{
       skills: Array<{ name: string; description: string; skillKey: string; baseDir: string }>;
       error?: string;
@@ -1409,45 +1389,6 @@ interface IElectronAPI {
       code?: number;
     }>;
     getAnalytics: (options: HtmlShareAnalyticsInput) => Promise<HtmlShareAnalyticsResult>;
-  };
-  shareDeployment: {
-    detectProjectCandidates: (
-      options: ShareDeploymentDetectCandidatesInput,
-    ) => Promise<ShareDeploymentDetectCandidatesResult>;
-    analyzeProjectDirectory: (
-      options: ShareDeploymentAnalyzeProjectInput,
-    ) => Promise<ShareDeploymentProjectAnalysis>;
-    selectPersistencePath: (
-      options: ShareDeploymentSelectPersistencePathInput,
-    ) => Promise<ShareDeploymentSelectPersistencePathResult>;
-    createNodeDeployment: (
-      options: ShareDeploymentCreateNodeInput,
-    ) => Promise<ShareDeploymentResult>;
-    get: (deploymentId: string) => Promise<ShareDeploymentResult>;
-    getByLocalService: (options: ShareDeploymentGetByLocalServiceInput) => Promise<ShareDeploymentResult>;
-    getPersistence: (deploymentId: string) => Promise<ShareDeploymentPersistenceInfoResult>;
-    downloadPersistenceArchive: (
-      options: ShareDeploymentDownloadPersistenceInput,
-    ) => Promise<ShareDeploymentDownloadPersistenceResult>;
-  };
-  sites: {
-    list: (options?: SiteListOptions) => Promise<SiteResult<SiteListData>>;
-    get: (shareId: string) => Promise<SiteResult<SiteDetail>>;
-    updateTitle: (input: SiteUpdateTitleInput) => Promise<SiteResult<SiteDetail>>;
-    updateAccessMode: (input: SiteUpdateAccessModeInput) => Promise<SiteResult<SiteDetail>>;
-    updateAccessStatus: (input: SiteUpdateAccessStatusInput) => Promise<SiteResult<SiteDetail>>;
-    delete: (shareId: string) => Promise<SiteResult<null>>;
-    getAnalytics: (
-      shareId: string,
-      options?: SiteAnalyticsOptions,
-    ) => Promise<SiteResult<SiteAnalytics>>;
-    getDeploymentQuota: (
-      options?: SiteDeploymentQuotaOptions,
-    ) => Promise<SiteResult<SiteDeploymentQuota>>;
-    createQuotaReservation: (
-      input: SiteQuotaReservationInput,
-    ) => Promise<SiteResult<SiteQuotaReservation>>;
-    releaseQuotaReservation: (reservationId: string) => Promise<SiteResult<null>>;
   };
   library: {
     listLocal: (

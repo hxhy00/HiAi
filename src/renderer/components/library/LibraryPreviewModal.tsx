@@ -13,6 +13,7 @@ import {
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 import React, { useEffect, useRef, useState } from 'react';
 
+import { ENABLE_HTML_SHARE } from '../../../shared/featureFlags';
 import {
   LibraryAvailability,
   LibraryItemKind,
@@ -25,7 +26,6 @@ import type {
 import { loadDetectedFileArtifact } from '../../services/artifactDetection';
 import { i18nService } from '../../services/i18n';
 import type { Artifact } from '../../types/artifact';
-
 import {
   ArtifactFileShareProvider,
   useOptionalArtifactFileShare,
@@ -49,7 +49,6 @@ import FileTypeIcon from '../icons/fileTypes/FileTypeIcon';
 import ShareUploadIcon from '../icons/ShareUploadIcon';
 import Tooltip, { TooltipAlign, TooltipPosition } from '../ui/Tooltip';
 import { LIBRARY_ACTION_MENU_WIDTH_PX } from './libraryActionMenuPresentation';
-
 import {
   createLibraryArtifactCandidate,
   getLibraryPreviewContentKey,
@@ -77,7 +76,6 @@ interface LibraryPreviewModalProps {
   onOpenLink: () => void;
   onCopyLink: () => void;
   onOpenSession: (session: LibrarySessionRef) => void;
-  onShowSites: () => void;
 }
 
 /** The artifact read for a preview key; null when its file could not be read. */
@@ -122,7 +120,6 @@ const ActionIcon: React.FC<{
   if (action === LibraryItemAction.OpenWithApp || action === LibraryItemAction.OpenLink) {
     return <ArrowTopRightOnSquareIcon className="h-4 w-4" />;
   }
-  if (action === LibraryItemAction.ManageSite) return <GlobeAltIcon className="h-4 w-4" />;
   return <InformationCircleIcon className="h-4 w-4" />;
 };
 
@@ -133,7 +130,6 @@ const getActionLabel = (item: LibraryItem, action: LibraryItemActionValue): stri
       : i18nService.t('libraryAddFavorite');
   }
   if (action === LibraryItemAction.RevealLocal) return i18nService.t('libraryRevealFile');
-  if (action === LibraryItemAction.ManageSite) return i18nService.t('libraryManageSite');
   if (action === LibraryItemAction.CopyLink) return i18nService.t('libraryCopyLink');
   if (action === LibraryItemAction.OpenLink) return i18nService.t('libraryOpenLink');
   if (action === LibraryItemAction.ShareLocal) return i18nService.t('htmlShare');
@@ -185,7 +181,6 @@ const LibraryPreviewModalContent: React.FC<LibraryPreviewModalProps> = ({
   onOpenLink,
   onCopyLink,
   onOpenSession,
-  onShowSites,
 }) => {
   const artifactFileShare = useOptionalArtifactFileShare();
   const [preview, setPreview] = useState<LoadedLibraryPreview>();
@@ -240,7 +235,7 @@ const LibraryPreviewModalContent: React.FC<LibraryPreviewModalProps> = ({
     ? Math.max(localItem.relatedSessionCount, sessions.length)
     : sessions.length;
   const hasPreviewMenuItems = previewActions.length > 0;
-  const canShare = Boolean(
+  const canShare = ENABLE_HTML_SHARE && Boolean(
     localItem
     && artifact
     && artifactFileShare
@@ -260,7 +255,6 @@ const LibraryPreviewModalContent: React.FC<LibraryPreviewModalProps> = ({
     else if (action === LibraryItemAction.RevealLocal) onReveal();
     else if (action === LibraryItemAction.OpenLink) onOpenLink();
     else if (action === LibraryItemAction.CopyLink) onCopyLink();
-    else if (action === LibraryItemAction.ManageSite) onShowSites();
   };
 
   const togglePopover = (): void => {

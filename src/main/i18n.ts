@@ -404,7 +404,6 @@ const translations: Record<LanguageType, Record<string, string>> = {
 
     htmlShareAccessModeUpdateFailed: '访问方式更新失败。',
     htmlShareStatusUpdateFailed: '分享开关更新失败。',
-    nodeDeploymentAccessStatusApplyFailed: '服务已部署，但访问状态更新失败：{message}',
 
     'enterprise.updateBlocked': '版本更新由企业统一管理',
   },
@@ -848,8 +847,6 @@ const translations: Record<LanguageType, Record<string, string>> = {
 
     htmlShareAccessModeUpdateFailed: 'Failed to update access mode.',
     htmlShareStatusUpdateFailed: 'Failed to update share access.',
-    nodeDeploymentAccessStatusApplyFailed:
-      'The service was deployed, but its access settings could not be updated: {message}',
 
     'enterprise.updateBlocked': 'Updates are managed by enterprise',
   },

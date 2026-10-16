@@ -10,7 +10,6 @@ import {
 
 vi.mock('../../../shared/featureFlags', () => ({
   ENABLE_HTML_SHARE: true,
-  ENABLE_SITE_DEPLOYMENT: true,
 }));
 
 const makeItem = (itemKind: LibraryItemKind): LibraryItem => ({
@@ -79,17 +78,6 @@ describe('library item action policy (features enabled)', () => {
     ]);
   });
 
-  test('routes site management through the existing site surface', () => {
-    const item = makeItem(LibraryItemKind.DeployedSite);
-    expect(getLibraryCardActionIds(item)).toContain(LibraryItemAction.ManageSite);
-    expect(getLibraryPreviewActionIds(item)).toEqual([
-      LibraryItemAction.OpenLink,
-      LibraryItemAction.CopyLink,
-      LibraryItemAction.ManageSite,
-      LibraryItemAction.RelatedSessions,
-    ]);
-  });
-
   test('keeps favorite in the preview header and moves local utilities into overflow', () => {
     expect(getLibraryPreviewActionIds(makeItem(LibraryItemKind.LocalArtifact))).toEqual([
       LibraryItemAction.OpenWithApp,
@@ -117,11 +105,10 @@ describe('library item action policy (features enabled)', () => {
 });
 
 describe('library item action policy (features disabled)', () => {
-  test('removes share and site management when the flags are off', async () => {
+  test('removes share when the flag is off', async () => {
     vi.resetModules();
     vi.doMock('../../../shared/featureFlags', () => ({
       ENABLE_HTML_SHARE: false,
-      ENABLE_SITE_DEPLOYMENT: false,
     }));
     const policy = await import('./libraryItemActionPolicy');
 
@@ -130,9 +117,6 @@ describe('library item action policy (features disabled)', () => {
       LibraryItemAction.OpenWithApp,
       LibraryItemAction.RevealLocal,
     ]);
-    expect(
-      policy.getLibraryCardActionIds(makeItem(LibraryItemKind.DeployedSite)),
-    ).not.toContain(LibraryItemAction.ManageSite);
     vi.doUnmock('../../../shared/featureFlags');
   });
 });

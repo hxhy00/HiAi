@@ -28,9 +28,9 @@ test('portal pricing url can carry a publishing attribution trace', () => {
   mockTestMode(false);
 
   expect(getPortalPricingUrl(
-    PortalPricingKeyfrom.SiteDeployment,
+    PortalPricingKeyfrom.HtmlShare,
     { traceId: 'attempt-123' },
   )).toBe(
-    'https://lobsterai.youdao.com/portal#/pricing?keyfrom=site_deployment&trace_id=attempt-123',
+    'https://lobsterai.youdao.com/portal#/pricing?keyfrom=html_share&trace_id=attempt-123',
   );
 });

@@ -90,26 +90,7 @@ import type { McpToolDiscoveryRequest } from '../shared/mcp/toolDiscovery';
 import { OpenClawEngineIpc } from '../shared/openclawEngine/constants';
 import { PermissionIpcChannel } from '../shared/permissions/constants';
 import type { Platform } from '../shared/platform';
-import {
-  type ShareDeploymentAnalyzeProjectInput,
-  type ShareDeploymentCreateNodeInput,
-  type ShareDeploymentDetectCandidatesInput,
-  type ShareDeploymentDownloadPersistenceInput,
-  type ShareDeploymentGetByLocalServiceInput,
-  ShareDeploymentIpc,
-  type ShareDeploymentSelectPersistencePathInput,
-} from '../shared/shareDeployment/constants';
 import { type ShellGetBrowserAppsInput, ShellIpc } from '../shared/shell/constants';
-import {
-  type SiteAnalyticsOptions,
-  type SiteDeploymentQuotaOptions,
-  SiteIpc,
-  type SiteListOptions,
-  type SiteQuotaReservationInput,
-  type SiteUpdateAccessModeInput,
-  type SiteUpdateAccessStatusInput,
-  type SiteUpdateTitleInput,
-} from '../shared/site/constants';
 import { SkinIpc } from '../shared/skin/constants';
 import type {
   SkinApplyResponse,
@@ -157,6 +138,8 @@ contextBridge.exposeInMainWorld('electron', {
     testEmailConnectivity: (skillId: string, config: Record<string, string>) =>
       ipcRenderer.invoke('skills:testEmailConnectivity', skillId, config),
     fetchMarketplace: () => ipcRenderer.invoke('skills:fetchMarketplace'),
+    fetchMarketplaceSource: (source: string, query?: { query?: string; limit?: number; cursor?: string }) =>
+      ipcRenderer.invoke('skills:fetchMarketplaceSource', source, query),
     detectFromOpenClaw: () => ipcRenderer.invoke('skills:detectFromOpenClaw'),
     syncFromOpenClaw: () => ipcRenderer.invoke('skills:syncFromOpenClaw'),
     refreshPluginSkillIds: () => ipcRenderer.invoke('skills:refreshPluginSkillIds'),
@@ -953,41 +936,6 @@ contextBridge.exposeInMainWorld('electron', {
     getTrialPolicy: () => ipcRenderer.invoke(HtmlShareIpc.GetTrialPolicy),
     getAnalytics: (options: HtmlShareAnalyticsInput) =>
       ipcRenderer.invoke(HtmlShareIpc.GetAnalytics, options),
-  },
-  shareDeployment: {
-    detectProjectCandidates: (options: ShareDeploymentDetectCandidatesInput) =>
-      ipcRenderer.invoke(ShareDeploymentIpc.DetectProjectCandidates, options),
-    analyzeProjectDirectory: (options: ShareDeploymentAnalyzeProjectInput) =>
-      ipcRenderer.invoke(ShareDeploymentIpc.AnalyzeProjectDirectory, options),
-    selectPersistencePath: (options: ShareDeploymentSelectPersistencePathInput) =>
-      ipcRenderer.invoke(ShareDeploymentIpc.SelectPersistencePath, options),
-    createNodeDeployment: (options: ShareDeploymentCreateNodeInput) =>
-      ipcRenderer.invoke(ShareDeploymentIpc.CreateNodeDeployment, options),
-    get: (deploymentId: string) => ipcRenderer.invoke(ShareDeploymentIpc.Get, deploymentId),
-    getByLocalService: (options: ShareDeploymentGetByLocalServiceInput) =>
-      ipcRenderer.invoke(ShareDeploymentIpc.GetByLocalService, options),
-    getPersistence: (deploymentId: string) =>
-      ipcRenderer.invoke(ShareDeploymentIpc.GetPersistence, deploymentId),
-    downloadPersistenceArchive: (options: ShareDeploymentDownloadPersistenceInput) =>
-      ipcRenderer.invoke(ShareDeploymentIpc.DownloadPersistenceArchive, options),
-  },
-  sites: {
-    list: (options: SiteListOptions = {}) => ipcRenderer.invoke(SiteIpc.List, options),
-    get: (shareId: string) => ipcRenderer.invoke(SiteIpc.Get, shareId),
-    updateTitle: (input: SiteUpdateTitleInput) => ipcRenderer.invoke(SiteIpc.UpdateTitle, input),
-    updateAccessMode: (input: SiteUpdateAccessModeInput) =>
-      ipcRenderer.invoke(SiteIpc.UpdateAccessMode, input),
-    updateAccessStatus: (input: SiteUpdateAccessStatusInput) =>
-      ipcRenderer.invoke(SiteIpc.UpdateAccessStatus, input),
-    delete: (shareId: string) => ipcRenderer.invoke(SiteIpc.Delete, shareId),
-    getAnalytics: (shareId: string, options: SiteAnalyticsOptions = {}) =>
-      ipcRenderer.invoke(SiteIpc.GetAnalytics, shareId, options),
-    getDeploymentQuota: (options: SiteDeploymentQuotaOptions = {}) =>
-      ipcRenderer.invoke(SiteIpc.GetDeploymentQuota, options),
-    createQuotaReservation: (input: SiteQuotaReservationInput) =>
-      ipcRenderer.invoke(SiteIpc.CreateQuotaReservation, input),
-    releaseQuotaReservation: (reservationId: string) =>
-      ipcRenderer.invoke(SiteIpc.ReleaseQuotaReservation, reservationId),
   },
   library: {
     listLocal: (options: LibraryLocalListOptions = {}) =>

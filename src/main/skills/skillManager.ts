@@ -1428,8 +1428,16 @@ const deriveNpmPackageBaseName = (spec: string): string => {
 const isRemoteZipUrl = (source: string): boolean => {
   try {
     const url = new URL(source);
-    return (url.protocol === 'http:' || url.protocol === 'https:')
-      && url.pathname.toLowerCase().endsWith('.zip');
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+    // Plain archive links.
+    if (url.pathname.toLowerCase().endsWith('.zip')) return true;
+    // Marketplace archive endpoints (ClawHub / SkillHub) serve a zip via a
+    // query-parameter download route that has no `.zip` suffix. The installer
+    // follows redirects and reads the body as an archive, so these are safe.
+    if (url.pathname.endsWith('/api/v1/download')) {
+      return url.searchParams.has('slug') || url.searchParams.has('owner');
+    }
+    return false;
   } catch {
     return false;
   }
@@ -3458,4 +3466,5 @@ export const __skillManagerTestUtils = {
   resolveInstallTarget,
   deriveNpmPackageBaseName,
   deriveZipUrlBaseName,
+  isRemoteZipUrl,
 };

@@ -17,6 +17,7 @@ import {
 } from '../../shared/appUpdate/constants';
 import type { SqliteStore } from '../sqliteStore';
 import { AppUpdateGrayClient, canReuseUpdatePackage } from './appUpdateGrayClient';
+import { normalizeKeyfrom, resolveCurrentKeyfrom } from './keyfromAttribution';
 import {
   cancelActiveDownload,
   downloadUpdate,
@@ -36,7 +37,6 @@ import {
   getManualUpdateCheckUrl,
   getUpdateCheckUrl,
 } from './endpoints';
-import { getKeyfromAttribution } from './keyfromAttribution';
 
 type ChangeLogLang = {
   title?: string;
@@ -47,21 +47,23 @@ type PlatformDownload = {
   url?: string;
 };
 
-type UpdateApiResponse = {
-  code?: number;
-  data?: {
-    value?: {
-      version?: string;
-      date?: string;
-      changeLog?: {
-        ch?: ChangeLogLang;
-        en?: ChangeLogLang;
-      };
-      macIntel?: PlatformDownload;
-      macArm?: PlatformDownload;
-      windowsX64?: PlatformDownload;
-    };
-  };
+/** GitHub Releases API asset (subset of fields we consume). */
+type GitHubReleaseAsset = {
+  name?: string;
+  state?: string;
+  browser_download_url?: string;
+};
+
+/** GitHub Releases API `releases/latest` response (subset of fields we consume). */
+type GitHubLatestReleaseResponse = {
+  tag_name?: string;
+  name?: string;
+  body?: string;
+  published_at?: string;
+  created_at?: string;
+  draft?: boolean;
+  prerelease?: boolean;
+  assets?: GitHubReleaseAsset[];
 };
 
 function formatUpdateUrlForLog(rawUrl: string): string {
@@ -678,7 +680,10 @@ export class AppUpdateCoordinator {
     manual: boolean,
     userId?: string | null,
   ): Promise<AppUpdateInfo | null> {
-    const loadStable = () => this.fetchStableUpdateInfo(currentVersion, manual, userId);
+    // `userId`/`manual` only influence gray-source selection now; the stable
+    // check is source-agnostic and always hits GitHub Releases.
+    void userId;
+    const loadStable = () => this.fetchStableUpdateInfo(currentVersion);
     return this.grayUpdates
       ? this.grayUpdates.select(loadStable, currentVersion, manual ? AppUpdateSource.Manual : AppUpdateSource.Auto)
       : loadStable();
@@ -686,18 +691,18 @@ export class AppUpdateCoordinator {
 
   private async fetchStableUpdateInfo(
     currentVersion: string,
-    manual: boolean,
-    userId?: string | null,
   ): Promise<AppUpdateInfo | null> {
-    const baseUrl = manual ? getManualUpdateCheckUrl() : getUpdateCheckUrl();
-    const qs = this.getUpdateQueryString(userId, currentVersion);
-    const url = qs ? `${baseUrl}?${qs}` : baseUrl;
+    // Update checks go through GitHub Releases instead of the former
+    // first-party update API.
+    const url = getUpdateCheckUrl();
     console.log(`[AppUpdate] checking update, currentVersion=${currentVersion}, url=${url}`);
 
     const response = await session.defaultSession.fetch(url, {
       method: 'GET',
       headers: {
-        Accept: 'application/json',
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': `HiAi/${currentVersion}`,
       },
     });
 
@@ -705,13 +710,13 @@ export class AppUpdateCoordinator {
       throw new Error(`Update check failed (HTTP ${response.status})`);
     }
 
-    const payload = (await response.json()) as UpdateApiResponse;
-    if (payload.code !== 0) {
-      throw new Error(`Update check failed with code ${payload.code ?? 'unknown'}`);
+    const release = (await response.json()) as GitHubLatestReleaseResponse;
+    if (release?.draft) {
+      console.log('[AppUpdate] latest release is a draft, ignoring');
+      return null;
     }
 
-    const value = payload.data?.value;
-    const latestVersion = value?.version?.trim();
+    const latestVersion = this.normalizeGitHubVersion(release?.tag_name);
     if (!latestVersion || !this.isNewerVersion(latestVersion, currentVersion)) {
       console.log(
         `[AppUpdate] no update available, latestVersion=${latestVersion || 'N/A'}, currentVersion=${currentVersion}`,
@@ -719,19 +724,15 @@ export class AppUpdateCoordinator {
       return null;
     }
 
-    const toEntry = (log?: ChangeLogLang) => ({
-      title: typeof log?.title === 'string' ? log.title : '',
-      content: Array.isArray(log?.content) ? log.content : [],
-    });
-
     const result: AppUpdateInfo = {
       latestVersion,
-      date: value?.date?.trim() || '',
+      date: this.formatReleaseDate(release?.published_at || release?.created_at),
       changeLog: {
-        zh: toEntry(value?.changeLog?.ch),
-        en: toEntry(value?.changeLog?.en),
+        // GitHub provides a single release body; reuse it for both locales.
+        zh: this.toChangeLogEntry(release?.body, release?.name),
+        en: this.toChangeLogEntry(release?.body, release?.name),
       },
-      url: this.getPlatformDownloadUrl(value),
+      url: this.getPlatformDownloadUrl(release),
     };
     console.log(
       `[AppUpdate] update available: ${currentVersion} -> ${latestVersion}, downloadUrl=${formatUpdateUrlForLog(result.url)}`,
@@ -739,16 +740,60 @@ export class AppUpdateCoordinator {
     return result;
   }
 
-  private getPlatformDownloadUrl(
-    value: NonNullable<NonNullable<UpdateApiResponse['data']>['value']> | undefined,
-  ): string {
+  /** Strip a leading `v` (e.g. `v1.2.3` -> `1.2.3`) so version comparison works. */
+  private normalizeGitHubVersion(tag: string | undefined): string {
+    return (tag ?? '').trim().replace(/^v/i, '');
+  }
+
+  private formatReleaseDate(raw: string | undefined): string {
+    const value = (raw ?? '').trim();
+    if (!value) return '';
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString().slice(0, 10);
+  }
+
+  private toChangeLogEntry(body: string | undefined, title: string | undefined): ChangeLogLang {
+    const content = (body ?? '')
+      .split(/\r?\n/)
+      .map(line => line.trimEnd())
+      .filter((line, index, all) => line !== '' || (index > 0 && all[index - 1] !== ''));
+    return {
+      title: typeof title === 'string' ? title.trim() : '',
+      content,
+    };
+  }
+
+  private getPlatformDownloadUrl(release: GitHubLatestReleaseResponse): string {
+    const assets = (release.assets ?? []).filter(
+      asset => asset.state === undefined || asset.state === 'uploaded',
+    );
+    // Artifact names embed the distribution channel (keyfrom), e.g.
+    // `HiAi-Setup-x64-2026.10.13-online.exe`. Prefer the asset built for the
+    // channel this install belongs to, falling back to any matching asset.
+    const currentKeyfrom = normalizeKeyfrom(resolveCurrentKeyfrom());
+    const matchesKeyfrom = (name: string): boolean =>
+      name.includes(`-${currentKeyfrom}.`) || name.includes(`-${currentKeyfrom}-`);
+    const findUrl = (predicate: (name: string) => boolean): string => {
+      const isUsable = (asset: GitHubReleaseAsset): boolean =>
+        !!asset.browser_download_url && predicate((asset.name ?? '').toLowerCase());
+      const m =
+        assets.find(asset => isUsable(asset) && matchesKeyfrom((asset.name ?? '').toLowerCase())) ||
+        assets.find(asset => isUsable(asset));
+      return m?.browser_download_url?.trim() ?? '';
+    };
+
     if (process.platform === 'darwin') {
-      const download = process.arch === 'arm64' ? value?.macArm : value?.macIntel;
-      return download?.url?.trim() || getFallbackDownloadUrl();
+      // Prefer arm64 dmg on Apple Silicon; otherwise take a non-arm64 dmg.
+      const dmg = process.arch === 'arm64'
+        ? findUrl(name => name.endsWith('.dmg') && (name.includes('arm64') || name.includes('aarch64')))
+          || findUrl(name => name.endsWith('.dmg'))
+        : findUrl(name => name.endsWith('.dmg') && !name.includes('arm64') && !name.includes('aarch64'))
+          || findUrl(name => name.endsWith('.dmg'));
+      return dmg || getFallbackDownloadUrl();
     }
 
     if (process.platform === 'win32') {
-      const candidate = value?.windowsX64?.url?.trim();
+      const candidate = findUrl(name => name.endsWith('.exe'));
       if (!candidate) {
         return getFallbackDownloadUrl();
       }
@@ -759,7 +804,7 @@ export class AppUpdateCoordinator {
           ? error.reason
           : 'unknown';
         console.error(
-          `[AppUpdate] update API returned an unsafe Windows installer URL, reason=${reason}`,
+          `[AppUpdate] GitHub release returned an unsafe Windows installer URL, reason=${reason}`,
         );
         throw error;
       }
@@ -813,24 +858,6 @@ export class AppUpdateCoordinator {
     }
 
     return app.getVersion();
-  }
-
-  private getUpdateQueryString(userId?: string | null, version?: string): string {
-    const params = new URLSearchParams();
-    const installationId = this.getOrCreateInstallationId();
-    if (installationId) {
-      params.append('uuid', installationId);
-    }
-    if (userId) {
-      params.append('userId', userId);
-    }
-    if (version) {
-      params.append('version', version);
-    }
-    const { firstKeyfrom, latestKeyfrom } = getKeyfromAttribution(this.store);
-    params.set('firstKeyfrom', firstKeyfrom);
-    params.set('latestKeyfrom', latestKeyfrom);
-    return params.toString();
   }
 
   private getOrCreateInstallationId(): string | null {

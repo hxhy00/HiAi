@@ -52,22 +52,28 @@ export const getHtmlSharePublicBaseUrl = (): string => {
   return `${getServerApiBaseUrl()}${HtmlSharePublicRoute.Root}`;
 };
 
+/**
+ * GitHub repository that publishes HiAi releases (owner/repo).
+ */
+export const GITHUB_RELEASES_OWNER = 'hxhy00';
+export const GITHUB_RELEASES_REPO = 'HiAi';
+
+/**
+ * Update check endpoint — the GitHub Releases "latest" API.
+ * Returns the most recent published (non-draft, non-prerelease) release.
+ */
 export const getUpdateCheckUrl = (): string => (
-  isTestModeEnabled()
-    ? 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/test/update'
-    : 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/prod/update'
+  `https://api.github.com/repos/${GITHUB_RELEASES_OWNER}/${GITHUB_RELEASES_REPO}/releases/latest`
 );
 
-export const getManualUpdateCheckUrl = (): string => (
-  isTestModeEnabled()
-    ? 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/test/update-manual'
-    : 'https://api-overmind.youdao.com/openapi/get/luna/hardware/lobsterai/prod/update-manual'
-);
+/**
+ * Manual update check shares the same GitHub Releases endpoint as auto checks.
+ * Kept as a separate export so existing call sites stay source-agnostic.
+ */
+export const getManualUpdateCheckUrl = (): string => getUpdateCheckUrl();
 
 export const getFallbackDownloadUrl = (): string => (
-  isTestModeEnabled()
-    ? 'https://lobsterai.inner.youdao.com/#/download-list'
-    : 'https://lobsterai.youdao.com/#/download-list'
+  `https://github.com/${GITHUB_RELEASES_OWNER}/${GITHUB_RELEASES_REPO}/releases/latest`
 );
 
 export const getSkillStoreUrl = (): string => (

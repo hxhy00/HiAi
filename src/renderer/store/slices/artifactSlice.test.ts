@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 
-import { ShareDeploymentCandidateSource } from '../../../shared/shareDeployment/constants';
+import { LocalWebServiceCandidateSource } from '../../../shared/localWebServices/constants';
 import { type Artifact, ArtifactTypeValue } from '../../types/artifact';
 import type { RootState } from '..';
 import artifactReducer, {
@@ -157,7 +157,7 @@ test('updateLocalServiceProjectMetadata writes the shared preview and deployment
     projectDirectory: '/Users/admin/project/resolved-app',
     projectCandidates: [{
       directory: '/Users/admin/project/resolved-app',
-      source: ShareDeploymentCandidateSource.ProcessCwd,
+      source: LocalWebServiceCandidateSource.ProcessCwd,
       confidence: 95,
     }],
   }));
@@ -165,7 +165,7 @@ test('updateLocalServiceProjectMetadata writes the shared preview and deployment
   expect(state.artifactsBySession['session-1'][0].localService).toEqual(expect.objectContaining({
     projectDirectory: '/Users/admin/project/resolved-app',
     projectCandidates: [expect.objectContaining({
-      source: ShareDeploymentCandidateSource.ProcessCwd,
+      source: LocalWebServiceCandidateSource.ProcessCwd,
     })],
   }));
 });
@@ -182,7 +182,7 @@ test('addArtifact preserves an asynchronously resolved local service directory',
     projectDirectory: '/Users/admin/project/resolved-app',
     projectCandidates: [{
       directory: '/Users/admin/project/resolved-app',
-      source: ShareDeploymentCandidateSource.ProcessCwd,
+      source: LocalWebServiceCandidateSource.ProcessCwd,
       confidence: 95,
     }],
   }));
@@ -204,7 +204,7 @@ test('addArtifact preserves an artifact metadata directory when context is uncha
   );
   const contextCandidate = {
     directory: '/Users/admin/project/context-app',
-    source: ShareDeploymentCandidateSource.ToolCdCommand,
+    source: LocalWebServiceCandidateSource.ToolCdCommand,
     confidence: 94,
     messageId: 'bash-context',
   };
@@ -216,7 +216,7 @@ test('addArtifact preserves an artifact metadata directory when context is uncha
     projectDirectory: '/Users/admin/project/selected-app',
     projectCandidates: [{
       directory: '/Users/admin/project/selected-app',
-      source: ShareDeploymentCandidateSource.ArtifactMetadata,
+      source: LocalWebServiceCandidateSource.ArtifactMetadata,
       confidence: 96,
     }, contextCandidate],
   }));
@@ -235,7 +235,7 @@ test('addArtifact preserves an artifact metadata directory when context is uncha
   expect(state.artifactsBySession['session-1'][0].localService).toEqual(expect.objectContaining({
     projectDirectory: '/Users/admin/project/selected-app',
     projectCandidates: [expect.objectContaining({
-      source: ShareDeploymentCandidateSource.ArtifactMetadata,
+      source: LocalWebServiceCandidateSource.ArtifactMetadata,
     }), contextCandidate],
   }));
 });
@@ -249,7 +249,7 @@ test('addArtifact accepts newly discovered context instead of preserving a stale
     projectDirectory: '/Users/admin/project',
     projectCandidates: [{
       directory: '/Users/admin/project',
-      source: ShareDeploymentCandidateSource.Workspace,
+      source: LocalWebServiceCandidateSource.Workspace,
       confidence: 60,
     }],
   }));
@@ -260,7 +260,7 @@ test('addArtifact accepts newly discovered context instead of preserving a stale
   );
   enrichedArtifact.localService!.projectCandidates = [{
     directory: '/Users/admin/project/new-context-app',
-    source: ShareDeploymentCandidateSource.ToolCdCommand,
+    source: LocalWebServiceCandidateSource.ToolCdCommand,
     confidence: 94,
   }];
   state = artifactReducer(state, addArtifact({
@@ -281,13 +281,13 @@ test('addArtifact accepts a reordered local service context candidate list', () 
   );
   const appACandidate = {
     directory: '/Users/admin/project/app-a',
-    source: ShareDeploymentCandidateSource.ToolCdCommand,
+    source: LocalWebServiceCandidateSource.ToolCdCommand,
     confidence: 94,
     messageId: 'bash-a',
   };
   const appBCandidate = {
     directory: '/Users/admin/project/app-b',
-    source: ShareDeploymentCandidateSource.ToolCdCommand,
+    source: LocalWebServiceCandidateSource.ToolCdCommand,
     confidence: 93,
     messageId: 'bash-b',
   };
@@ -299,7 +299,7 @@ test('addArtifact accepts a reordered local service context candidate list', () 
     projectDirectory: '/Users/admin/project/resolved-app',
     projectCandidates: [{
       directory: '/Users/admin/project/resolved-app',
-      source: ShareDeploymentCandidateSource.ArtifactMetadata,
+      source: LocalWebServiceCandidateSource.ArtifactMetadata,
       confidence: 60,
     }, appACandidate, appBCandidate],
   }));
