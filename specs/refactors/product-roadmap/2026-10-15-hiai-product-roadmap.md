@@ -61,7 +61,11 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 
 **待确认项**：R1/R2/R3 三个商店的去向——自建静态托管、改由 GitHub Releases/仓库文件托管，还是随 `ENABLE_*` flag 直接下线入口？`getServerApiBaseUrl()` 余下调用点是"仅删除代码"还是需要替代实现（尤其是 HTML 分享 handler，服务层已断入口但代码未删）？
 
-**验收要点**：全局搜索非测试代码无 `lobsterai-server.youdao.com` / `api-overmind.youdao.com` 的 API 调用引用；断网 + 抓包确认零云端请求；技能市场 / Kit / MCP 市场入口在无网络时行为明确（隐藏或本地兜底）。
+**验收要点**（前两条为硬验收，必须实测）：
+1. **屏蔽验收**：在 hosts 中屏蔽 `api-overmind.youdao.com` 与 `lobsterai-server.youdao.com`，重启应用后**技能市场 / Kit 按钮 / MCP 连接器三个界面均可用**（本地兜底或入口隐藏），不出现空白或报错。这是本任务区别于 `de-server-dependency` AC-G1 的关键——AC-G1 只需"应用能启动"，而登录摘除后多数请求因无 token 而静默跳过，**即使 R1–R4 全未处理也能通过**，故不能用作本任务验收。
+2. **零请求**：断网 + 抓包确认全流程零云端请求。
+3. 全局搜索非测试代码无 `lobsterai-server.youdao.com` / `api-overmind.youdao.com` 的 API 调用引用。
+4. 技能市场 / Kit / MCP 市场入口在无网络时行为明确（隐藏或本地兜底）。
 
 **相关文档**：`specs/refactors/de-server-dependency/2026-10-13-de-server-dependency-design.md`（§2.1 表中"本期不动"项即本任务的 R1–R4，U-6 未决项）。
 
@@ -223,3 +227,4 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 | 2026-10-16 | 任务 3 / 4 按用户决定改为暂缓。 |
 | 2026-10-16 | 完成任务 2 云端残留审计（R1–R4 清单），结论：**未完成**——Skill/Kit/MCP 三个商店与 server baseUrl 余下调用点仍会真实发请求，入口对用户可见。任务 2 说明区由"待独立成文"改为审计结论。 |
 | 2026-10-16 | 核实任务 9 已落地（`endpoints.ts` 更新检查已走 GitHub Releases，`hxhy00/HiAi`）并标记为已完成；余下灰度更新检查归入任务 2 R4。 |
+| 2026-10-16 | 任务 2 验收要点改为「屏蔽 `api-overmind` + `lobsterai-server` 后三界面仍可用」为硬验收；原「断网能启动」不足以判别，因登录摘除后请求多因无 token 静默跳过，R1–R4 全未处理亦可通过。同步回填 `de-server-dependency` §2.1 调用清单与 U-6。 |
