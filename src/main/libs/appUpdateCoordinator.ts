@@ -13,11 +13,11 @@ import {
   type AppUpdateRuntimeState,
   AppUpdateSource,
   AppUpdateStatus,
+  type ChangeLogEntry,
   isManualDownloadUrl,
 } from '../../shared/appUpdate/constants';
 import type { SqliteStore } from '../sqliteStore';
 import { AppUpdateGrayClient, canReuseUpdatePackage } from './appUpdateGrayClient';
-import { normalizeKeyfrom, resolveCurrentKeyfrom } from './keyfromAttribution';
 import {
   cancelActiveDownload,
   downloadUpdate,
@@ -34,18 +34,9 @@ import {
 } from './appUpdateUrlPolicy';
 import {
   getFallbackDownloadUrl,
-  getManualUpdateCheckUrl,
   getUpdateCheckUrl,
 } from './endpoints';
-
-type ChangeLogLang = {
-  title?: string;
-  content?: string[];
-};
-
-type PlatformDownload = {
-  url?: string;
-};
+import { normalizeKeyfrom, resolveCurrentKeyfrom } from './keyfromAttribution';
 
 /** GitHub Releases API asset (subset of fields we consume). */
 type GitHubReleaseAsset = {
@@ -752,7 +743,7 @@ export class AppUpdateCoordinator {
     return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString().slice(0, 10);
   }
 
-  private toChangeLogEntry(body: string | undefined, title: string | undefined): ChangeLogLang {
+  private toChangeLogEntry(body: string | undefined, title: string | undefined): ChangeLogEntry {
     const content = (body ?? '')
       .split(/\r?\n/)
       .map(line => line.trimEnd())

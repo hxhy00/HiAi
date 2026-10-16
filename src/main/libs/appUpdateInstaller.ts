@@ -13,6 +13,7 @@ import { quitAppWithoutConfirmation } from './appQuitConfirmation';
 import {
   AppUpdateUrlUntrustedError,
   assertTrustedWindowsInstallerUrl,
+  isSecureWindowsInstallerOrigin,
   WINDOWS_INSTALLER_URL_POLICY_VERSION,
   type WindowsInstallerUrlPolicyReceipt,
 } from './appUpdateUrlPolicy';

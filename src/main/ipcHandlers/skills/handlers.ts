@@ -1,10 +1,10 @@
 import { ipcMain } from 'electron';
 
-import { fetchMarketplacePage } from '../../libs/skillMarketplace';
 import type {
   SkillInstallOrigin,
   SkillInstallOriginInput,
-} from '../../shared/skills/marketplaceSources';
+} from '../../../shared/skills/marketplaceSources';
+import { fetchMarketplacePage } from '../../libs/skillMarketplace';
 import { updatePluginSkillIdsFromReport } from '../../skills';
 import type { SkillManager } from '../../skills/skillManager';
 
