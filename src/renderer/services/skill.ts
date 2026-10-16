@@ -1,4 +1,8 @@
-import type { SkillMarketplaceSource } from '../../shared/skills/marketplaceSources';
+import type {
+  SkillInstallOrigin,
+  SkillInstallOriginInput,
+  SkillMarketplaceSource,
+} from '../../shared/skills/marketplaceSources';
 import { BUNDLED_SKILL_DISPLAY_NAMES } from '../components/skills/bundledSkillNames';
 import { LocalizedText, LocalSkillInfo, MarketplaceSkill, MarketTag, Skill } from '../types/skill';
 import { i18nService } from './i18n';
@@ -102,6 +106,8 @@ class SkillService {
   private skillIcons: Map<string, string> = new Map();
   private marketplaceCache: { skills: MarketplaceSkill[]; tags: MarketTag[] } | null = null;
   private marketplaceFetchPromise: Promise<{ skills: MarketplaceSkill[]; tags: MarketTag[] }> | null = null;
+  private installOrigins: Record<string, SkillInstallOrigin> | null = null;
+  private installOriginsPromise: Promise<Record<string, SkillInstallOrigin>> | null = null;
 
   async init(): Promise<void> {
     if (this.initialized) return;
@@ -145,6 +151,9 @@ class SkillService {
       const result = await window.electron.skills.delete(id);
       if (result.success && result.skills) {
         this.skills = result.skills;
+        if (this.installOrigins) {
+          await this.refreshInstallOrigins();
+        }
       }
       return result;
     } catch (error) {
@@ -154,7 +163,7 @@ class SkillService {
     }
   }
 
-  async downloadSkill(source: string): Promise<{
+  async downloadSkill(source: string, origin?: SkillInstallOriginInput): Promise<{
     success: boolean;
     skills?: Skill[];
     error?: string;
@@ -162,9 +171,12 @@ class SkillService {
     pendingInstallId?: string;
   }> {
     try {
-      const result = await window.electron.skills.download(source);
+      const result = await window.electron.skills.download(source, origin);
       if (result.success && result.skills) {
         this.skills = result.skills;
+        if (!result.pendingInstallId) {
+          await this.refreshInstallOrigins();
+        }
       }
       return result;
     } catch (error) {
@@ -182,6 +194,7 @@ class SkillService {
       const result = await window.electron.skills.confirmInstall(pendingId, action);
       if (result.success && result.skills) {
         this.skills = result.skills;
+        await this.refreshInstallOrigins();
       }
       return result;
     } catch (error) {
@@ -191,7 +204,7 @@ class SkillService {
     }
   }
 
-  async upgradeSkill(skillId: string, downloadUrl: string): Promise<{
+  async upgradeSkill(skillId: string, downloadUrl: string, origin?: SkillInstallOriginInput): Promise<{
     success: boolean;
     skills?: Skill[];
     error?: string;
@@ -199,9 +212,12 @@ class SkillService {
     pendingInstallId?: string;
   }> {
     try {
-      const result = await window.electron.skills.upgrade(skillId, downloadUrl);
+      const result = await window.electron.skills.upgrade(skillId, downloadUrl, origin);
       if (result.success && result.skills) {
         this.skills = result.skills;
+        if (!result.pendingInstallId) {
+          await this.refreshInstallOrigins();
+        }
       }
       return result;
     } catch (error) {
@@ -209,6 +225,37 @@ class SkillService {
       console.error('Failed to upgrade skill:', error);
       return { success: false, error: message };
     }
+  }
+
+  /**
+   * Installed skill id to marketplace origin. Entries are missing for skills
+   * installed before origins were recorded; callers fall back to plain id
+   * matching in that case.
+   */
+  async loadInstallOrigins(force = false): Promise<Record<string, SkillInstallOrigin>> {
+    if (!force && this.installOrigins) {
+      return this.installOrigins;
+    }
+    if (!force && this.installOriginsPromise) {
+      return this.installOriginsPromise;
+    }
+    this.installOriginsPromise = window.electron.skills
+      .listInstallOrigins()
+      .then(result => (result.success && result.origins ? result.origins : {}))
+      .catch(error => {
+        console.error('Failed to load skill install origins:', error);
+        return {} as Record<string, SkillInstallOrigin>;
+      })
+      .then(origins => {
+        this.installOrigins = origins;
+        this.installOriginsPromise = null;
+        return origins;
+      });
+    return this.installOriginsPromise;
+  }
+
+  private async refreshInstallOrigins(): Promise<void> {
+    await this.loadInstallOrigins(true);
   }
 
   async getSkillsRoot(): Promise<string | null> {

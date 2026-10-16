@@ -129,6 +129,10 @@ import type {
   ShellOpenFailureReason,
 } from '../../shared/shell/constants';
 import type {
+  SkillInstallOrigin,
+  SkillInstallOriginInput,
+} from '../../shared/skills/marketplaceSources';
+import type {
   SkinApplyResponse,
   SkinBindThemeResponse,
   SkinDeactivateResponse,
@@ -549,7 +553,7 @@ interface IElectronAPI {
       enabled: boolean;
     }) => Promise<{ success: boolean; skills?: Skill[]; error?: string }>;
     delete: (id: string) => Promise<{ success: boolean; skills?: Skill[]; error?: string }>;
-    download: (source: string) => Promise<{
+    download: (source: string, origin?: SkillInstallOriginInput) => Promise<{
       success: boolean;
       skills?: Skill[];
       error?: string;
@@ -559,12 +563,18 @@ interface IElectronAPI {
     upgrade: (
       skillId: string,
       downloadUrl: string,
+      origin?: SkillInstallOriginInput,
     ) => Promise<{
       success: boolean;
       skills?: Skill[];
       error?: string;
       auditReport?: any;
       pendingInstallId?: string;
+    }>;
+    listInstallOrigins: () => Promise<{
+      success: boolean;
+      origins?: Record<string, SkillInstallOrigin>;
+      error?: string;
     }>;
     confirmInstall: (
       pendingId: string,

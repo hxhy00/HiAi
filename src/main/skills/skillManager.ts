@@ -7,6 +7,10 @@ import path from 'path';
 
 import { ComputerUseSkillId } from '../../shared/computerUse/constants';
 import { SkillLoadIssue } from '../../shared/skills/constants';
+import type {
+  SkillInstallOrigin,
+  SkillInstallOriginInput,
+} from '../../shared/skills/marketplaceSources';
 import { isComputerUseKitInstalled } from '../computerUse/computerUseKit';
 import { cpRecursiveSync } from '../fsCompat';
 import { t } from '../i18n';
@@ -343,6 +347,27 @@ export type SkillRecord = {
 
 type SkillStateMap = Record<string, { enabled: boolean }>;
 
+type SkillOriginMap = Record<string, SkillInstallOrigin>;
+
+/** Drop malformed origin rows so one bad entry cannot break the whole map. */
+const normalizeSkillOriginMap = (raw: unknown): SkillOriginMap => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const map: SkillOriginMap = {};
+  Object.entries(raw as Record<string, unknown>).forEach(([skillId, origin]) => {
+    if (!origin || typeof origin !== 'object') return;
+    const candidate = origin as Partial<SkillInstallOrigin>;
+    if (typeof candidate.sourceId !== 'string' || !candidate.sourceId) return;
+    map[skillId] = {
+      marketplace: typeof candidate.marketplace === 'string' ? candidate.marketplace : '',
+      sourceId: candidate.sourceId,
+      ...(typeof candidate.url === 'string' && candidate.url ? { url: candidate.url } : {}),
+      installedAt: typeof candidate.installedAt === 'number' ? candidate.installedAt : 0,
+    };
+  });
+  return map;
+};
+
+
 type EmailConnectivityCheckCode = 'imap_connection' | 'smtp_connection';
 type EmailConnectivityCheckLevel = 'pass' | 'fail';
 type EmailConnectivityVerdict = 'pass' | 'fail';
@@ -413,6 +438,7 @@ const SKILL_FILE_NAME = 'SKILL.md';
 const SKILL_META_FILE_NAME = '_meta.json';
 const SKILLS_CONFIG_FILE = 'skills.config.json';
 const SKILL_STATE_KEY = 'skills_state';
+const SKILL_ORIGIN_KEY = 'skills_install_origins';
 const WATCH_DEBOUNCE_MS = 250;
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
@@ -1617,6 +1643,7 @@ export class SkillManager {
     root: string;
     skillDirs: string[];
     installNameHints?: InstallFolderNameHints;
+    installOrigin?: SkillInstallOriginInput;
     timer: NodeJS.Timeout;
     isUpgrade?: boolean;
     existingSkillDir?: string;
@@ -2118,6 +2145,7 @@ export class SkillManager {
       const state = this.loadSkillStateMap();
       delete state[id];
       this.saveSkillStateMap(state);
+      this.clearSkillOrigin(id);
       this.notifySkillsChanged(createSkillChangeBatch(SkillChangeSource.Delete));
       console.log('[skills] deleteSkill: completed successfully for "%s"', id);
       return this.listSkills();
@@ -2129,7 +2157,7 @@ export class SkillManager {
     }
   }
 
-  async downloadSkill(source: string): Promise<{
+  async downloadSkill(source: string, origin?: SkillInstallOriginInput): Promise<{
     success: boolean;
     skills?: SkillRecord[];
     error?: string;
@@ -2310,6 +2338,7 @@ export class SkillManager {
           skillDirs,
           installNameHints,
           timer,
+          installOrigin: origin,
         });
 
         return {
@@ -2321,7 +2350,8 @@ export class SkillManager {
 
       // Safe or scan failed — install directly
       console.log(`[SkillManager] Skill is safe (or scan failed), installing directly`);
-      installSkillDirs(root, skillDirs, installNameHints);
+      const installedIds = installSkillDirs(root, skillDirs, installNameHints);
+      this.recordInstallOrigins(installedIds, origin);
 
       cleanupPathSafely(cleanupPath);
       cleanupPath = null;
@@ -2335,7 +2365,7 @@ export class SkillManager {
     }
   }
 
-  async upgradeSkill(skillId: string, downloadUrl: string): Promise<{
+  async upgradeSkill(skillId: string, downloadUrl: string, origin?: SkillInstallOriginInput): Promise<{
     success: boolean;
     skills?: SkillRecord[];
     error?: string;
@@ -2361,13 +2391,13 @@ export class SkillManager {
 
     this.upgradingSkillIds.add(skillId);
     try {
-      return await this.performUpgradeDownload(skillId, downloadUrl, existingSkillDir);
+      return await this.performUpgradeDownload(skillId, downloadUrl, existingSkillDir, origin);
     } finally {
       this.upgradingSkillIds.delete(skillId);
     }
   }
 
-  private async performUpgradeDownload(skillId: string, downloadUrl: string, existingSkillDir: string): Promise<{
+  private async performUpgradeDownload(skillId: string, downloadUrl: string, existingSkillDir: string, origin?: SkillInstallOriginInput): Promise<{
     success: boolean;
     skills?: SkillRecord[];
     error?: string;
@@ -2466,6 +2496,7 @@ export class SkillManager {
           timer,
           isUpgrade: true,
           existingSkillDir,
+          installOrigin: origin,
         });
 
         // Ownership of cleanupPath transferred to pendingInstalls
@@ -2475,6 +2506,7 @@ export class SkillManager {
 
       // Safe — perform upgrade
       this.performSkillUpgrade(matchingSkillDir, existingSkillDir);
+      this.recordInstallOrigins([skillId], origin);
 
       cleanupPathSafely(cleanupPath);
       cleanupPath = null;
@@ -2574,6 +2606,8 @@ export class SkillManager {
         pending.installNameHints ?? { extractionRoots: [] },
       ));
     }
+
+    this.recordInstallOrigins(installedIds, pending.installOrigin);
 
     cleanupPathSafely(pending.cleanupPath);
 
@@ -2791,6 +2825,46 @@ export class SkillManager {
 
   private saveSkillStateMap(map: SkillStateMap): void {
     this.getStore().set(SKILL_STATE_KEY, map);
+  }
+
+  /** Installed-skill id to its marketplace origin, for renderer-side matching. */
+  listSkillInstallOrigins(): Record<string, SkillInstallOrigin> {
+    return this.loadSkillOriginMap();
+  }
+
+  private loadSkillOriginMap(): SkillOriginMap {
+    return normalizeSkillOriginMap(this.getStore().get(SKILL_ORIGIN_KEY));
+  }
+
+  private saveSkillOriginMap(map: SkillOriginMap): void {
+    this.getStore().set(SKILL_ORIGIN_KEY, map);
+  }
+
+  /**
+   * Attach an origin to freshly installed skills. Existing entries for the same
+   * marketplace item are dropped so a reinstall cannot leave a stale record
+   * pointing at a deleted directory.
+   */
+  private recordInstallOrigins(skillIds: string[], origin?: SkillInstallOriginInput): void {
+    if (!origin || !origin.sourceId || !origin.marketplace) return;
+    if (skillIds.length === 0) return;
+    const map = this.loadSkillOriginMap();
+    Object.entries(map).forEach(([skillId, existing]) => {
+      if (existing.sourceId === origin.sourceId && !skillIds.includes(skillId)) {
+        delete map[skillId];
+      }
+    });
+    skillIds.forEach(skillId => {
+      map[skillId] = { ...origin, installedAt: Date.now() };
+    });
+    this.saveSkillOriginMap(map);
+  }
+
+  private clearSkillOrigin(skillId: string): void {
+    const map = this.loadSkillOriginMap();
+    if (!(skillId in map)) return;
+    delete map[skillId];
+    this.saveSkillOriginMap(map);
   }
 
   private loadSkillsDefaults(roots: string[]): Record<string, SkillDefaultConfig> {
@@ -3467,4 +3541,5 @@ export const __skillManagerTestUtils = {
   deriveNpmPackageBaseName,
   deriveZipUrlBaseName,
   isRemoteZipUrl,
+  normalizeSkillOriginMap,
 };

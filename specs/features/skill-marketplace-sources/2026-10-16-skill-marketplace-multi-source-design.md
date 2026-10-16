@@ -80,9 +80,27 @@
 
 仅扩展 `skillManager.isRemoteZipUrl()` 白名单，放行 `/api/v1/download?slug=|owner=` 这类无 `.zip` 后缀的重定向下载路由；安装器、审计、回滚、升级比对全部沿用既有实现。
 
+### FR-7: 安装来源记录与跨源状态判定（2026-10-16 补实现）
+
+多源条目 id 形如 `clawhub:owner/slug`，而已安装技能的 id 是技能目录名（`resolveInstallFolderName` 的产物），两者永不相等；仅靠 id 全等匹配会让第三方源技能恒显示「未安装」、无法升级，且升级接口因收到 marketplace id 而找不到目标。
+
+- 安装与升级时把来源写入本地 kv（键 `skills_install_origins`，结构 `Record<skillId, SkillInstallOrigin>` = `{marketplace, sourceId, url, installedAt}`）。
+  - 落盘点覆盖三条路径：直接安装、`confirmPendingInstall`（安全审核确认后）、`upgradeSkill` 直接完成；`pendingInstalls` 携带 `installOrigin` 以跨确认流程保留。
+  - 重装同一条目时清理指向旧目录的记录；`deleteSkill` 同步清除。
+  - 读取时逐项校验（`normalizeSkillOriginMap` 丢弃缺 `sourceId` 的坏数据），单条脏数据不导致整体失败。
+- 渲染层以来源映射为权威匹配（`marketplaceInstallMatch.ts` 的 `findInstalledSkillIdFor` / `findMarketplaceSkillForInstalled`）：先按 `sourceId` 命中已安装技能，未命中回退 id 全等——历史技能（无来源记录）与官方源条目行为不变。
+- 升级必须传**已安装 id**（`resolveUpgradeTargetId`）并附带来源；找不到已安装技能时直接跳过，避免把 marketplace id 传给安装器。
+- 官方源条目无 `marketplace` 字段且 id 与目录名一致，不记录来源（`buildSkillOrigin` 返回 `undefined`）。
+
+### FR-8: 游标分页与「加载更多」（2026-10-16 补实现）
+
+- 切源与搜索重置游标；列表底部在存在 `nextCursor` 时展示「加载更多」（`skillMarketplaceLoadMore`），点击以 `fetchMarketplaceSource(source, {cursor})` 追加。
+- 追加按 id 去重（`appendMarketplacePage`），上游跨页重复条目不会产生重复卡片；无新条目时保持原列表引用不变。
+- 官方源无游标不显示该按钮；SkillHub 无分页能力，`nextCursor` 恒空，按钮同样不出现。
+
 ### 不做清单
 
-- 不做「加载更多」分页（游标契约已通但 UI 未接，见 U-2）。
+- ~~不做「加载更多」分页~~ **已做**（见 FR-8）。
 - 不做源偏好的持久化（切源不跨会话保留）。
 - 不做重试/退避/限流（见 U-5）。
 - 不改造官方源旧通道（见 U-4）。
@@ -157,7 +175,9 @@
 
 | 落点 | 文件 |
 | --- | --- |
-| 共享契约 | `src/shared/skills/marketplaceSources.ts` |
+| 共享契约 | `src/shared/skills/marketplaceSources.ts`（含 `SkillInstallOrigin` / `SkillInstallOriginInput`） |
+| 匹配与分页纯函数 | `src/renderer/components/skills/marketplaceInstallMatch.ts`（+ 同名 `.test.ts`） |
+| 安装来源存储 | `src/main/skills/skillManager.ts`（kv `skills_install_origins`；+ `skillManager.origins.test.ts`） |
 | 适配层 | `src/main/libs/skillMarketplace/{index,types,http,clawhubAdapter,skillhubAdapter}.ts` |
 | 适配层测试 | `src/main/libs/skillMarketplace/adapters.test.ts` |
 | IPC | `src/main/ipcHandlers/skills/handlers.ts`；类型 `src/renderer/types/electron.d.ts` |
@@ -180,20 +200,29 @@
 | AC-5.2 | `supportsSearch` 为假的源不触发搜索请求 | ✅ 代码核对（`SkillsManager` 搜索 effect） |
 | AC-6.1 | 第三方源条目 URL 可被安装器接受（`/api/v1/download` 白名单）并跟随重定向 | ✅ 代码核对；**端到端安装待手工实测** |
 | AC-7.1 | 改动文件在 CI 同款 eslint（`--max-warnings 0`）下通过，`tsc --noEmit` 与 `npm test` 无回归 | ✅ 2026-10-16：`adapters.test.ts` 与 `TrafficAnalyticsChart.test.ts` 共 8 用例通过；全量 6140 通过，2 处失败为无关遗留（popo-sdk）与计时抖动（skillManager.watcher 单跑全绿） |
+| AC-8.1 | 第三方源安装后，市场列表该条目显示「已安装」/「可升级」而非「安装」（FR-7） | ✅ `marketplaceInstallMatch.test.ts` + `skillManager.origins.test.ts`；**端到端待手工实测** |
+| AC-8.2 | 升级第三方源技能走通：传入已安装 id，安装后目录名不变、来源记录刷新 | ✅ 单测覆盖记录与清理；**端到端待手工实测** |
+| AC-8.3 | 历史已安装技能（无来源记录）与官方源条目的状态判定不变（FR-7 回退路径） | ✅ `marketplaceInstallMatch.test.ts` |
+| AC-9.1 | ClawHub 列表有 `nextCursor` 时出现「加载更多」，点击追加且无重复卡片（FR-8） | ✅ `appendMarketplacePage` 用例；**端到端待手工实测** |
+| AC-9.2 | 官方源与 SkillHub 不显示「加载更多」 | ✅ 官方源走旧通道无游标；SkillHub 无分页，`nextCursor` 恒空 |
 
 **测试覆盖缺口**：超时/Abort 路径、`User-Agent` 头、`limit` 默认值 30、`resolveAgainst` 相对路径回退、SkillHub 缺 `homepage` 时的 URL 拼接、IPC handler 层均无用例（U-7）。
 
 ## 8. 未决项（已定位缺陷，修复前需先决策）
 
+> U-1、U-2 已于 2026-10-16 决策并实现（FR-7 / FR-8），下表保留结论以便追溯；U-3~U-7 仍未处理。
+
 | 编号 | 问题 | 影响 | 修复前置条件 |
 | --- | --- | --- | --- |
-| U-1 | **跨源升级判定失配**：`SkillsManager.getSkillInstallStatus`/`updatableSkills` 以 `s.id === ms.id` 匹配；已安装技能 `id` 是技能目录名（`deleteSkill` 校验 `id === path.basename(id)`），而多源条目 `id` 形如 `clawhub:owner/slug`（含 `:`/`/`，不可能等于目录名） | 第三方源技能恒显示「未安装」、无法升级、可重复安装 | 先定 id 方案：统一复合键，或按 `source.url`/名称建立映射；同时确定历史已安装技能的兼容读法 |
-| U-2 | **游标链路半成品**：适配器、IPC、服务层均暴露 `cursor`/`nextCursor`，UI 两处调用都不传，SkillHub 本身也无分页 | 契约存在但无入口；ClawHub 条目被截断在首页 | 决策是否做「加载更多」；不做则删除 cursor 字段，避免死契约 |
+| ~~U-1~~ | ~~跨源升级判定失配~~ **已修**（2026-10-16，FR-7）：安装/升级写入 `skills_install_origins`，渲染层以来源映射匹配并回退 id 全等；升级改传已安装 id | — | — |
+| ~~U-2~~ | ~~游标链路半成品~~ **已修**（2026-10-16，FR-8）：接「加载更多」，按 id 去重追加；官方源与 SkillHub 不显示按钮 | — | — |
 | U-3 | **skills.sh 源归属泄漏**：`adapters` 把 `skills-sh` 映射到 `clawhubAdapter`，条目 `marketplace` 被标为 `clawhub` | 源标签与内容不符，用户误判数据来源 | 确认 skills.sh 是否确实只能经 ClawHub 浏览；若保留，归一化时按**请求源**改写 `marketplace` |
 | U-4 | **官方源与新源双通道并存**：旧 `skills:fetchMarketplace` 用裸 `https.get`（10s、无 UA、日志打印完整 store URL、返回未解析字符串），渲染层 `marketplaceCache` 永久缓存且无失效入口 | 两套超时/错误/日志行为不一致；官方源故障无降级 | 决策官方源是否迁移到适配层，或明确其长期保留 |
 | U-5 | **无重试/退避/限流**：`fetchJson` 仅 15s 超时，一次失败即抛 | 上游抖动或 429 时用户直接看到空列表 | 确认各上游限流策略后再定退避参数 |
-| U-6 | **类型退化**：主进程 `marketplace` 为 `SkillMarketplaceSource`，渲染层 `MarketplaceSkill.marketplace` 退化为 `string`；`tags`/`displayName` 的 `LocalizedText` 联合在多源路径未被满足 | 源判别失去编译期保护 | 收敛渲染层类型到共享枚举（需评估官方源既有数据兼容） |
-| U-7 | **测试缺口**：见第 7 章末 | 上游契约漂移无法被 CI 捕获 | 补 handler 层与 http 层用例 |
+| U-6 | **类型退化**：主进程 `marketplace` 为 `SkillMarketplaceSource`，渲染层 `MarketplaceSkill.marketplace` 退化为可选 `string`；`tags`/`displayName` 的 `LocalizedText` 联合在多源路径未被满足 | 源判别失去编译期保护（FR-7 的 `buildSkillOrigin` 已加缺省兜底，但退化仍在） | 收敛渲染层类型到共享枚举（需评估官方源既有数据兼容） |
+| U-7 | **测试缺口**：`handlers.ts` 无 marketplace/来源用例；无超时、UA、`limit` 默认值、`resolveAgainst` 断言 | 上游契约漂移无法被 CI 捕获 | 补 handler 层与 http 层用例 |
+
+> FR-7 / FR-8 已补单测：`marketplaceInstallMatch.test.ts`（10 例，覆盖来源匹配、历史回退、删除后失效、跨页去重）与 `skillManager.origins.test.ts`（9 例，覆盖记录、重装清理、删除清理、坏数据归一化）。
 
 ## 9. Mock 台账
 

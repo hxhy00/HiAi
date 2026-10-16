@@ -15,6 +15,8 @@ import {
   DefaultSkillMarketplaceSource,
   SKILL_MARKETPLACE_SOURCE_ORDER,
   SKILL_MARKETPLACE_SOURCES,
+  type SkillInstallOrigin,
+  type SkillInstallOriginInput,
   type SkillMarketplaceSource,
 } from '../../../shared/skills/marketplaceSources';
 import { i18nService } from '../../services/i18n';
@@ -36,6 +38,11 @@ import PlusCircleIcon from '../icons/PlusCircleIcon';
 import SearchIcon from '../icons/SearchIcon';
 import TrashIcon from '../icons/TrashIcon';
 import UploadIcon from '../icons/UploadIcon';
+import {
+  appendMarketplacePage,
+  findInstalledSkillIdFor,
+  findMarketplaceSkillForInstalled,
+} from './marketplaceInstallMatch';
 import { SKILL_LOAD_ISSUE_I18N_KEYS } from './skillLoadIssue';
 import SkillSecurityReport from './SkillSecurityReport';
 import { SKILL_TAB_LABEL_KEYS, SKILL_TAB_ORDER, SkillTab } from './skillTabs';
@@ -100,6 +107,9 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
   const [marketSource, setMarketSource] = useState<SkillMarketplaceSource>(
     DefaultSkillMarketplaceSource,
   );
+  const [installOrigins, setInstallOrigins] = useState<Record<string, SkillInstallOrigin>>({});
+  const [marketplaceCursor, setMarketplaceCursor] = useState<string | undefined>(undefined);
+  const [isLoadingMoreMarketplace, setIsLoadingMoreMarketplace] = useState(false);
   const [installingSkillId, setInstallingSkillId] = useState<string | null>(null);
   const [selectedMarketplaceSkill, setSelectedMarketplaceSkill] = useState<MarketplaceSkill | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
@@ -147,6 +157,15 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       dispatch(setSkills(loadedSkills));
     });
 
+    // Install origins drive "installed" / "update available" matching across
+    // sources; refresh them whenever the installed set changes.
+    const loadOrigins = async () => {
+      const origins = await skillService.loadInstallOrigins(true);
+      if (!isActive) return;
+      setInstallOrigins(origins);
+    };
+    loadOrigins();
+
     return () => {
       isActive = false;
       unsubscribe();
@@ -157,23 +176,27 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     let isActive = true;
     setIsLoadingMarketplace(true);
     setActiveMarketTag('all');
+    setMarketplaceCursor(undefined);
 
     const load = marketSource === DefaultSkillMarketplaceSource
       // The official store keeps its own legacy endpoint and tag taxonomy.
       ? skillService.fetchMarketplaceSkills().then(data => ({
           skills: data.skills,
           tags: data.tags,
+          cursor: undefined as string | undefined,
         }))
       // Every other source is normalised by the main process; tags are omitted.
       : skillService.fetchMarketplaceSource(marketSource).then(data => ({
           skills: data.skills,
           tags: [] as MarketTag[],
+          cursor: data.nextCursor,
         }));
 
     load.then((data) => {
       if (!isActive) return;
       setMarketplaceSkills(data.skills);
       setMarketTags(data.tags);
+      setMarketplaceCursor(data.cursor);
       setIsLoadingMarketplace(false);
     });
     return () => { isActive = false; };
@@ -196,6 +219,7 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
           if (!isActive) return;
           setMarketplaceSkills(data.skills);
           setMarketTags([]);
+          setMarketplaceCursor(data.nextCursor);
           setIsLoadingMarketplace(false);
         });
     }, term ? 350 : 0);
@@ -345,8 +369,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
 
   const handleCancelDeleteSkill = () => {
     if (isDeletingSkill) return;
-    if (skillPendingDelete) {
-    }
     setSkillPendingDelete(null);
   };
 
@@ -505,7 +527,8 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
   };
 
   const getSkillInstallStatus = (marketplaceSkill: MarketplaceSkill): 'not_installed' | 'installed' | 'update_available' => {
-    const installed = skills.find(s => s.id === marketplaceSkill.id);
+    const installedId = findInstalledSkillIdFor(marketplaceSkill, skills, installOrigins);
+    const installed = installedId ? skills.find(s => s.id === installedId) : undefined;
     if (!installed) return 'not_installed';
     if (!marketplaceSkill.version) return 'installed';
     const localVersion = installed.version || '0.0.0';
@@ -515,20 +538,52 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
 
   const updatableSkills = useMemo(() => {
     return marketplaceSkills.filter(ms => {
-      const installed = skills.find(s => s.id === ms.id);
+      const installedId = findInstalledSkillIdFor(ms, skills, installOrigins);
+      const installed = installedId ? skills.find(s => s.id === installedId) : undefined;
       if (!installed || !ms.version) return false;
       const localVersion = installed.version || '0.0.0';
       return compareVersions(ms.version, localVersion) > 0;
     });
-  }, [skills, marketplaceSkills]);
+  }, [skills, marketplaceSkills, installOrigins]);
 
-  const getInstalledVersion = (skillId: string): string | undefined => {
-    return skills.find(s => s.id === skillId)?.version;
+  const getInstalledVersion = (skill: MarketplaceSkill): string | undefined => {
+    const installedId = findInstalledSkillIdFor(skill, skills, installOrigins);
+    return installedId ? skills.find(s => s.id === installedId)?.version : undefined;
+  };
+
+  /** The installer needs the installed id, which differs from the marketplace id. */
+  const resolveUpgradeTargetId = (skill: MarketplaceSkill): string | undefined =>
+    findInstalledSkillIdFor(skill, skills, installOrigins);
+
+  /**
+   * Official-store entries carry no `marketplace` field but already match by id,
+   * so they need no origin record. Third-party entries fall back to the source
+   * currently selected in the UI.
+   */
+  const buildSkillOrigin = (skill: MarketplaceSkill): SkillInstallOriginInput | undefined => {
+    const marketplace = skill.marketplace
+      ?? (marketSource === DefaultSkillMarketplaceSource ? undefined : marketSource);
+    if (!marketplace) return undefined;
+    return { marketplace, sourceId: skill.id, ...(skill.url ? { url: skill.url } : {}) };
+  };
+
+  const handleLoadMoreMarketplace = async () => {
+    if (!marketplaceCursor || isLoadingMoreMarketplace || marketSource === DefaultSkillMarketplaceSource) return;
+    setIsLoadingMoreMarketplace(true);
+    try {
+      const data = await skillService.fetchMarketplaceSource(marketSource, { cursor: marketplaceCursor });
+      setMarketplaceSkills(current => appendMarketplacePage(current, data.skills));
+      setMarketplaceCursor(data.nextCursor);
+    } finally {
+      setIsLoadingMoreMarketplace(false);
+    }
   };
 
   const handleUpgradeSkill = async (skill: MarketplaceSkill) => {
     if (upgradeState?.isActive || !skill.url) return;
-    const installedSkill = skills.find(item => item.id === skill.id);
+    const targetSkillId = resolveUpgradeTargetId(skill);
+    if (!targetSkillId) return;
+    const installedSkill = skills.find(item => item.id === targetSkillId);
     setSkillActionError('');
     console.log('[SkillsManager] upgrade started', {
       skillId: skill.id,
@@ -545,7 +600,7 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       currentSkillVersion: skill.version,
     });
     try {
-      const result = await skillService.upgradeSkill(skill.id, skill.url);
+      const result = await skillService.upgradeSkill(targetSkillId, skill.url, buildSkillOrigin(skill));
       if (!result.success) {
         setSkillActionError(result.error || i18nService.t('skillUpgradeFailed'));
         setUpgradeState(null);
@@ -621,6 +676,8 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     for (let i = 0; i < toUpdate.length; i++) {
       if (upgradeCancelledRef.current) break;
       const skill = toUpdate[i];
+      const targetSkillId = resolveUpgradeTargetId(skill);
+      if (!targetSkillId || !skill.url) continue;
       setUpgradeState({
         isActive: true,
         total: toUpdate.length,
@@ -638,7 +695,7 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       });
 
       try {
-        const result = await skillService.upgradeSkill(skill.id, skill.url);
+        const result = await skillService.upgradeSkill(targetSkillId, skill.url, buildSkillOrigin(skill));
         if (!result.success) {
           console.warn('[SkillsManager] upgrade all item failed', {
             skillId: skill.id,
@@ -694,7 +751,7 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     setInstallingSkillId(skill.id);
     setSkillActionError('');
     try {
-      const result = await skillService.downloadSkill(skill.url);
+      const result = await skillService.downloadSkill(skill.url, buildSkillOrigin(skill));
       if (!result.success) {
         setSkillActionError(result.error || i18nService.t('skillInstallFailed'));
         return;
@@ -789,7 +846,7 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
    * and a strip holding a single lone value reads as broken.
    */
   const getInstalledSkillStats = (skill: Skill): Array<{ label: string; value: string }> => {
-    const marketplaceSkill = marketplaceSkills.find(item => item.id === skill.id);
+    const marketplaceSkill = findMarketplaceSkillForInstalled(skill.id, marketplaceSkills, installOrigins);
     const resolveSource = (): string => {
       if (skill.isBuiltIn) return i18nService.t('skillOriginBuiltIn');
       if (skill.isOfficial) return i18nService.t('official');
@@ -866,7 +923,7 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       setSelectedSkill(skill);
     };
     const displayName = skillService.getLocalizedSkillName(skill.id, skill.name);
-    const marketplaceSkill = marketplaceSkills.find(m => m.id === skill.id);
+    const marketplaceSkill = findMarketplaceSkillForInstalled(skill.id, marketplaceSkills, installOrigins);
     const hasUpdate = Boolean(
       marketplaceSkill?.version
       && compareVersions(marketplaceSkill.version, skill.version || '0.0.0') > 0,
@@ -989,8 +1046,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
             onClick={() => {
               setIsAddSkillMenuOpen(prev => {
                 const next = !prev;
-                if (next) {
-                }
                 return next;
               });
             }}
@@ -1254,7 +1309,7 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                   const openMarketplaceDetail = () => {
                     setSelectedMarketplaceSkill(skill);
                   };
-                  const installedVer = getInstalledVersion(skill.id);
+                  const installedVer = getInstalledVersion(skill);
                   const hasUpdate = Boolean(
                     skill.version && installedVer && compareVersions(skill.version, installedVer) > 0,
                   );
@@ -1281,7 +1336,8 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                   <div className="flex flex-shrink-0 items-center">
                     {(() => {
                       const status = getSkillInstallStatus(skill);
-                      const installedSkill = skills.find(item => item.id === skill.id);
+                      const installedId = findInstalledSkillIdFor(skill, skills, installOrigins);
+                      const installedSkill = installedId ? skills.find(item => item.id === installedId) : undefined;
                       if (status === 'update_available') {
                         return (
                           <button
@@ -1333,6 +1389,21 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
               />
                   );
                 })}
+            {marketplaceCursor && (
+              <div className="flex justify-center py-3">
+                <button
+                  type="button"
+                  onClick={() => { void handleLoadMoreMarketplace(); }}
+                  disabled={isLoadingMoreMarketplace}
+                  className={`${CARD_ACTION_PILL_CLASS} disabled:opacity-60`}
+                >
+                  {isLoadingMoreMarketplace && (
+                    <ArrowPathIcon className="h-3 w-3 animate-spin" />
+                  )}
+                  {i18nService.t('skillMarketplaceLoadMore')}
+                </button>
+              </div>
+            )}
           </div>
             )}
           </>

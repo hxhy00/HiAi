@@ -1,6 +1,10 @@
 import { ipcMain } from 'electron';
 
 import { fetchMarketplacePage } from '../../libs/skillMarketplace';
+import type {
+  SkillInstallOrigin,
+  SkillInstallOriginInput,
+} from '../../shared/skills/marketplaceSources';
 import { updatePluginSkillIdsFromReport } from '../../skills';
 import type { SkillManager } from '../../skills/skillManager';
 
@@ -65,12 +69,29 @@ export function registerSkillHandlers(deps: SkillHandlerDeps): void {
     }
   });
 
-  ipcMain.handle('skills:download', async (_event, source: string) => {
-    return getSkillManager().downloadSkill(source);
+  ipcMain.handle('skills:download', async (_event, source: string, origin?: SkillInstallOriginInput) => {
+    return getSkillManager().downloadSkill(source, origin);
   });
 
-  ipcMain.handle('skills:upgrade', async (_event, skillId: string, downloadUrl: string) => {
-    return getSkillManager().upgradeSkill(skillId, downloadUrl);
+  ipcMain.handle('skills:upgrade', async (
+    _event,
+    skillId: string,
+    downloadUrl: string,
+    origin?: SkillInstallOriginInput,
+  ) => {
+    return getSkillManager().upgradeSkill(skillId, downloadUrl, origin);
+  });
+
+  ipcMain.handle('skills:listInstallOrigins', () => {
+    try {
+      return { success: true, origins: getSkillManager().listSkillInstallOrigins() };
+    } catch (error) {
+      return {
+        success: false,
+        origins: {} as Record<string, SkillInstallOrigin>,
+        error: error instanceof Error ? error.message : 'Failed to load install origins',
+      };
+    }
   });
 
   ipcMain.handle('skills:confirmInstall', async (_event, pendingId: string, action: string) => {

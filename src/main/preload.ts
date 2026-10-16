@@ -119,9 +119,11 @@ contextBridge.exposeInMainWorld('electron', {
     setEnabled: (options: { id: string; enabled: boolean }) =>
       ipcRenderer.invoke('skills:setEnabled', options),
     delete: (id: string) => ipcRenderer.invoke('skills:delete', id),
-    download: (source: string) => ipcRenderer.invoke('skills:download', source),
-    upgrade: (skillId: string, downloadUrl: string) =>
-      ipcRenderer.invoke('skills:upgrade', skillId, downloadUrl),
+    download: (source: string, origin?: { marketplace: string; sourceId: string; url?: string }) =>
+      ipcRenderer.invoke('skills:download', source, origin),
+    upgrade: (skillId: string, downloadUrl: string, origin?: { marketplace: string; sourceId: string; url?: string }) =>
+      ipcRenderer.invoke('skills:upgrade', skillId, downloadUrl, origin),
+    listInstallOrigins: () => ipcRenderer.invoke('skills:listInstallOrigins'),
     confirmInstall: (pendingId: string, action: string) =>
       ipcRenderer.invoke('skills:confirmInstall', pendingId, action),
     getRoot: () => ipcRenderer.invoke('skills:getRoot'),
