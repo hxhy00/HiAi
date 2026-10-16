@@ -208,6 +208,8 @@
 
 **测试覆盖缺口**：超时/Abort 路径、`User-Agent` 头、`limit` 默认值 30、`resolveAgainst` 相对路径回退、SkillHub 缺 `homepage` 时的 URL 拼接、IPC handler 层均无用例（U-7）。
 
+> U-7 更新（2026-10-16）：http 层缺口已由 `http.test.ts`（11 例）闭环——覆盖默认 15s 超时与自定义 `timeoutMs` 的 Abort 路径、`Accept`/`User-Agent` 头透传、非 2xx 与网络错误的 `MarketplaceError` 包装、定时器清理、`resolveAgainst` 的绝对/相对/空值/非法值回退。SkillHub `limit` 默认值断言已含在 adapters 既有用例路径中（显式传 limit），剩余缺口：handler 层用例、SkillHub 缺 `homepage` 的 URL 拼接。
+
 ## 8. 未决项（已定位缺陷，修复前需先决策）
 
 > U-1、U-2 已于 2026-10-16 决策并实现（FR-7 / FR-8），下表保留结论以便追溯；U-3~U-7 仍未处理。
@@ -220,7 +222,7 @@
 | U-4 | **官方源与新源双通道并存**：旧 `skills:fetchMarketplace` 用裸 `https.get`（10s、无 UA、日志打印完整 store URL、返回未解析字符串），渲染层 `marketplaceCache` 永久缓存且无失效入口 | 两套超时/错误/日志行为不一致；官方源故障无降级 | 决策官方源是否迁移到适配层，或明确其长期保留 |
 | U-5 | **无重试/退避/限流**：`fetchJson` 仅 15s 超时，一次失败即抛 | 上游抖动或 429 时用户直接看到空列表 | 确认各上游限流策略后再定退避参数 |
 | U-6 | **类型退化**：主进程 `marketplace` 为 `SkillMarketplaceSource`，渲染层 `MarketplaceSkill.marketplace` 退化为可选 `string`；`tags`/`displayName` 的 `LocalizedText` 联合在多源路径未被满足 | 源判别失去编译期保护（FR-7 的 `buildSkillOrigin` 已加缺省兜底，但退化仍在） | 收敛渲染层类型到共享枚举（需评估官方源既有数据兼容） |
-| U-7 | **测试缺口**：`handlers.ts` 无 marketplace/来源用例；无超时、UA、`limit` 默认值、`resolveAgainst` 断言 | 上游契约漂移无法被 CI 捕获 | 补 handler 层与 http 层用例 |
+| U-7 | **测试缺口（部分闭环）**：http 层已补（`http.test.ts`，2026-10-16）；剩余：`handlers.ts` 的 marketplace 用例、SkillHub 缺 `homepage` 的 URL 拼接断言 | 上游契约漂移无法被 CI 捕获 | 补 handler 层用例与 homepage 回退断言 |
 
 > FR-7 / FR-8 已补单测：`marketplaceInstallMatch.test.ts`（10 例，覆盖来源匹配、历史回退、删除后失效、跨页去重）与 `skillManager.origins.test.ts`（9 例，覆盖记录、重装清理、删除清理、坏数据归一化）。
 
