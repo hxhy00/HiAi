@@ -1,3 +1,4 @@
+import type { LocalizedText } from '../../../shared/kit/constants';
 import type { SkillMarketplaceSource } from '../../../shared/skills/marketplaceSources';
 
 /**
@@ -5,11 +6,12 @@ import type { SkillMarketplaceSource } from '../../../shared/skills/marketplaceS
  * Mirrors the renderer's `MarketplaceSkill` type so the UI stays source-agnostic.
  */
 export interface NormalizedMarketplaceSkill {
-  /** Stable, source-scoped identifier (e.g. `clawhub:owner/slug`). */
+  /** Stable, source-scoped identifier (e.g. `skillhub:@ns/slug`). */
   id: string;
   /** Raw upstream slug/name. */
   name: string;
-  description: string;
+  /** Plain text, or a localized pair from sources that ship both languages. */
+  description: string | LocalizedText;
   /** Download URL for the skill archive (.zip). */
   url: string;
   version: string;
@@ -18,7 +20,7 @@ export interface NormalizedMarketplaceSkill {
     url: string;
     author?: string;
   };
-  displayName?: string;
+  displayName?: string | LocalizedText;
   icon?: string;
   downloadCount?: number;
   /** Which marketplace this entry came from. */
@@ -37,6 +39,15 @@ export interface MarketplacePage {
   skills: NormalizedMarketplaceSkill[];
   /** Cursor for the next page, if the source supports pagination. */
   nextCursor?: string;
+}
+
+/** Localized metadata for skills already installed on this machine. */
+export interface LocalSkillMetadata {
+  id: string;
+  name: string;
+  version: string;
+  displayName?: string | LocalizedText;
+  description?: string | LocalizedText;
 }
 
 /** Every source adapter implements this contract. */

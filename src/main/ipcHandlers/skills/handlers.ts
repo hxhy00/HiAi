@@ -4,13 +4,12 @@ import type {
   SkillInstallOrigin,
   SkillInstallOriginInput,
 } from '../../../shared/skills/marketplaceSources';
-import { fetchMarketplacePage } from '../../libs/skillMarketplace';
+import { fetchMarketplacePage, fetchUnifiedMarketplace } from '../../libs/skillMarketplace';
 import { updatePluginSkillIdsFromReport } from '../../skills';
 import type { SkillManager } from '../../skills/skillManager';
 
 export interface SkillHandlerDeps {
   getSkillManager: () => SkillManager;
-  getSkillStoreUrl: () => string;
   getOpenClawRuntimeAdapter: () => {
     connectGatewayIfNeeded: () => Promise<void>;
     getGatewayClient: () => {
@@ -24,7 +23,7 @@ export interface SkillHandlerDeps {
 }
 
 export function registerSkillHandlers(deps: SkillHandlerDeps): void {
-  const { getSkillManager, getSkillStoreUrl, getOpenClawRuntimeAdapter } = deps;
+  const { getSkillManager, getOpenClawRuntimeAdapter } = deps;
 
   ipcMain.handle('skills:list', () => {
     try {
@@ -155,30 +154,29 @@ export function registerSkillHandlers(deps: SkillHandlerDeps): void {
     return getSkillManager().testEmailConnectivity(skillId, config);
   });
 
-  ipcMain.handle('skills:fetchMarketplace', async () => {
-    const url = getSkillStoreUrl();
-    console.log(`[SkillMarketplace] fetching from: ${url}`);
+  ipcMain.handle('skills:fetchMarketplace', async (
+    _event,
+    query?: { query?: string; limit?: number; cursor?: string },
+  ) => {
     try {
-      const https = await import('https');
-      const data = await new Promise<string>((resolve, reject) => {
-        const req = https.get(url, { timeout: 10000 }, (res) => {
-          if (res.statusCode !== 200) {
-            reject(new Error(`HTTP ${res.statusCode}`));
-            res.resume();
-            return;
-          }
-          let body = '';
-          res.setEncoding('utf8');
-          res.on('data', (chunk: string) => { body += chunk; });
-          res.on('end', () => resolve(body));
-          res.on('error', reject);
-        });
-        req.on('error', reject);
-        req.on('timeout', () => { req.destroy(); reject(new Error('Request timeout')); });
-      });
-      return { success: true, data };
+      const result = await fetchUnifiedMarketplace(query ?? {});
+      return {
+        success: true,
+        skills: result.skills,
+        errors: result.errors,
+        nextCursors: result.nextCursors,
+        localSkills: result.localSkills,
+      };
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'Failed to fetch skill marketplace' };
+      console.error('[SkillMarketplace] unified fetch failed:', error);
+      return {
+        success: false,
+        skills: [] as unknown[],
+        errors: {} as Record<string, string>,
+        nextCursors: {} as Record<string, string>,
+        localSkills: [] as unknown[],
+        error: error instanceof Error ? error.message : 'Failed to fetch skill marketplace',
+      };
     }
   });
 

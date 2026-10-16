@@ -318,7 +318,6 @@ import {
   getHtmlSharePublicBaseUrl,
   getKitStoreUrl,
   getServerApiBaseUrl,
-  getSkillStoreUrl,
   refreshEndpointsTestMode,
 } from './libs/endpoints';
 import {
@@ -6698,7 +6697,6 @@ if (!gotTheLock) {
   // Skills IPC handlers
   registerSkillHandlers({
     getSkillManager,
-    getSkillStoreUrl,
     getOpenClawRuntimeAdapter: () => openClawRuntimeAdapter,
   });
 

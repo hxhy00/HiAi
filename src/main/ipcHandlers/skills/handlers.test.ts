@@ -78,7 +78,6 @@ beforeEach(() => {
   registeredHandlers.clear();
   registerSkillHandlers({
     getSkillManager: () => manager,
-    getSkillStoreUrl: () => '',
     getOpenClawRuntimeAdapter: () => null,
   });
 });

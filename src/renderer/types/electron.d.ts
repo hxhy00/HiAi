@@ -604,7 +604,18 @@ interface IElectronAPI {
       skillId: string,
       config: Record<string, string>,
     ) => Promise<{ success: boolean; result?: EmailConnectivityTestResult; error?: string }>;
-    fetchMarketplace: () => Promise<{ success: boolean; data?: string; error?: string }>;
+    fetchMarketplace: (
+      query?: { query?: string; limit?: number; cursor?: string },
+    ) => Promise<{
+      success: boolean;
+      skills: import('../types/skill').MarketplaceSkill[];
+      /** Sources that failed, mapped to their error message. */
+      errors?: Record<string, string>;
+      nextCursors?: Record<string, string>;
+      /** Localized metadata for skills already installed on this machine. */
+      localSkills?: import('../types/skill').LocalSkillInfo[];
+      error?: string;
+    }>;
     fetchMarketplaceSource: (
       source: string,
       query?: { query?: string; limit?: number; cursor?: string },

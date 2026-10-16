@@ -5,25 +5,23 @@ import {
   ExclamationTriangleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 
 import type { SkillSecurityReport as SkillSecurityReportData } from '../../../main/libs/skillSecurity/skillSecurityTypes';
 import { ENABLE_OPENCLAW_SKILL_SYNC } from '../../../shared/featureFlags';
 import {
-  DefaultSkillMarketplaceSource,
-  SKILL_MARKETPLACE_SOURCE_ORDER,
-  SKILL_MARKETPLACE_SOURCES,
   type SkillInstallOrigin,
   type SkillInstallOriginInput,
-  type SkillMarketplaceSource,
+  SkillMarketplaceSource,
 } from '../../../shared/skills/marketplaceSources';
 import { i18nService } from '../../services/i18n';
 import { compareVersions,resolveLocalizedText, skillService } from '../../services/skill';
 import { RootState } from '../../store';
 import { setSkills } from '../../store/slices/skillSlice';
-import { MarketplaceSkill, MarketTag,Skill } from '../../types/skill';
+import { MarketplaceSkill, Skill } from '../../types/skill';
 import { CARD_ACTION_PILL_CLASS, DETAIL_ACTION_PILL_CLASS } from '../common/actionPillStyles';
 import CardOverflowMenu, { type CardOverflowMenuItem } from '../common/CardOverflowMenu';
 import CardToggle from '../common/CardToggle';
@@ -39,7 +37,6 @@ import SearchIcon from '../icons/SearchIcon';
 import TrashIcon from '../icons/TrashIcon';
 import UploadIcon from '../icons/UploadIcon';
 import {
-  appendMarketplacePage,
   findInstalledSkillIdFor,
   findMarketplaceSkillForInstalled,
 } from './marketplaceInstallMatch';
@@ -78,6 +75,9 @@ const importTabConfig: Record<ImportSourceType, {
 /** Hover/focus-revealed card actions, matching the MCP card treatment. */
 const SKILL_LIST_CONTAINER_CLASS = MANAGEMENT_LIST_CONTAINER_CLASS;
 
+/** Measured row height for the virtualized marketplace list. */
+const MARKETPLACE_ROW_ESTIMATED_HEIGHT_PX = 76;
+
 const CARD_ACTION_REVEAL_CLASS =
   'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100';
 
@@ -101,17 +101,10 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
   const [importTab, setImportTab] = useState<ImportSourceType>('github');
   const [activeTab, setActiveTab] = useState<SkillTab>(SKILL_TAB_ORDER[0]);
   const [marketplaceSkills, setMarketplaceSkills] = useState<MarketplaceSkill[]>([]);
-  const [marketTags, setMarketTags] = useState<MarketTag[]>([]);
-  const [activeMarketTag, setActiveMarketTag] = useState('all');
   const [isLoadingMarketplace, setIsLoadingMarketplace] = useState(false);
-  const [marketSource, setMarketSource] = useState<SkillMarketplaceSource>(
-    DefaultSkillMarketplaceSource,
-  );
   const [installOrigins, setInstallOrigins] = useState<Record<string, SkillInstallOrigin>>({});
-  const [marketplaceCursor, setMarketplaceCursor] = useState<string | undefined>(undefined);
-  const [isLoadingMoreMarketplace, setIsLoadingMoreMarketplace] = useState(false);
   const [marketplaceError, setMarketplaceError] = useState<string>('');
-  const [marketSourceReloadToken, setMarketSourceReloadToken] = useState(0);
+  const [marketReloadToken, setMarketReloadToken] = useState(0);
   const [installingSkillId, setInstallingSkillId] = useState<string | null>(null);
   const [selectedMarketplaceSkill, setSelectedMarketplaceSkill] = useState<MarketplaceSkill | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
@@ -174,60 +167,36 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     };
   }, [dispatch]);
 
+  /**
+   * One aggregated list for every source. Entering the tab renders the cached
+   * result immediately (TTL-bucketed in the service) and refreshes in the
+   * background, so switching tabs never blocks on the network. A search term is
+   * sent to every source at once and debounced.
+   */
   useEffect(() => {
     let isActive = true;
-    setIsLoadingMarketplace(true);
-    setActiveMarketTag('all');
-    setMarketplaceCursor(undefined);
+    const term = skillSearchQuery.trim();
+    const query = term ? { query: term } : {};
+
+    const cached = skillService.getCachedMarketplaceSkills(query);
+    if (cached) {
+      setMarketplaceSkills(cached);
+      setIsLoadingMarketplace(false);
+    } else {
+      setIsLoadingMarketplace(true);
+    }
     setMarketplaceError('');
 
-    const load = marketSource === DefaultSkillMarketplaceSource
-      // The official store keeps its own legacy endpoint and tag taxonomy.
-      ? skillService.fetchMarketplaceSkills().then(data => ({
-          skills: data.skills,
-          tags: data.tags,
-          cursor: undefined as string | undefined,
-          error: undefined as string | undefined,
-        }))
-      // Every other source is normalised by the main process; tags are omitted.
-      : skillService.fetchMarketplaceSource(marketSource).then(data => ({
-          skills: data.skills,
-          tags: [] as MarketTag[],
-          cursor: data.nextCursor,
-          error: data.error,
-        }));
-
-    load.then((data) => {
-      if (!isActive) return;
-      setMarketplaceSkills(data.skills);
-      setMarketTags(data.tags);
-      setMarketplaceCursor(data.cursor);
-      setMarketplaceError(data.error ?? '');
-      setIsLoadingMarketplace(false);
-    });
-    return () => { isActive = false; };
-  }, [marketSource, marketSourceReloadToken]);
-
-  // Sources without a list API (SkillHub is search-driven, skills.sh has none)
-  // are queried remotely as the user types. Debounce so each keystroke does not
-  // fire a request; an empty term reloads the browse view.
-  useEffect(() => {
-    if (marketSource === DefaultSkillMarketplaceSource) return;
-    if (!SKILL_MARKETPLACE_SOURCES[marketSource].supportsSearch) return;
-    const term = skillSearchQuery.trim();
-
-    let isActive = true;
     const timer = window.setTimeout(() => {
-      setIsLoadingMarketplace(true);
       skillService
-        .fetchMarketplaceSource(marketSource, term ? { query: term } : {})
-        .then((data) => {
+        .fetchMarketplaceSkills(query)
+        .then((skills) => {
           if (!isActive) return;
-          setMarketplaceSkills(data.skills);
-          setMarketTags([]);
-          setMarketplaceCursor(data.nextCursor);
-          setMarketplaceError(data.error ?? '');
+          setMarketplaceSkills(skills);
           setIsLoadingMarketplace(false);
+          const errors = skillService.getMarketplaceErrors();
+          const message = Object.values(errors)[0];
+          setMarketplaceError(skills.length === 0 && message ? message : '');
         });
     }, term ? 350 : 0);
 
@@ -235,7 +204,22 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       isActive = false;
       window.clearTimeout(timer);
     };
-  }, [marketSource, skillSearchQuery]);
+  }, [skillSearchQuery, marketReloadToken]);
+
+  const handleRefreshMarketplace = useCallback(() => {
+    const term = skillSearchQuery.trim();
+    setIsLoadingMarketplace(true);
+    setMarketplaceError('');
+    void skillService
+      .fetchMarketplaceSkills(term ? { query: term } : {}, true)
+      .then((skills) => {
+        setMarketplaceSkills(skills);
+        setIsLoadingMarketplace(false);
+        const errors = skillService.getMarketplaceErrors();
+        const message = Object.values(errors)[0];
+        setMarketplaceError(skills.length === 0 && message ? message : '');
+      });
+  }, [skillSearchQuery]);
 
   useEffect(() => {
     if (!ENABLE_OPENCLAW_SKILL_SYNC) return;
@@ -331,20 +315,104 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
 
   const filteredMarketplaceSkills = useMemo(() => {
     const query = skillSearchQuery.trim().replace(/\s+/g, ' ').toLowerCase();
-    let results = marketplaceSkills;
-    // Non-official sources filter server-side, so their results are already
-    // scoped to the search term and must not be narrowed again here.
-    if (query && marketSource === DefaultSkillMarketplaceSource) {
-      results = results.filter(skill => {
-        return skill.name.toLowerCase().includes(query)
-          || resolveLocalizedText(skill.description).toLowerCase().includes(query);
-      });
-    }
-    if (activeMarketTag !== 'all') {
-      results = results.filter(skill => skill.tags?.includes(activeMarketTag));
-    }
-    return results;
-  }, [marketplaceSkills, skillSearchQuery, activeMarketTag, marketSource]);
+    if (!query) return marketplaceSkills;
+    // SkillHub filters server-side, so narrowing its rows again would drop valid
+    // hits. The Youdao store has no query parameter, so its rows are filtered here.
+    return marketplaceSkills.filter(skill => {
+      if (skill.marketplace !== SkillMarketplaceSource.Youdao) return true;
+      return skill.name.toLowerCase().includes(query)
+        || resolveLocalizedText(skill.description).toLowerCase().includes(query);
+    });
+  }, [marketplaceSkills, skillSearchQuery]);
+
+  const renderMarketplaceRow = (skill: MarketplaceSkill) => {
+    const installedVer = getInstalledVersion(skill);
+    const hasUpdate = Boolean(
+      skill.version && installedVer && compareVersions(skill.version, installedVer) > 0,
+    );
+    return (
+      <ManagementListRow
+        title={skillService.getLocalizedSkillName(skill.id, skill.name)}
+        badges={(
+          <>
+            {skill.source?.from && (
+              <span className={`rounded bg-surface-raised px-1.5 py-0.5 font-medium ${MANAGEMENT_META_TEXT} text-muted`}>
+                {skill.source.from}
+              </span>
+            )}
+            {hasUpdate && installedVer && (
+              <span className={`rounded bg-amber-500/10 px-1.5 py-0.5 font-medium ${MANAGEMENT_META_TEXT} text-amber-600 dark:text-amber-400`}>
+                v{installedVer} → v{skill.version}
+              </span>
+            )}
+          </>
+        )}
+        subtitle={resolveLocalizedText(skill.description)}
+        right={(
+          <div className="flex flex-shrink-0 items-center">
+            {(() => {
+              const status = getSkillInstallStatus(skill);
+              const installedId = findInstalledSkillIdFor(skill, skills, installOrigins);
+              const installedSkill = installedId ? skills.find(item => item.id === installedId) : undefined;
+              if (status === 'update_available') {
+                return (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleUpgradeSkill(skill); }}
+                    disabled={upgradeState?.isActive === true}
+                    className={CARD_ACTION_PILL_CLASS}
+                  >
+                    {i18nService.t('skillUpgrade')}
+                  </button>
+                );
+              }
+              if (status === 'installed') {
+                if (!onUseSkill || !installedSkill?.enabled) {
+                  return (
+                    <span className={`inline-flex h-[26px] flex-shrink-0 items-center gap-1 px-1 ${MANAGEMENT_META_TEXT} text-muted`}>
+                      <CheckIcon className="h-3.5 w-3.5" />
+                      {i18nService.t('skillAlreadyInstalled')}
+                    </span>
+                  );
+                }
+                return (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleUseSkill(installedSkill); }}
+                    className={CARD_ACTION_PILL_CLASS}
+                  >
+                    {i18nService.t('skillUse')}
+                  </button>
+                );
+              }
+              return !readOnly ? (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleInstallMarketplaceSkill(skill); }}
+                  disabled={installingSkillId !== null}
+                  className={CARD_ACTION_PILL_CLASS}
+                >
+                  {installingSkillId === skill.id && (
+                    <ArrowPathIcon className="h-3 w-3 animate-spin" />
+                  )}
+                  {installingSkillId === skill.id ? i18nService.t('skillInstalling') : i18nService.t('skillInstall')}
+                </button>
+              ) : null;
+            })()}
+          </div>
+        )}
+        onClick={() => setSelectedMarketplaceSkill(skill)}
+      />
+    );
+  };
+
+  // The aggregated list can hold hundreds of rows, so only render the visible ones.
+  const marketplaceVirtualizer = useWindowVirtualizer({
+    count: filteredMarketplaceSkills.length,
+    estimateSize: () => MARKETPLACE_ROW_ESTIMATED_HEIGHT_PX,
+    getItemKey: index => filteredMarketplaceSkills[index]?.id ?? index,
+    overscan: 6,
+  });
 
   const formatSkillDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -563,31 +631,12 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
     findInstalledSkillIdFor(skill, skills, installOrigins);
 
   /**
-   * Official-store entries carry no `marketplace` field but already match by id,
-   * so they need no origin record. Third-party entries fall back to the source
-   * currently selected in the UI.
+   * Only third-party entries need an origin record: the Youdao store's ids equal
+   * the installed directory name, so plain id matching already covers them.
    */
   const buildSkillOrigin = (skill: MarketplaceSkill): SkillInstallOriginInput | undefined => {
-    const marketplace = skill.marketplace
-      ?? (marketSource === DefaultSkillMarketplaceSource ? undefined : marketSource);
-    if (!marketplace) return undefined;
-    return { marketplace, sourceId: skill.id, ...(skill.url ? { url: skill.url } : {}) };
-  };
-
-  const handleLoadMoreMarketplace = async () => {
-    if (!marketplaceCursor || isLoadingMoreMarketplace || marketSource === DefaultSkillMarketplaceSource) return;
-    setIsLoadingMoreMarketplace(true);
-    try {
-      const data = await skillService.fetchMarketplaceSource(marketSource, { cursor: marketplaceCursor });
-      if (data.error) {
-        setMarketplaceError(data.error);
-        return;
-      }
-      setMarketplaceSkills(current => appendMarketplacePage(current, data.skills));
-      setMarketplaceCursor(data.nextCursor);
-    } finally {
-      setIsLoadingMoreMarketplace(false);
-    }
+    if (skill.marketplace !== SkillMarketplaceSource.SkillHub) return undefined;
+    return { marketplace: skill.marketplace, sourceId: skill.id, ...(skill.url ? { url: skill.url } : {}) };
   };
 
   const handleUpgradeSkill = async (skill: MarketplaceSkill) => {
@@ -838,10 +887,6 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
   /** The App Store style facts strip: only what helps you decide. */
   const getMarketplaceSkillStats = (skill: MarketplaceSkill): Array<{ label: string; value: string }> => {
     const stats: Array<{ label: string; value: string }> = [];
-    const categoryTag = skill.tags?.map(tagId => marketTags.find(tag => tag.id === tagId)).find(Boolean);
-    if (categoryTag) {
-      stats.push({ label: i18nService.t('skillDetailCategory'), value: resolveLocalizedText(categoryTag) });
-    }
     if (skill.version) {
       stats.push({ label: i18nService.t('skillDetailVersion'), value: `v${skill.version}` });
     }
@@ -1167,58 +1212,19 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
           )}
         </div>
 
-        {/* Marketplace source switch (Marketplace only) */}
+        {/* One aggregated list: no source switch, no categories. Only refresh. */}
         {activeTab === SkillTab.Marketplace && (
-          <div className="flex items-center gap-1.5 flex-wrap" data-testid="skill-market-source-switch">
-            {SKILL_MARKETPLACE_SOURCE_ORDER.map((source) => (
-              <button
-                key={source}
-                type="button"
-                onClick={() => setMarketSource(source)}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  marketSource === source
-                    ? 'bg-primary text-white'
-                    : 'bg-surface-raised text-secondary hover:text-foreground'
-                }`}
-              >
-                {i18nService.t(SKILL_MARKETPLACE_SOURCES[source].labelKey)}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Tag filter pills (Marketplace only) */}
-        {activeTab === SkillTab.Marketplace && !isLoadingMarketplace && marketTags.length > 0 && (
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => {
-                setActiveMarketTag('all');
-              }}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                activeMarketTag === 'all'
-                  ? 'bg-primary text-white'
-                  : 'bg-surface-raised text-secondary hover:text-foreground'
-              }`}
+              onClick={handleRefreshMarketplace}
+              disabled={isLoadingMarketplace}
+              data-testid="skill-market-refresh"
+              className="inline-flex items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1 text-xs font-medium text-secondary transition-colors hover:text-foreground disabled:opacity-60"
             >
-              {i18nService.t('skillCategoryAll')}
+              <ArrowPathIcon className={`h-3 w-3 ${isLoadingMarketplace ? 'animate-spin' : ''}`} />
+              {i18nService.t('skillMarketplaceRefresh')}
             </button>
-            {marketTags.map((tag) => (
-              <button
-                key={tag.id}
-                type="button"
-                onClick={() => {
-                  setActiveMarketTag(tag.id);
-                }}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  activeMarketTag === tag.id
-                    ? 'bg-primary text-white'
-                    : 'bg-surface-raised text-secondary hover:text-foreground'
-                }`}
-              >
-                {resolveLocalizedText(tag)}
-              </button>
-            ))}
           </div>
         )}
       </div>
@@ -1322,7 +1328,7 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                     </div>
                     <button
                       type="button"
-                      onClick={() => setMarketSourceReloadToken(token => token + 1)}
+                      onClick={() => setMarketReloadToken(token => token + 1)}
                       className={`${CARD_ACTION_PILL_CLASS} mt-4`}
                     >
                       {i18nService.t('retry')}
@@ -1333,107 +1339,23 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
                 )}
               </div>
             ) : (
-              <div className={SKILL_LIST_CONTAINER_CLASS}>
-                {filteredMarketplaceSkills.map((skill) => {
-                  const openMarketplaceDetail = () => {
-                    setSelectedMarketplaceSkill(skill);
-                  };
-                  const installedVer = getInstalledVersion(skill);
-                  const hasUpdate = Boolean(
-                    skill.version && installedVer && compareVersions(skill.version, installedVer) > 0,
-                  );
+              <div className="relative w-full" style={{ height: marketplaceVirtualizer.getTotalSize() }}>
+                {marketplaceVirtualizer.getVirtualItems().map(virtualRow => {
+                  const skill = filteredMarketplaceSkills[virtualRow.index];
+                  if (!skill) return null;
                   return (
-              <ManagementListRow
-                key={skill.id}
-                title={skillService.getLocalizedSkillName(skill.id, skill.name)}
-                badges={(
-                  <>
-                    {skill.source?.from && (
-                      <span className={`rounded bg-surface-raised px-1.5 py-0.5 font-medium ${MANAGEMENT_META_TEXT} text-muted`}>
-                        {skill.source.from}
-                      </span>
-                    )}
-                    {hasUpdate && installedVer && (
-                      <span className={`rounded bg-amber-500/10 px-1.5 py-0.5 font-medium ${MANAGEMENT_META_TEXT} text-amber-600 dark:text-amber-400`}>
-                        v{installedVer} → v{skill.version}
-                      </span>
-                    )}
-                  </>
-                )}
-                subtitle={resolveLocalizedText(skill.description)}
-                right={(
-                  <div className="flex flex-shrink-0 items-center">
-                    {(() => {
-                      const status = getSkillInstallStatus(skill);
-                      const installedId = findInstalledSkillIdFor(skill, skills, installOrigins);
-                      const installedSkill = installedId ? skills.find(item => item.id === installedId) : undefined;
-                      if (status === 'update_available') {
-                        return (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handleUpgradeSkill(skill); }}
-                            disabled={upgradeState?.isActive === true}
-                            className={CARD_ACTION_PILL_CLASS}
-                          >
-                            {i18nService.t('skillUpgrade')}
-                          </button>
-                        );
-                      }
-                      if (status === 'installed') {
-                        if (!onUseSkill || !installedSkill?.enabled) {
-                          return (
-                            <span className={`inline-flex h-[26px] flex-shrink-0 items-center gap-1 px-1 ${MANAGEMENT_META_TEXT} text-muted`}>
-                              <CheckIcon className="h-3.5 w-3.5" />
-                              {i18nService.t('skillAlreadyInstalled')}
-                            </span>
-                          );
-                        }
-                        return (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handleUseSkill(installedSkill); }}
-                            className={CARD_ACTION_PILL_CLASS}
-                          >
-                            {i18nService.t('skillUse')}
-                          </button>
-                        );
-                      }
-                      return !readOnly ? (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleInstallMarketplaceSkill(skill); }}
-                          disabled={installingSkillId !== null}
-                          className={CARD_ACTION_PILL_CLASS}
-                        >
-                          {installingSkillId === skill.id && (
-                            <ArrowPathIcon className="h-3 w-3 animate-spin" />
-                          )}
-                          {installingSkillId === skill.id ? i18nService.t('skillInstalling') : i18nService.t('skillInstall')}
-                        </button>
-                      ) : null;
-                    })()}
-                  </div>
-                )}
-                onClick={openMarketplaceDetail}
-              />
+                    <div
+                      key={skill.id}
+                      ref={marketplaceVirtualizer.measureElement}
+                      data-index={virtualRow.index}
+                      className="absolute left-0 top-0 w-full"
+                      style={{ transform: `translateY(${virtualRow.start}px)` }}
+                    >
+                      {renderMarketplaceRow(skill)}
+                    </div>
                   );
                 })}
-            {marketplaceCursor && (
-              <div className="flex justify-center py-3">
-                <button
-                  type="button"
-                  onClick={() => { void handleLoadMoreMarketplace(); }}
-                  disabled={isLoadingMoreMarketplace}
-                  className={`${CARD_ACTION_PILL_CLASS} disabled:opacity-60`}
-                >
-                  {isLoadingMoreMarketplace && (
-                    <ArrowPathIcon className="h-3 w-3 animate-spin" />
-                  )}
-                  {i18nService.t('skillMarketplaceLoadMore')}
-                </button>
               </div>
-            )}
-          </div>
             )}
           </>
         )

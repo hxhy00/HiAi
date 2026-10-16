@@ -139,7 +139,8 @@ contextBridge.exposeInMainWorld('electron', {
       ipcRenderer.invoke('skills:testEmailAccountConnectivity', skillId, account),
     testEmailConnectivity: (skillId: string, config: Record<string, string>) =>
       ipcRenderer.invoke('skills:testEmailConnectivity', skillId, config),
-    fetchMarketplace: () => ipcRenderer.invoke('skills:fetchMarketplace'),
+    fetchMarketplace: (query?: { query?: string; limit?: number; cursor?: string }) =>
+      ipcRenderer.invoke('skills:fetchMarketplace', query),
     fetchMarketplaceSource: (source: string, query?: { query?: string; limit?: number; cursor?: string }) =>
       ipcRenderer.invoke('skills:fetchMarketplaceSource', source, query),
     detectFromOpenClaw: () => ipcRenderer.invoke('skills:detectFromOpenClaw'),

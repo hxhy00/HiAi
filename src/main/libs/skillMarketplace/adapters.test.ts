@@ -1,170 +1,240 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({
-  fetch: vi.fn(),
-}));
+const fetchMock = vi.hoisted(() => vi.fn());
 
 vi.mock('electron', () => ({
-  session: {
-    defaultSession: {
-      fetch: mocks.fetch,
-    },
-  },
+  app: { isPackaged: true },
+  session: { defaultSession: { fetch: fetchMock } },
 }));
 
 import {
-  DefaultSkillMarketplaceSource,
   SkillMarketplaceSource,
 } from '../../../shared/skills/marketplaceSources';
-import { fetchMarketplacePage, hasMarketplaceAdapter } from './index';
+import {
+  fetchMarketplacePage,
+  fetchUnifiedMarketplace,
+  hasMarketplaceAdapter,
+  invalidateYoudaoStoreCache,
+  mergeMarketplaceSkills,
+} from './index';
+import type { NormalizedMarketplaceSkill } from './types';
 
-function jsonResponse(body: unknown, ok = true, status = 200): Response {
+const SKILLHUB_ORIGIN = 'https://api.skillhub.cn';
+const YOUDAO_ORIGIN = 'https://api-overmind.youdao.com';
+
+function jsonResponse(body: unknown): Response {
   return {
-    ok,
-    status,
+    ok: true,
+    status: 200,
     json: async () => body,
   } as unknown as Response;
 }
 
+function skillhubSearchItem(overrides: Record<string, unknown> = {}) {
+  return {
+    name: 'AI Video Generation',
+    description: 'Create AI videos',
+    description_zh: '创建 AI 视频',
+    slug: 'video-generation',
+    version: '1.2.0',
+    downloads: 42,
+    installs: 7,
+    icon_url: 'https://cdn.example/icon.png',
+    namespace: { canonicalName: '@acme/video-generation', handle: 'acme' },
+    ...overrides,
+  };
+}
+
+function youdaoStore(overrides: Record<string, unknown> = {}) {
+  return {
+    code: 0,
+    data: {
+      value: {
+        marketplace: [
+          {
+            id: 'canvas-design',
+            name: 'canvas-design',
+            version: '2.0.0',
+            url: 'https://lobsterai.youdao.com/skills/canvas-design.zip',
+            displayName: { en: 'Canvas Design', zh: '画布设计' },
+            description: { en: 'Design posters', zh: '设计海报' },
+            source: { from: 'youdao', url: 'https://lobsterai.youdao.com', author: 'LobsterAI' },
+          },
+        ],
+        localSkill: [
+          { id: 'canvas-design', name: 'canvas-design', version: '2.0.0', displayName: { en: 'Canvas Design', zh: '画布设计' } },
+        ],
+        ...overrides,
+      },
+    },
+  };
+}
+
 beforeEach(() => {
-  vi.clearAllMocks();
+  fetchMock.mockReset();
+  invalidateYoudaoStoreCache();
 });
 
-describe('ClawHub adapter', () => {
-  test('normalizes items into MarketplaceSkill shape and builds a download url', async () => {
-    mocks.fetch.mockResolvedValue(jsonResponse({
-      items: [
-        {
-          ownerHandle: 'dlazyai',
-          slug: 'main-image-video',
-          displayName: '主图视频',
-          summary: 'turn a product image into a short video',
-          stats: { downloads: 1232 },
-          latestVersion: { version: '1.0.18' },
-        },
-      ],
-      nextCursor: 'CURSOR-1',
-    }));
+describe('youdao adapter', () => {
+  test('normalizes the store payload and keeps localized text', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(youdaoStore()));
+    const page = await fetchMarketplacePage(SkillMarketplaceSource.Youdao);
 
-    const page = await fetchMarketplacePage(SkillMarketplaceSource.ClawHub, { query: 'video', limit: 5 });
-
-    const requestedUrl = new URL(mocks.fetch.mock.calls[0][0] as string);
-    expect(requestedUrl.host).toBe('clawhub.ai');
-    expect(requestedUrl.pathname).toBe('/api/v1/skills');
-    expect(requestedUrl.searchParams.get('q')).toBe('video');
-    expect(requestedUrl.searchParams.get('limit')).toBe('5');
-
-    expect(page.nextCursor).toBe('CURSOR-1');
     expect(page.skills).toHaveLength(1);
-    expect(page.skills[0]).toMatchObject({
-      id: 'clawhub:dlazyai/main-image-video',
-      name: 'main-image-video',
-      displayName: '主图视频',
-      description: 'turn a product image into a short video',
-      version: '1.0.18',
-      downloadCount: 1232,
-      marketplace: SkillMarketplaceSource.ClawHub,
-      source: { from: 'ClawHub', author: 'dlazyai' },
+    const skill = page.skills[0];
+    expect(skill.id).toBe('canvas-design');
+    expect(skill.marketplace).toBe(SkillMarketplaceSource.Youdao);
+    expect(skill.source.from).toBe('youdao');
+    expect(skill.description).toEqual({ en: 'Design posters', zh: '设计海报' });
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url.startsWith(YOUDAO_ORIGIN)).toBe(true);
+  });
+
+  test('drops entries without a download url', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(youdaoStore({
+      marketplace: [{ id: 'no-url', name: 'no-url' }],
+    })));
+    const page = await fetchMarketplacePage(SkillMarketplaceSource.Youdao);
+    expect(page.skills).toEqual([]);
+  });
+
+  test('reuses one request for the list and the local-skill metadata', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(youdaoStore()));
+    const result = await fetchUnifiedMarketplace();
+    // Aggregated call: youdao + skillhub, plus metadata served from the cache.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.localSkills.map(entry => entry.id)).toEqual(['canvas-design']);
+  });
+});
+
+describe('skillhub adapter', () => {
+  test('searches with a query term and prefers installs for popularity', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ results: [skillhubSearchItem()] }));
+    const page = await fetchMarketplacePage(SkillMarketplaceSource.SkillHub, { query: 'video', limit: 5 });
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain(`${SKILLHUB_ORIGIN}/api/v1/search`);
+    expect(String(url)).toContain('q=video');
+    expect(String(url)).toContain('limit=5');
+    const skill = page.skills[0];
+    expect(skill.id).toBe('skillhub:@acme/video-generation');
+    expect(skill.description).toBe('创建 AI 视频');
+    expect(skill.downloadCount).toBe(7);
+  });
+
+  test('browses the showcase section without a query', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ section: 'hot_downloads', skills: [skillhubSearchItem()] }));
+    await fetchMarketplacePage(SkillMarketplaceSource.SkillHub, {});
+    expect(String(fetchMock.mock.calls[0][0])).toContain(`${SKILLHUB_ORIGIN}/api/v1/showcase/hot`);
+  });
+});
+
+describe('mergeMarketplaceSkills', () => {
+  const entry = (over: Partial<NormalizedMarketplaceSkill>): NormalizedMarketplaceSkill => ({
+    id: 'id',
+    name: 'name',
+    description: '',
+    url: 'https://example.test/s.zip',
+    version: '1.0.0',
+    source: { from: 'test', url: 'https://example.test' },
+    marketplace: SkillMarketplaceSource.SkillHub,
+    ...over,
+  });
+
+  test('puts the first-party source ahead of third-party entries', () => {
+    const merged = mergeMarketplaceSkills([
+      { source: SkillMarketplaceSource.SkillHub, skills: [entry({ id: 's1', name: 'third-party' })] },
+      { source: SkillMarketplaceSource.Youdao, skills: [entry({ id: 'y1', name: 'official', marketplace: SkillMarketplaceSource.Youdao })] },
+    ]);
+    expect(merged.map(s => s.name)).toEqual(['official', 'third-party']);
+  });
+
+  test('orders each group by download count and sinks unknown counts', () => {
+    const merged = mergeMarketplaceSkills([
+      {
+        source: SkillMarketplaceSource.SkillHub,
+        skills: [
+          entry({ id: 'a', name: 'unknown-count' }),
+          entry({ id: 'b', name: 'low', downloadCount: 5 }),
+          entry({ id: 'c', name: 'high', downloadCount: 900 }),
+        ],
+      },
+    ]);
+    expect(merged.map(s => s.name)).toEqual(['high', 'low', 'unknown-count']);
+  });
+
+  test('keeps one entry per slug across sources, first source wins', () => {
+    const merged = mergeMarketplaceSkills([
+      {
+        source: SkillMarketplaceSource.Youdao,
+        skills: [entry({ id: 'y', name: 'shared-slug', marketplace: SkillMarketplaceSource.Youdao })],
+      },
+      { source: SkillMarketplaceSource.SkillHub, skills: [entry({ id: 's', name: 'Shared-Slug' })] },
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].id).toBe('y');
+  });
+});
+
+describe('fetchUnifiedMarketplace', () => {
+  test('merges both sources and reports no errors when all succeed', async () => {
+    fetchMock.mockImplementation(async (input: unknown) => {
+      const url = String(input);
+      if (url.startsWith(YOUDAO_ORIGIN)) return jsonResponse(youdaoStore());
+      return jsonResponse({ section: 'hot', skills: [skillhubSearchItem()] });
     });
-    expect(page.skills[0].url).toBe(
-      'https://clawhub.ai/api/v1/download?owner=dlazyai&slug=main-image-video',
-    );
+
+    const result = await fetchUnifiedMarketplace();
+    expect(result.errors).toEqual({});
+    expect(result.skills.map(s => s.marketplace)).toEqual([
+      SkillMarketplaceSource.Youdao,
+      SkillMarketplaceSource.SkillHub,
+    ]);
   });
 
-  test('drops items without an owner or slug', async () => {
-    mocks.fetch.mockResolvedValue(jsonResponse({
-      items: [
-        { ownerHandle: 'owner', slug: 'ok', summary: 's' },
-        { ownerHandle: '', slug: 'no-owner' },
-        { ownerHandle: 'no-slug', slug: '' },
-      ],
-    }));
-
-    const page = await fetchMarketplacePage(SkillMarketplaceSource.ClawHub);
-    expect(page.skills.map(s => s.id)).toEqual(['clawhub:owner/ok']);
-  });
-});
-
-describe('SkillHub adapter', () => {
-  test('searches and normalizes results (zh description preferred)', async () => {
-    mocks.fetch.mockResolvedValue(jsonResponse({
-      results: [
-        {
-          name: 'Pdf',
-          displayName: 'Pdf',
-          slug: 'document-pdf',
-          version: '1.0.0',
-          downloads: 34354,
-          description: 'Comprehensive PDF toolkit',
-          description_zh: '全面的PDF处理工具包',
-          owner_name: 'kidaiangel',
-          icon_url: 'https://cdn.example/icon.png',
-          homepage: 'https://api.skillhub.cn/clawhub_kidaiangel/document-pdf',
-          namespace: { canonicalName: '@clawhub_kidaiangel/document-pdf', handle: 'clawhub_kidaiangel' },
-        },
-      ],
-    }));
-
-    const page = await fetchMarketplacePage(SkillMarketplaceSource.SkillHub, { query: 'pdf' });
-
-    const requestedUrl = new URL(mocks.fetch.mock.calls[0][0] as string);
-    expect(requestedUrl.host).toBe('api.skillhub.cn');
-    expect(requestedUrl.pathname).toBe('/api/v1/search');
-    expect(requestedUrl.searchParams.get('q')).toBe('pdf');
-
-    expect(page.skills).toHaveLength(1);
-    expect(page.skills[0]).toMatchObject({
-      id: 'skillhub:@clawhub_kidaiangel/document-pdf',
-      displayName: 'Pdf',
-      description: '全面的PDF处理工具包',
-      version: '1.0.0',
-      downloadCount: 34354,
-      icon: 'https://cdn.example/icon.png',
-      marketplace: SkillMarketplaceSource.SkillHub,
-      source: { from: 'SkillHub', author: 'clawhub_kidaiangel' },
+  test('keeps the healthy source when one registry fails', async () => {
+    fetchMock.mockImplementation(async (input: unknown) => {
+      const url = String(input);
+      if (url.startsWith(YOUDAO_ORIGIN)) return jsonResponse(youdaoStore());
+      return { ok: false, status: 503, json: async () => ({}) } as unknown as Response;
     });
-    expect(page.skills[0].url).toBe(
-      'https://api.skillhub.cn/api/v1/download?slug=document-pdf',
-    );
+
+    const result = await fetchUnifiedMarketplace();
+    expect(result.skills).toHaveLength(1);
+    expect(result.skills[0].marketplace).toBe(SkillMarketplaceSource.Youdao);
+    expect(result.errors[SkillMarketplaceSource.SkillHub]).toMatch(/HTTP 503/);
   });
 
-  test('browses the showcase section when no query is given', async () => {
-    mocks.fetch.mockResolvedValue(jsonResponse({
-      section: 'hot',
-      skills: [{ name: 'Hot', slug: 'hot-skill', namespace: { canonicalName: '@x/hot-skill' } }],
-    }));
+  test('sends the search term to every source', async () => {
+    fetchMock.mockImplementation(async (input: unknown) => {
+      const url = String(input);
+      if (url.startsWith(YOUDAO_ORIGIN)) return jsonResponse(youdaoStore());
+      return jsonResponse({ results: [skillhubSearchItem()] });
+    });
 
-    const page = await fetchMarketplacePage(SkillMarketplaceSource.SkillHub, {});
-
-    const requestedUrl = new URL(mocks.fetch.mock.calls[0][0] as string);
-    expect(requestedUrl.pathname).toBe('/api/v1/showcase/hot');
-    expect(page.skills).toHaveLength(1);
-    expect(page.skills[0].id).toBe('skillhub:@x/hot-skill');
+    await fetchUnifiedMarketplace({ query: 'video' });
+    const skillhubCall = fetchMock.mock.calls.map(call => String(call[0])).find(url => url.includes('skillhub'));
+    expect(skillhubCall).toContain('q=video');
   });
-});
 
-describe('skills.sh', () => {
-  test('delegates browsing to the ClawHub adapter', async () => {
-    mocks.fetch.mockResolvedValue(jsonResponse({ items: [{ ownerHandle: 'a', slug: 'b' }] }));
-
-    const page = await fetchMarketplacePage(SkillMarketplaceSource.SkillsSh, {});
-
-    const requestedUrl = new URL(mocks.fetch.mock.calls[0][0] as string);
-    expect(requestedUrl.host).toBe('clawhub.ai');
-    expect(page.skills[0].marketplace).toBe(SkillMarketplaceSource.ClawHub);
+  test('survives a total outage with an empty list and recorded errors', async () => {
+    fetchMock.mockRejectedValue(new Error('network down'));
+    const result = await fetchUnifiedMarketplace();
+    expect(result.skills).toEqual([]);
+    expect(Object.keys(result.errors)).toHaveLength(2);
   });
 });
 
 describe('dispatch', () => {
-  test('unknown source falls back to the default (official) which has no adapter', async () => {
-    expect(hasMarketplaceAdapter('nope')).toBe(false);
-    expect(hasMarketplaceAdapter(DefaultSkillMarketplaceSource)).toBe(false);
-    expect(hasMarketplaceAdapter(SkillMarketplaceSource.ClawHub)).toBe(true);
-    await expect(fetchMarketplacePage('nope')).rejects.toThrow(/no list adapter/);
+  test('unknown source falls back to the first-party store', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(youdaoStore()));
+    const page = await fetchMarketplacePage('nope');
+    expect(page.skills[0].marketplace).toBe(SkillMarketplaceSource.Youdao);
   });
 
-  test('surfaces non-2xx responses as errors', async () => {
-    mocks.fetch.mockResolvedValue(jsonResponse({}, false, 500));
-    await expect(fetchMarketplacePage(SkillMarketplaceSource.ClawHub)).rejects.toThrow(/HTTP 500/);
+  test('every declared source has an adapter', () => {
+    expect(hasMarketplaceAdapter(SkillMarketplaceSource.Youdao)).toBe(true);
+    expect(hasMarketplaceAdapter(SkillMarketplaceSource.SkillHub)).toBe(true);
+    expect(hasMarketplaceAdapter('nope')).toBe(false);
   });
 });

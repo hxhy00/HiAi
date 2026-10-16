@@ -1,7 +1,7 @@
 # Skill 市场多源聚合设计（ClawHub / SkillHub / skills.sh）
 
 日期：2026-10-16
-状态：已实现（回填式规格）——本文档把已落地代码登记为规格基线，并登记已定位但未修复的缺陷（第 8 章 U-1~U-7）。
+状态：已实现并于同日按用户决策重构为**统一聚合**（源切换 UI 与分类过滤已下线，见 §11）。U-1/U-2 已修，U-3~U-7 见第 8 章。
 关联：`specs/refactors/de-server-dependency/2026-10-13-de-server-dependency-design.md` 的 U-6（更新检查与 Skill Store 后续处置）中的「多源聚合」子项。
 
 行号会随重构漂移，一律以符号名为准。
@@ -228,7 +228,65 @@
 
 本功能**不引入 mock**：`src/main/libs/skillMarketplace/`、`src/shared/skills/`、`SkillsManager.tsx` 中 `MOCK:`/`TODO`/`FIXME` 零命中；`adapters.test.ts` 虽 mock `session.defaultSession.fetch`，但断言的是真实 URL 与归一化规则。
 
-需要说明的两项**实现约定**（均非 mock，但易被误读）：
+需要说明的**实现约定**（非 mock，但易被误读）：端点硬编码在适配器内（`youdaoAdapter` 取 `getSkillStoreUrl()`、`skillhubAdapter` 4 个常量），无配置化入口——换环境/镜像需改代码。
 
-1. 端点硬编码在适配器内（`clawhubAdapter` 3 个常量、`skillhubAdapter` 4 个常量），无配置化入口——换环境/镜像需改代码。
-2. `skills.sh` 的「浏览」实际是请求 ClawHub（U-3），数据真实但来源标记为 ClawHub。
+---
+
+## 10. 统一聚合重构（2026-10-16 用户决策，已实现）
+
+用户反馈：多源切换每次都要重新拉取、卡顿；分类（全部/生活等）无用；搜索应覆盖所有源；市场应统一管理。决策：**去掉 ClawHub 与 skills.sh，只留 Youdao 官方 + SkillHub**。
+
+### 10.1 源收敛
+
+| 源 | 处置 |
+| --- | --- |
+| Youdao 官方 | 保留，并由「旧裸 https 通道」升级为正式适配器 `youdaoAdapter`（走共享 HTTP 层、补 UA、解析后归一化、缓存响应） |
+| SkillHub | 保留，适配器不变；`downloadCount` 改用 `installs` 优先、`downloads` 兜底 |
+| ClawHub | **删除**（`clawhubAdapter.ts` 已删，枚举与 UI 文案一并移除） |
+| skills.sh | **删除**（本就无独立列表 API，只是 ClawHub 的代理，留着只会产生重复条目——同时闭环原 U-3） |
+
+枚举值随之由 `official` 改为 `youdao`（无持久化依赖，改名安全）。**「添加技能 → ClawHub 直连导入」是独立功能，不在本次范围，保留不动。**
+
+### 10.2 统一聚合
+
+- 主进程新增 `fetchUnifiedMarketplace(query)`：`Promise.allSettled` 并发拉取全部源，**单源失败只记录到 `errors`，不拖垮整表**；同时回传 `localSkills`（已安装技能的本地化元数据，供 `SkillsPopover` / `AgentSkillSelector` 的 i18n 使用，与市场列表共用一次请求）。
+- 合并规则（`mergeMarketplaceSkills`）：**官方置顶**，组内按 `downloadCount` 降序，无热度数据的条目沉底；按 slug 小写去重，跨源同名只保留先出现的（官方优先）。
+- 排序依据的取舍：官方条目**没有下载量字段**（实测其响应仅 `id/name/version/url/displayName/description/source/tags`），因此不能用纯热度排序，改为「官方置顶 + 组内热度」。
+
+### 10.3 取消分类
+
+- 删除：分类药丸 UI、`activeMarketTag`/`marketTags` state、分类过滤分支、详情页「类别」事实条、`MarketTag` 类型与 i18n 键（`skillCategoryAll`/`skillDetailCategory`）。
+- `MarketplaceSkill.tags` 字段保留但不再有读取点（服务端仍下发，不做无谓的协议改动）。
+
+### 10.4 性能
+
+| 问题 | 处置 |
+| --- | --- |
+| 切源即请求、且两个 effect 对同一源重复发两次 | 合并为**单一 effect**，缓存命中直接渲染，不发请求 |
+| 重进市场仍等网络 | 服务层按 query 分桶缓存，**TTL 10 分钟**；命中即渲染，后台静默刷新 |
+| 聚合后条目达数百条 | 接入 `@tanstack/react-virtual` 的 `useWindowVirtualizer`，只渲染可视区（`overscan: 6`，行高 76px 估算 + 动态测量） |
+| 「加载更多」在聚合语义下无意义 | 删除按钮与游标链路（官方无游标、SkillHub 聚合一次取回） |
+| 手动刷新 | 市场 tab 右上角保留刷新按钮（`forceRefresh` 绕过缓存） |
+
+### 10.5 跨源搜索
+
+- 搜索词一次性发给**所有源**（`fetchUnifiedMarketplace({query})`），350ms 防抖。
+- 本地只过滤 Youdao 条目（其接口无 query 参数，返回全量）；SkillHub 结果由服务端过滤，不再二次收窄。
+
+### 10.6 本轮闭环的原未决项
+
+- **U-4（官方源与新源双通道并存）**：旧裸 `https.get` 通道删除，官方源并入适配器体系，`getSkillStoreUrl` 不再经 IPC 传递。
+- **U-3（skills.sh 源归属泄漏）**：随 skills.sh 下线而消失。
+- **U-6（类型退化）**：`NormalizedMarketplaceSkill` 的 `marketplace` 现为 `SkillMarketplaceSource` 枚举（渲染层 `MarketplaceSkill.marketplace` 仍为可选字符串，属跨进程序列化的既有形态）。
+
+### 10.7 验收
+
+| 编号 | 验收标准 | 状态 |
+| --- | --- | --- |
+| AC-10.1 | 市场 tab 无源切换、无分类药丸，只有一个列表 | ✅ 代码核对 |
+| AC-10.2 | 列表含 Youdao 与 SkillHub 条目，官方置顶、组内按热度 | ✅ `mergeMarketplaceSkills` 用例 |
+| AC-10.3 | 单源不可用时另一源仍出列表，错误可见 | ✅ `fetchUnifiedMarketplace` 用例 |
+| AC-10.4 | 搜索词同时发往所有源 | ✅ 用例断言 SkillHub 收到 `q=` |
+| AC-10.5 | 重进市场不阻塞（缓存命中），刷新按钮可强制刷新 | ✅ 代码核对；**端到端待手工验证** |
+| AC-10.6 | 长列表滚动流畅（虚拟化） | ✅ 代码核对；**端到端待手工验证** |
+| AC-10.7 | 双端编译、改动文件 eslint 零告警、`npm test` 无回归 | ✅ `compile:electron` + `tsc --noEmit` + lint 通过；全量 6167 通过，仅 `popo-sdk` 遗留失败 |

@@ -100,7 +100,10 @@ function toNormalized(item: SkillHubItem): NormalizedMarketplaceSkill | null {
       author: handle || undefined,
     },
     icon: resolveAgainst(SKILLHUB_API_ORIGIN, item.icon_url),
-    downloadCount: typeof item.downloads === 'number' ? item.downloads : undefined,
+    // `installs` is the engagement count; fall back to raw downloads when absent.
+    downloadCount: typeof item.installs === 'number'
+      ? item.installs
+      : typeof item.downloads === 'number' ? item.downloads : undefined,
     marketplace: SkillMarketplaceSource.SkillHub,
   };
 }
