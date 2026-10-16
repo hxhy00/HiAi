@@ -294,5 +294,13 @@
     "node_modules/better-sqlite3/**",
     "node_modules/npm/**"
   ],
-  "asar": true
+  "asar": true,
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "hxhy00",
+      "repo": "HiAi",
+      "releaseType": "release"
+    }
+  ]
 }

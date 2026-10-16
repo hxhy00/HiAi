@@ -392,7 +392,6 @@ describe('Windows update download URL enforcement', () => {
     expect(mocks.fetch).toHaveBeenCalledWith(
       inputUrl,
       expect.objectContaining({
-        redirect: 'error',
         signal: expect.any(AbortSignal),
       }),
     );
@@ -405,7 +404,7 @@ describe('Windows update download URL enforcement', () => {
     expect(logSpy.mock.calls.flat().join(' ')).not.toContain('do-not-log');
   });
 
-  test('leaves no cached file when the Windows fetch rejects a redirect', async () => {
+  test('leaves no cached file when the Windows fetch rejects', async () => {
     mocks.fetch.mockRejectedValue(new TypeError('Failed to fetch'));
 
     await expect(downloadUpdate(
@@ -414,9 +413,11 @@ describe('Windows update download URL enforcement', () => {
       () => {},
     )).rejects.toThrow('Failed to fetch');
 
+    // Redirects are followed (GitHub Releases assets 302 to a CDN), so the
+    // request must not force redirect: 'error'.
     expect(mocks.fetch).toHaveBeenCalledWith(
       'https://downloads.example.com/HiAi.exe',
-      expect.objectContaining({ redirect: 'error' }),
+      expect.not.objectContaining({ redirect: 'error' }),
     );
     expect(fs.existsSync(path.join(tmpDir, 'updates'))).toBe(false);
   });

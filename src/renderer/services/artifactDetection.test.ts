@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { ShareDeploymentCandidateSource } from '../../shared/shareDeployment/constants';
+import { LocalWebServiceCandidateSource } from '../../shared/localWebServices/constants';
 import type { CoworkMessage } from '../types/cowork';
 import { collectSessionArtifacts } from './artifactDetection';
 
@@ -138,7 +138,7 @@ describe('collectSessionArtifacts', () => {
     const localService = detected.find(artifact => artifact.type === 'local-service');
     expect(localService?.localService?.projectDirectory).toBe(`${CWD}/app`);
     expect(localService?.localService?.projectCandidates?.[0].source).toBe(
-      ShareDeploymentCandidateSource.ToolCdCommand,
+      LocalWebServiceCandidateSource.ToolCdCommand,
     );
   });
 

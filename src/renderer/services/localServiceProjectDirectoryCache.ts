@@ -1,13 +1,13 @@
 import {
-  ShareDeploymentCandidateSource,
-  type ShareDeploymentProjectCandidate,
-} from '../../shared/shareDeployment/constants';
+  LocalWebServiceCandidateSource,
+  type LocalWebServiceProjectCandidate,
+} from '../../shared/localWebServices/constants';
 
 const PROJECT_DIRECTORY_STORAGE_PREFIX = 'hiai:node-deployment-project-directory:';
 
 interface LocalServiceProjectDirectoryCache {
   projectDirectory: string;
-  source?: ShareDeploymentProjectCandidate['source'];
+  source?: LocalWebServiceProjectCandidate['source'];
   updatedAt?: number;
 }
 
@@ -48,7 +48,7 @@ function parseProjectDirectoryCache(value: string | null): LocalServiceProjectDi
 export function readLocalServiceProjectDirectoryCandidate(
   sessionId: string,
   localServiceUrl?: string,
-): ShareDeploymentProjectCandidate | undefined {
+): LocalWebServiceProjectCandidate | undefined {
   if (!localServiceUrl || typeof window === 'undefined') return undefined;
   try {
     const currentValue = window.localStorage.getItem(
@@ -62,7 +62,7 @@ export function readLocalServiceProjectDirectoryCandidate(
     if (!cache?.projectDirectory) return undefined;
     return {
       directory: cache.projectDirectory,
-      source: ShareDeploymentCandidateSource.Cache,
+      source: LocalWebServiceCandidateSource.Cache,
       confidence: 35,
       reason: 'Matched the previously used project directory for this local service origin.',
       detectedAt: cache.updatedAt,
@@ -83,7 +83,7 @@ export function writeLocalServiceProjectDirectory(
   sessionId: string,
   localServiceUrl: string,
   projectDirectory?: string,
-  source: ShareDeploymentProjectCandidate['source'] = ShareDeploymentCandidateSource.Manual,
+  source: LocalWebServiceProjectCandidate['source'] = LocalWebServiceCandidateSource.Manual,
 ): void {
   const value = projectDirectory?.trim();
   if (!value || typeof window === 'undefined') return;

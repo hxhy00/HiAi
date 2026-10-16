@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
 import { HtmlShareAccessMode, HtmlShareStatus } from '../htmlShare/constants';
-import { SiteKind, SiteStatus } from '../site/constants';
 import { getLibraryCloudAvailability } from './cloudAvailability';
 import {
   LibraryCategory,
@@ -29,14 +28,14 @@ const sharedItem = (status: HtmlShareStatus): SharedFileItem => ({
   status,
 });
 
-const siteItem = (siteStatus: SiteStatus, shareStatus: HtmlShareStatus): DeployedSiteItem => ({
+const siteItem = (siteStatus: string, shareStatus: HtmlShareStatus): DeployedSiteItem => ({
   ...base,
   category: LibraryCategory.Site,
   itemKind: LibraryItemKind.DeployedSite,
   itemId: 'site-1',
   shareId: 'site-1',
   url: 'https://site.example',
-  siteKind: SiteKind.StaticSite,
+  siteKind: 'static_site',
   siteStatus,
   shareStatus,
   accessMode: HtmlShareAccessMode.Public,
@@ -51,18 +50,18 @@ describe('getLibraryCloudAvailability', () => {
   });
 
   test('only treats online sites with a live share as available', () => {
-    expect(getLibraryCloudAvailability(siteItem(SiteStatus.Online, HtmlShareStatus.Live)))
+    expect(getLibraryCloudAvailability(siteItem('online', HtmlShareStatus.Live)))
       .toBe(LibraryCloudAvailabilityFilter.Available);
-    expect(getLibraryCloudAvailability(siteItem(SiteStatus.Deploying, HtmlShareStatus.Live)))
+    expect(getLibraryCloudAvailability(siteItem('deploying', HtmlShareStatus.Live)))
       .toBe(LibraryCloudAvailabilityFilter.Unavailable);
-    expect(getLibraryCloudAvailability(siteItem(SiteStatus.Online, HtmlShareStatus.Disabled)))
+    expect(getLibraryCloudAvailability(siteItem('online', HtmlShareStatus.Disabled)))
       .toBe(LibraryCloudAvailabilityFilter.Unavailable);
   });
 
   test('treats a fixed-expiry free resource as unavailable after the server clock passes it', () => {
     const share = { ...sharedItem(HtmlShareStatus.Live), accessExpiresAt: 10_000 };
     const site = {
-      ...siteItem(SiteStatus.Online, HtmlShareStatus.Live),
+      ...siteItem('online', HtmlShareStatus.Live),
       accessExpiresAt: 10_000,
     };
     expect(getLibraryCloudAvailability(share, 9_999))
@@ -80,7 +79,7 @@ describe('getLibraryCloudAvailability', () => {
       effectiveExpiresAt: 10_000,
     };
     const projectedGrace = {
-      ...siteItem(SiteStatus.Online, HtmlShareStatus.Live),
+      ...siteItem('online', HtmlShareStatus.Live),
       effectiveAvailable: true,
       effectiveExpiresAt: 10_000,
     };

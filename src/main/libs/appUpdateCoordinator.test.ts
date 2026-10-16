@@ -25,6 +25,41 @@ const mocks = vi.hoisted(() => ({
   cancelActiveDownload: vi.fn(),
 }));
 
+/**
+ * Build a GitHub Releases API `releases/latest` body for stable-source mocks.
+ * The update checker now consumes GitHub Releases instead of the former
+ * first-party update API.
+ */
+function gitHubReleaseFixture(options: {
+  version: string;
+  date?: string;
+  body?: string;
+  name?: string;
+  macDmg?: string;
+  macArmDmg?: string;
+  winExe?: string;
+}): unknown {
+  const assets: Array<{ name: string; state: string; browser_download_url: string }> = [];
+  if (options.macDmg) {
+    assets.push({ name: 'HiAi-x64.dmg', state: 'uploaded', browser_download_url: options.macDmg });
+  }
+  if (options.macArmDmg) {
+    assets.push({ name: 'HiAi-arm64.dmg', state: 'uploaded', browser_download_url: options.macArmDmg });
+  }
+  if (options.winExe) {
+    assets.push({ name: 'HiAi-Setup.exe', state: 'uploaded', browser_download_url: options.winExe });
+  }
+  return {
+    tag_name: options.version,
+    name: options.name ?? '',
+    body: options.body ?? '',
+    published_at: options.date ? `${options.date}T00:00:00Z` : undefined,
+    draft: false,
+    prerelease: false,
+    assets,
+  };
+}
+
 vi.mock('electron', () => ({
   app: {
     getPath: mocks.getPath,
@@ -54,6 +89,9 @@ vi.mock('./endpoints', () => ({
 
 vi.mock('./keyfromAttribution', () => ({
   getKeyfromAttribution: () => ({ firstKeyfrom: 'none', latestKeyfrom: 'none' }),
+  resolveCurrentKeyfrom: () => 'none',
+  normalizeKeyfrom: (value: unknown) =>
+    (typeof value === 'string' && value.trim() ? value.trim().toLowerCase() : 'none'),
 }));
 
 import { APP_UPDATE_READY_FILE_KEY_PREFIX, AppUpdateCoordinator } from './appUpdateCoordinator';
@@ -146,7 +184,7 @@ describe('AppUpdateCoordinator', () => {
       getServerBaseUrl: () => 'https://server.example', fetch: grayFetch,
       platform: AppUpdateGrayPlatform.Windows, arch: 'x64',
     });
-    mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({ code: 0, data: { value: { version: '1.0.0' } } }) });
+    mocks.fetch.mockResolvedValue({ ok: true, json: async () => gitHubReleaseFixture({ version: '1.0.0' }) });
     const downloaded = () => {
       fs.mkdirSync(updatesDir, { recursive: true });
       const filePath = path.join(updatesDir, `lobsterai-update-auto-${++sequence}.exe`);
@@ -164,7 +202,7 @@ describe('AppUpdateCoordinator', () => {
       switchAccount: () => { sessionKey = 'account-b:2'; } };
   }
 
-  test.each([false, true])('gray override preserves the original request, manual=%s', async manual => {
+  test.each([false, true])('stable check hits the GitHub Releases API, manual=%s', async manual => {
     const f = grayFixture();
     const coordinator = new AppUpdateCoordinator(f.store, f.gray);
     const result = await coordinator.checkNow({ manual, userId: 'original-yid' });
@@ -173,11 +211,16 @@ describe('AppUpdateCoordinator', () => {
     expect(result.state.status).toBe(manual ? AppUpdateStatus.Available : AppUpdateStatus.Ready);
     expect(mocks.fetch).toHaveBeenCalledTimes(1);
     const [rawUrl, options] = mocks.fetch.mock.calls[0];
-    const url = new URL(rawUrl);
-    expect(url.pathname).toBe(manual ? '/manual' : '/auto');
-    expect(Object.fromEntries(url.searchParams)).toEqual({ uuid: 'original-uuid', userId: 'original-yid',
-      version: '1.0.0', firstKeyfrom: 'none', latestKeyfrom: 'none' });
-    expect(options).toEqual({ method: 'GET', headers: { Accept: 'application/json' } });
+    // Auto and manual checks share the same GitHub endpoint (no per-mode URL).
+    expect(new URL(rawUrl).pathname).toBe('/auto');
+    expect(options).toEqual({
+      method: 'GET',
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'HiAi/1.0.0',
+      },
+    });
     expect(mocks.downloadUpdate).toHaveBeenCalledTimes(manual ? 0 : 1);
   });
 
@@ -285,9 +328,9 @@ describe('AppUpdateCoordinator', () => {
     const f = grayFixture();
     const coordinator = new AppUpdateCoordinator(f.store, f.gray);
     await coordinator.checkNow();
-    mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({ code: 0, data: { value: {
-      version: READY_VERSION, windowsX64: { url: 'https://updates.example.com/stable.exe' },
-    } } }) });
+    mocks.fetch.mockResolvedValue({ ok: true, json: async () => gitHubReleaseFixture({
+      version: READY_VERSION, winExe: 'https://updates.example.com/stable.exe',
+    }) });
     const stable = await coordinator.checkNow();
     expect(stable.state.info?.gray).toBeUndefined();
     expect(mocks.downloadUpdate).toHaveBeenCalledTimes(2);
@@ -313,9 +356,9 @@ describe('AppUpdateCoordinator', () => {
       .mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
     const install = coordinator.installReadyUpdate();
     await vi.waitFor(() => expect(verify).toHaveBeenCalled());
-    mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({ code: 0, data: { value: {
-      version: '3.0.0', windowsX64: { url: 'https://updates.example.com/stable-3.0.0.exe' },
-    } } }) });
+    mocks.fetch.mockResolvedValue({ ok: true, json: async () => gitHubReleaseFixture({
+      version: '3.0.0', winExe: 'https://updates.example.com/stable-3.0.0.exe',
+    }) });
     const stable = await coordinator.checkNow();
     expect(stable.state.status).toBe(AppUpdateStatus.Ready);
     finish(valid);
@@ -347,16 +390,9 @@ describe('AppUpdateCoordinator', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
     mocks.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({
-        code: 0,
-        data: {
-          value: {
-            version: READY_VERSION,
-            windowsX64: {
-              url: 'http://downloads.example/HiAi.exe',
-            },
-          },
-        },
+      json: async () => gitHubReleaseFixture({
+        version: READY_VERSION,
+        winExe: 'http://downloads.example/HiAi.exe',
       }),
     });
     const coordinator = new AppUpdateCoordinator(createStoreStub());
@@ -377,14 +413,9 @@ describe('AppUpdateCoordinator', () => {
     const downloadedFile = path.join(updatesDir, 'lobsterai-update-auto-1.exe');
     mocks.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({
-        code: 0,
-        data: {
-          value: {
-            version: READY_VERSION,
-            windowsX64: { url: installerUrl },
-          },
-        },
+      json: async () => gitHubReleaseFixture({
+        version: READY_VERSION,
+        winExe: installerUrl,
       }),
     });
     mocks.downloadUpdate.mockImplementation(async () => {
@@ -416,14 +447,7 @@ describe('AppUpdateCoordinator', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
     mocks.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({
-        code: 0,
-        data: {
-          value: {
-            version: READY_VERSION,
-          },
-        },
-      }),
+      json: async () => gitHubReleaseFixture({ version: READY_VERSION }),
     });
     const coordinator = new AppUpdateCoordinator(createStoreStub());
 
@@ -616,16 +640,9 @@ describe('AppUpdateCoordinator', () => {
     seedReadyFile(store, updatesDir, AppUpdateSource.Auto);
     mocks.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({
-        code: 0,
-        data: {
-          value: {
-            version: READY_VERSION,
-            windowsX64: {
-              url: `https://updates.example.com/HiAi-${READY_VERSION}.exe`,
-            },
-          },
-        },
+      json: async () => gitHubReleaseFixture({
+        version: READY_VERSION,
+        winExe: `https://updates.example.com/HiAi-${READY_VERSION}.exe`,
       }),
     });
     const coordinator = new AppUpdateCoordinator(store);
@@ -705,16 +722,9 @@ describe('AppUpdateCoordinator', () => {
     const store = createStoreStub();
     mocks.fetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        code: 0,
-        data: {
-          value: {
-            version: READY_VERSION,
-            windowsX64: {
-              url: `https://updates.example.com/HiAi-${READY_VERSION}.exe`,
-            },
-          },
-        },
+      json: async () => gitHubReleaseFixture({
+        version: READY_VERSION,
+        winExe: `https://updates.example.com/HiAi-${READY_VERSION}.exe`,
       }),
     });
     const coordinator = new AppUpdateCoordinator(store);
@@ -766,21 +776,12 @@ describe('AppUpdateCoordinator', () => {
 
     mocks.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({
-        code: 0,
-        data: {
-          value: {
-            version: READY_VERSION,
-            date: '2026-06-10',
-            changeLog: {
-              ch: { title: '', content: [] },
-              en: { title: '', content: [] },
-            },
-            macIntel: { url: `https://updates.example.com/lobsterai-${READY_VERSION}.dmg` },
-            macArm: { url: `https://updates.example.com/lobsterai-${READY_VERSION}.dmg` },
-            windowsX64: { url: `https://updates.example.com/lobsterai-${READY_VERSION}.exe` },
-          },
-        },
+      json: async () => gitHubReleaseFixture({
+        version: READY_VERSION,
+        date: '2026-06-10',
+        macDmg: `https://updates.example.com/lobsterai-${READY_VERSION}.dmg`,
+        macArmDmg: `https://updates.example.com/lobsterai-${READY_VERSION}.dmg`,
+        winExe: `https://updates.example.com/lobsterai-${READY_VERSION}.exe`,
       }),
     });
 

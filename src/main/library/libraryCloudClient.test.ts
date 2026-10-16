@@ -12,7 +12,6 @@ import {
   LibraryItemKind,
   LibrarySharedStatusFilter,
 } from '../../shared/library/constants';
-import { SiteKind, SiteStatus } from '../../shared/site/constants';
 import { listLibraryCloudItems } from './libraryCloudClient';
 import type { LibraryLocalStore } from './libraryLocalStore';
 
@@ -52,14 +51,14 @@ const createStore = (favoriteIds: string[]): LibraryLocalStore => ({
   resolveCloudSession: () => undefined,
 }) as unknown as LibraryLocalStore;
 
-function siteItem(itemId: string, sortTime: number, siteStatus = SiteStatus.Online) {
+function siteItem(itemId: string, sortTime: number, siteStatus = 'online') {
   return {
     itemKind: LibraryItemKind.DeployedSite,
     itemId,
     title: itemId,
     url: `https://${itemId}.example`,
     category: LibraryCategory.Web,
-    siteKind: SiteKind.StaticSite,
+    siteKind: 'static_site',
     siteStatus,
     shareStatus: HtmlShareStatus.Live,
     accessMode: HtmlShareAccessMode.Public,
@@ -150,7 +149,7 @@ describe('listLibraryCloudItems', () => {
     const fetchWithAuth = vi.fn()
       .mockResolvedValueOnce(response([
         cloudItem('share-1', 300),
-        siteItem('site-deploying', 200, SiteStatus.Deploying),
+        siteItem('site-deploying', 200, 'deploying'),
       ], 'next-1'))
       .mockResolvedValueOnce(response([siteItem('site-online', 100)]));
 

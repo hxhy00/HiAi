@@ -1,4 +1,3 @@
-import type { LocalWebService } from '@shared/localWebServices/constants';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { type Artifact, ArtifactTypeValue } from '@/types/artifact';
@@ -11,7 +10,6 @@ import {
 
 vi.mock('@shared/featureFlags', () => ({
   ENABLE_HTML_SHARE: true,
-  ENABLE_SITE_DEPLOYMENT: true,
 }));
 
 const makeArtifact = (
@@ -27,15 +25,6 @@ const makeArtifact = (
   createdAt: 1,
   ...overrides,
 });
-
-const localService: LocalWebService = {
-  id: 'localhost:5175',
-  title: 'Local app',
-  url: 'http://localhost:5175',
-  host: 'localhost',
-  port: 5175,
-  online: true,
-};
 
 describe('artifactToolbarPublishPolicy (features enabled)', () => {
   beforeEach(() => {
@@ -67,14 +56,13 @@ describe('artifactToolbarPublishPolicy (features enabled)', () => {
     ).toBeNull();
   });
 
-  test('shares a managed HTML preview instead of deploying its loopback preview server', () => {
+  test('shares a managed HTML preview instead of its loopback preview server', () => {
     const artifact = makeArtifact(ArtifactTypeValue.Html, {
       filePath: '/tmp/index.html',
     });
 
     expect(resolveBrowserToolbarPublishTarget({
       htmlArtifact: artifact,
-      localService,
       shareAvailable: true,
     })).toEqual({
       kind: ArtifactToolbarPublishActionKind.Share,
@@ -82,26 +70,15 @@ describe('artifactToolbarPublishPolicy (features enabled)', () => {
     });
   });
 
-  test('does not deploy an unshareable managed HTML preview', () => {
+  test('does not expose an action for an unshareable managed HTML preview', () => {
     const artifact = makeArtifact(ArtifactTypeValue.Html, {
       content: '<h1>Inline preview</h1>',
     });
 
     expect(resolveBrowserToolbarPublishTarget({
       htmlArtifact: artifact,
-      localService,
       shareAvailable: true,
     })).toBeNull();
-  });
-
-  test('deploys a local service when no managed HTML preview is active', () => {
-    expect(resolveBrowserToolbarPublishTarget({
-      localService,
-      shareAvailable: true,
-    })).toEqual({
-      kind: ArtifactToolbarPublishActionKind.Deploy,
-      localService,
-    });
   });
 
   test('does not expose an action for an ordinary browser page', () => {
@@ -112,11 +89,10 @@ describe('artifactToolbarPublishPolicy (features enabled)', () => {
 });
 
 describe('artifactToolbarPublishPolicy (features disabled)', () => {
-  test('hides every share and deploy entry when the flags are off', async () => {
+  test('hides every share entry when the flag is off', async () => {
     vi.resetModules();
     vi.doMock('@shared/featureFlags', () => ({
       ENABLE_HTML_SHARE: false,
-      ENABLE_SITE_DEPLOYMENT: false,
     }));
     const policy = await import('./artifactToolbarPublishPolicy');
 
@@ -125,12 +101,7 @@ describe('artifactToolbarPublishPolicy (features disabled)', () => {
       true,
     )).toBeNull();
     expect(policy.resolveBrowserToolbarPublishTarget({
-      localService,
-      shareAvailable: true,
-    })).toBeNull();
-    expect(policy.resolveBrowserToolbarPublishTarget({
       htmlArtifact: makeArtifact(ArtifactTypeValue.Html, { filePath: '/tmp/index.html' }),
-      localService,
       shareAvailable: true,
     })).toBeNull();
     vi.doUnmock('@shared/featureFlags');

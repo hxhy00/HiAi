@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { ShareDeploymentCandidateSource } from '../../shared/shareDeployment/constants';
+import { LocalWebServiceCandidateSource } from '../../shared/localWebServices/constants';
 import type { CoworkMessage, CoworkMessageMetadata } from '../types/cowork';
 import { parseLocalServiceArtifactsFromMessages } from './localServiceContextParser';
 
@@ -45,7 +45,7 @@ describe('parseLocalServiceArtifactsFromMessages', () => {
       '/Users/admin/lobsterai/project/dayan-shenjun',
     );
     expect(artifacts[0].localService?.projectCandidates?.[0]).toEqual(expect.objectContaining({
-      source: ShareDeploymentCandidateSource.ToolCdCommand,
+      source: LocalWebServiceCandidateSource.ToolCdCommand,
       messageId: 'bash-1',
     }));
   });
@@ -167,7 +167,7 @@ describe('parseLocalServiceArtifactsFromMessages', () => {
 
     expect(pwdArtifacts[0].localService?.projectDirectory).toBe('/Users/admin/project/right-app');
     expect(pwdArtifacts[0].localService?.projectCandidates?.[0].source).toBe(
-      ShareDeploymentCandidateSource.ToolPwdResult,
+      LocalWebServiceCandidateSource.ToolPwdResult,
     );
     expect(findArtifacts[0].localService?.projectDirectory).toBeUndefined();
   });

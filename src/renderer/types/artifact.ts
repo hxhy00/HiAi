@@ -1,5 +1,5 @@
 import type { WorkspaceChangesSummary } from '../../shared/artifactPreview/workspace';
-import type { ShareDeploymentProjectCandidate } from '../../shared/shareDeployment/constants';
+import type { LocalWebServiceProjectCandidate } from '../../shared/localWebServices/constants';
 
 export const ArtifactTypeValue = {
   Html: 'html',
@@ -31,7 +31,7 @@ export interface LocalServiceArtifactMetadata {
   url: string;
   origin: string;
   projectDirectory?: string;
-  projectCandidates?: ShareDeploymentProjectCandidate[];
+  projectCandidates?: LocalWebServiceProjectCandidate[];
 }
 
 export const PREVIEWABLE_ARTIFACT_TYPES = new Set<ArtifactType>([

@@ -30,6 +30,7 @@ const {
   resolveInstallTarget,
   deriveNpmPackageBaseName,
   deriveZipUrlBaseName,
+  isRemoteZipUrl,
 } = __skillManagerTestUtils;
 
 afterEach(() => {
@@ -624,5 +625,20 @@ describe('install source names', () => {
     ['not a url', ''],
   ])('deriveZipUrlBaseName(%s) → %s', (url, expected) => {
     expect(deriveZipUrlBaseName(url)).toBe(expected);
+  });
+
+  test.each([
+    ['https://example.com/skills/my-skill.zip', true],
+    ['https://example.com/x/a.zip?token=1', true],
+    // ClawHub / SkillHub marketplace archive endpoints.
+    ['https://clawhub.ai/api/v1/download?owner=foo&slug=bar', true],
+    ['https://api.skillhub.cn/api/v1/download?slug=document-pdf', true],
+    // Rejected: non-archive URLs and non-http protocols.
+    ['https://example.com/skills/my-skill.tar.gz', false],
+    ['https://clawhub.ai/api/v1/download', false],
+    ['file:///tmp/skill.zip', false],
+    ['not a url', false],
+  ])('isRemoteZipUrl(%s) → %s', (url, expected) => {
+    expect(isRemoteZipUrl(url)).toBe(expected);
   });
 });

@@ -43,14 +43,11 @@ import {
   normalizeCoworkSelectedTextSnippets,
 } from '../../../shared/cowork/selectedText';
 import { classifyWaitingNotificationKind, WaitingNotificationKind } from '../../../shared/notifications/constants';
-import { ShareDeploymentCandidateSource } from '../../../shared/shareDeployment/constants';
 import { resolveArtifactAutoPreviewEnabled } from '../../config';
 import { collectSessionArtifacts, loadDetectedFileArtifact } from '../../services/artifactDetection';
 import {
   dedupeArtifactsForDisplay,
   normalizeFilePathForDedup,
-  normalizeLocalServiceOrigin,
-  normalizeProjectDirectoryForDedup,
   parseMediaTokensFromText,
   resolveArtifactIdForDisplay,
 } from '../../services/artifactParser';
@@ -58,7 +55,6 @@ import { configService, ConfigServiceEvent } from '../../services/config';
 import { coworkService } from '../../services/cowork';
 import { i18nService } from '../../services/i18n';
 import { getInstalledKitSkillIds } from '../../services/kitCapability';
-import { readLocalServiceProjectDirectoryCandidate } from '../../services/localServiceProjectDirectoryCache';
 import { getSubagentWaitPhase, SubagentWaitPhase } from '../../services/subagentWaitState';
 import { RootState } from '../../store';
 import {
@@ -89,7 +85,6 @@ import {
   selectIsPanelOpen,
   selectPanelWidth,
   togglePanel,
-  updateLocalServiceProjectMetadata,
 } from '../../store/slices/artifactSlice';
 import {
   addDraftSelectedTextSnippet,
@@ -126,7 +121,6 @@ import { parseUserMessageForDisplay } from '../../utils/userMessageDisplay';
 import {
   AgentBrowserInAppPanel,
   ArtifactPanel,
-  type LocalServiceDeploymentRequest,
   SubagentPanelContent,
   UserAttachmentPanelContent,
   type UserAttachmentPreviewPayload,
@@ -226,57 +220,6 @@ interface CoworkSessionDetailProps {
   onRespondToPermission?: (result: CoworkPermissionResult) => void;
 }
 
-interface BrowserLocalServiceContext {
-  artifactId?: string;
-  url: string;
-  origin: string;
-  projectDirectory?: string;
-  projectCandidates?: NonNullable<Artifact['localService']>['projectCandidates'];
-}
-
-const LOCAL_SERVICE_RESOLVED_CANDIDATE_SOURCES = new Set<string>([
-  ShareDeploymentCandidateSource.Process,
-  ShareDeploymentCandidateSource.ProcessCwd,
-  ShareDeploymentCandidateSource.Cache,
-  ShareDeploymentCandidateSource.Workspace,
-  ShareDeploymentCandidateSource.WorkspaceChild,
-]);
-
-const getLocalServiceContextCandidates = (artifact: Artifact) => (
-  artifact.localService?.projectCandidates?.filter(candidate =>
-    !LOCAL_SERVICE_RESOLVED_CANDIDATE_SOURCES.has(candidate.source)
-  ) ?? []
-);
-
-const getLocalServiceProjectResolutionInputKey = (
-  artifact: Artifact,
-  workingDirectory?: string,
-  cachedProjectDirectory?: string,
-): string => {
-  const candidates = getLocalServiceContextCandidates(artifact)
-    .map(candidate => [
-      candidate.source,
-      normalizeProjectDirectoryForDedup(candidate.directory),
-      candidate.messageId || '',
-      candidate.confidence,
-    ].join(':'));
-  return [
-    artifact.url || artifact.content,
-    normalizeProjectDirectoryForDedup(workingDirectory || ''),
-    normalizeProjectDirectoryForDedup(cachedProjectDirectory || ''),
-    ...candidates,
-  ].join('|');
-};
-
-const getLocalServiceProjectMetadataKey = (
-  projectDirectory: string | undefined,
-  projectCandidates: NonNullable<Artifact['localService']>['projectCandidates'] | undefined,
-): string => [
-  normalizeProjectDirectoryForDedup(projectDirectory || ''),
-  ...(projectCandidates ?? []).map(candidate =>
-    `${candidate.source}:${normalizeProjectDirectoryForDedup(candidate.directory)}`
-  ),
-].join('|');
 const NAV_SCROLL_LOCK_DURATION = 800;
 const NAV_BOTTOM_SNAP_THRESHOLD = 20;
 const WHEEL_DELTA_LINE_HEIGHT = 16;
@@ -289,7 +232,6 @@ const AutoScrollDetachSource = {
 type AutoScrollDetachSource = typeof AutoScrollDetachSource[keyof typeof AutoScrollDetachSource];
 const AUTO_PREVIEW_ARTIFACT_SETTLE_MS = 600;
 const MAX_AUTO_PREVIEW_HANDLED_TURNS = 128;
-const LOCAL_SERVICE_PROCESS_DIRECTORY_RETRY_DELAY_MS = 900;
 const ARTIFACT_PANEL_TRANSITION_MS = 200;
 const ARTIFACT_PANEL_RESIZE_HANDLE_WIDTH = 4;
 const COWORK_DETAIL_MIN_WIDTH = 480;
@@ -2032,10 +1974,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
   const [browserPreviewAddress, setBrowserPreviewAddress] = useState('');
   const [browserPreviewUrl, setBrowserPreviewUrl] = useState('');
   const [browserPreviewTitle, setBrowserPreviewTitle] = useState('');
-  const [browserLocalServiceContext, setBrowserLocalServiceContext] =
-    useState<BrowserLocalServiceContext | null>(null);
-  const [localServiceDeploymentRequest, setLocalServiceDeploymentRequest] =
-    useState<LocalServiceDeploymentRequest | null>(null);
   const [browserHtmlPreviewArtifactId, setBrowserHtmlPreviewArtifactId] = useState<string | null>(null);
   const [showArtifactAddMenu, setShowArtifactAddMenu] = useState(false);
   const [artifactAddMenuPosition, setArtifactAddMenuPosition] = useState<{ left: number; top: number } | null>(null);
@@ -2080,12 +2018,10 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
   const browserPreviewAddressBySessionRef = useRef<Record<string, string>>({});
   const browserPreviewUrlBySessionRef = useRef<Record<string, string>>({});
   const browserPreviewTitleBySessionRef = useRef<Record<string, string>>({});
-  const browserLocalServiceContextBySessionRef = useRef<Record<string, BrowserLocalServiceContext>>({});
   const browserHtmlPreviewArtifactIdBySessionRef = useRef<Record<string, string>>({});
   const browserHtmlPreviewSessionIdBySessionRef = useRef<Record<string, string>>({});
   const browserHtmlPreviewUrlBySessionRef = useRef<Record<string, string>>({});
   const browserHtmlPreviewRequestIdRef = useRef(0);
-  const localServiceDeploymentRequestIdRef = useRef(0);
   const artifactAddButtonRef = useRef<HTMLButtonElement>(null);
   const artifactAddMenuRef = useRef<HTMLDivElement>(null);
   const artifactTabsScrollRef = useRef<HTMLDivElement>(null);
@@ -2214,8 +2150,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
   }, [subagentsByRunId]);
 
   const loadedFileIdsRef = useRef<Set<string>>(new Set());
-  const localServiceProjectResolutionKeysRef = useRef<Map<string, string>>(new Map());
-  const localServiceProjectRetryTimersRef = useRef<Map<string, number>>(new Map());
   const autoPreviewHandledTurnIdsRef = useRef<Record<string, Set<string>>>({});
   const autoPreviewArtifactSettleTimerRef = useRef<number | null>(null);
   const previousAutoPreviewSessionIdRef = useRef<string | undefined>(sessionId);
@@ -2420,7 +2354,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     setBrowserPreviewAddress(sessionId ? browserPreviewAddressBySessionRef.current[sessionId] ?? '' : '');
     setBrowserPreviewUrl(sessionId ? browserPreviewUrlBySessionRef.current[sessionId] ?? '' : '');
     setBrowserPreviewTitle(sessionId ? browserPreviewTitleBySessionRef.current[sessionId] ?? '' : '');
-    setBrowserLocalServiceContext(sessionId ? browserLocalServiceContextBySessionRef.current[sessionId] ?? null : null);
     setBrowserHtmlPreviewArtifactId(sessionId ? browserHtmlPreviewArtifactIdBySessionRef.current[sessionId] ?? null : null);
     setIsArtifactPanelExpanded(false);
     setIsExpandedPromptInputHidden(false);
@@ -2430,11 +2363,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     setSubagentsLoading(false);
     setSelectedSubagent(null);
     loadedFileIdsRef.current = new Set();
-    localServiceProjectResolutionKeysRef.current = new Map();
-    for (const timer of localServiceProjectRetryTimersRef.current.values()) {
-      window.clearTimeout(timer);
-    }
-    localServiceProjectRetryTimersRef.current.clear();
     setAutoPreviewPendingTurnId(null);
   }, [sessionId]);
 
@@ -2446,10 +2374,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
       browserHtmlPreviewSessionIdBySessionRef.current = {};
       browserHtmlPreviewUrlBySessionRef.current = {};
       browserHtmlPreviewArtifactIdBySessionRef.current = {};
-      for (const timer of localServiceProjectRetryTimersRef.current.values()) {
-        window.clearTimeout(timer);
-      }
-      localServiceProjectRetryTimersRef.current.clear();
     }
   ), []);
 
@@ -2570,41 +2494,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     }
   }, [sessionId]);
 
-  const setSessionBrowserLocalServiceContext = useCallback((context: BrowserLocalServiceContext | null) => {
-    setBrowserLocalServiceContext(context);
-    if (!sessionId) return;
-    if (context) {
-      browserLocalServiceContextBySessionRef.current[sessionId] = context;
-    } else {
-      delete browserLocalServiceContextBySessionRef.current[sessionId];
-    }
-  }, [sessionId]);
-
-  useEffect(() => {
-    const artifactId = browserLocalServiceContext?.artifactId;
-    if (!artifactId) return;
-    const artifact = rawSessionArtifacts.find(item => item.id === artifactId);
-    if (artifact?.type !== ArtifactTypeValue.LocalService || !artifact.localService) return;
-    const nextMetadataKey = getLocalServiceProjectMetadataKey(
-      artifact.localService.projectDirectory,
-      artifact.localService.projectCandidates,
-    );
-    const currentMetadataKey = getLocalServiceProjectMetadataKey(
-      browserLocalServiceContext.projectDirectory,
-      browserLocalServiceContext.projectCandidates,
-    );
-    if (nextMetadataKey === currentMetadataKey) return;
-    setSessionBrowserLocalServiceContext({
-      ...browserLocalServiceContext,
-      projectDirectory: artifact.localService.projectDirectory,
-      projectCandidates: artifact.localService.projectCandidates,
-    });
-  }, [
-    browserLocalServiceContext,
-    rawSessionArtifacts,
-    setSessionBrowserLocalServiceContext,
-  ]);
-
   const clearBrowserHtmlPreviewState = useCallback((targetSessionId = sessionId) => {
     if (!targetSessionId) return;
     const previewSessionId = browserHtmlPreviewSessionIdBySessionRef.current[targetSessionId];
@@ -2628,14 +2517,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
         clearBrowserHtmlPreviewState(sessionId);
       }
     }
-    setBrowserLocalServiceContext(current => {
-      if (!current || !value.trim()) return current;
-      if (normalizeLocalServiceOrigin(value) === current.origin) return current;
-      if (sessionId) {
-        delete browserLocalServiceContextBySessionRef.current[sessionId];
-      }
-      return null;
-    });
   }, [clearBrowserHtmlPreviewState, sessionId]);
 
   const handleBrowserPreviewTitleChange = useCallback((value: string) => {
@@ -2654,12 +2535,10 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     setBrowserPreviewAddress('');
     setBrowserPreviewUrl('');
     setBrowserPreviewTitle('');
-    setBrowserLocalServiceContext(null);
     if (sessionId) {
       delete browserPreviewAddressBySessionRef.current[sessionId];
       delete browserPreviewUrlBySessionRef.current[sessionId];
       delete browserPreviewTitleBySessionRef.current[sessionId];
-      delete browserLocalServiceContextBySessionRef.current[sessionId];
       clearBrowserHtmlPreviewState(sessionId);
     }
   }, [clearBrowserHtmlPreviewState, sessionId]);
@@ -2776,7 +2655,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     setShowArtifactAddMenu(false);
     setSessionBrowserPreviewTabOpen(true);
     setSessionActiveSpecialPreviewTab(ArtifactSpecialTab.Browser);
-    setSessionBrowserLocalServiceContext(null);
     dispatch(activateArtifactBrowserTab({ sessionId }));
 
     const requestId = browserHtmlPreviewRequestIdRef.current + 1;
@@ -2824,24 +2702,12 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     sessionId,
     setSessionActiveSpecialPreviewTab,
     setSessionBrowserPreviewTabOpen,
-    setSessionBrowserLocalServiceContext,
   ]);
 
   const handleOpenLocalServiceArtifact = useCallback((artifact: Artifact) => {
     const url = artifact.url || artifact.content;
     if (!url) return;
-    const origin = artifact.localService?.origin || normalizeLocalServiceOrigin(url);
-    const projectDirectory = artifact.localService?.projectDirectory?.trim();
     handleOpenArtifactBrowserTab();
-    setSessionBrowserLocalServiceContext({
-      artifactId: artifact.id,
-      url,
-      origin,
-      ...(projectDirectory ? { projectDirectory } : {}),
-      ...(artifact.localService?.projectCandidates?.length
-        ? { projectCandidates: artifact.localService.projectCandidates }
-        : {}),
-    });
     handleBrowserPreviewAddressChange(url);
     handleBrowserPreviewUrlChange(url);
     handleBrowserPreviewTitleChange('');
@@ -2850,7 +2716,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     handleBrowserPreviewTitleChange,
     handleBrowserPreviewUrlChange,
     handleOpenArtifactBrowserTab,
-    setSessionBrowserLocalServiceContext,
   ]);
 
   const markdownLinkOpener = useCoworkMarkdownLinkOpener({
@@ -2861,32 +2726,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     onOpenLocalService: handleOpenLocalServiceArtifact,
   });
 
-  const handleDeployLocalServiceArtifact = useCallback((artifact: Artifact) => {
-    if (!sessionId || artifact.type !== ArtifactTypeValue.LocalService) return;
-    const url = (artifact.url || artifact.content || '').trim();
-
-    const requestId = localServiceDeploymentRequestIdRef.current + 1;
-    localServiceDeploymentRequestIdRef.current = requestId;
-    setLocalServiceDeploymentRequest({
-      requestId,
-      sessionId,
-      artifactId: artifact.id,
-      url,
-      title: artifact.title,
-      projectDirectory: artifact.localService?.projectDirectory,
-      projectCandidates: artifact.localService?.projectCandidates,
-    });
-  }, [sessionId]);
-
-  const handleLocalServiceDeploymentRequestConsumed = useCallback((requestId: number) => {
-    setLocalServiceDeploymentRequest(current =>
-      current?.requestId === requestId ? null : current,
-    );
-  }, []);
-
-  useEffect(() => {
-    setLocalServiceDeploymentRequest(null);
-  }, [sessionId]);
 
   const handleOpenArtifactFileListFromMenu = useCallback(() => {
     setShowArtifactAddMenu(false);
@@ -3510,119 +3349,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- uses messagesLength as stable proxy for currentSession.messages
   }, [sessionId, messagesLength, isStreaming, dispatch]);
-
-  useEffect(() => {
-    const detectProjectCandidates = window.electron?.shareDeployment?.detectProjectCandidates;
-    if (!sessionId || !detectProjectCandidates) return;
-    const workingDirectory = currentSession?.cwd || '';
-    type DetectProjectCandidatesInput = Parameters<typeof detectProjectCandidates>[0];
-    interface PendingResolutionGroup {
-      inputKey: string;
-      artifactIds: string[];
-      request: DetectProjectCandidatesInput;
-    }
-    const pendingGroups = new Map<string, PendingResolutionGroup>();
-
-    for (const artifact of rawSessionArtifacts) {
-      if (artifact.type !== ArtifactTypeValue.LocalService) continue;
-      const localServiceUrl = artifact.url || artifact.content;
-      if (!localServiceUrl) continue;
-      const cachedCandidate = readLocalServiceProjectDirectoryCandidate(sessionId, localServiceUrl);
-      const inputKey = getLocalServiceProjectResolutionInputKey(
-        artifact,
-        workingDirectory,
-        cachedCandidate?.directory,
-      );
-      if (localServiceProjectResolutionKeysRef.current.get(artifact.id) === inputKey) continue;
-      localServiceProjectResolutionKeysRef.current.set(artifact.id, inputKey);
-      const existingGroup = pendingGroups.get(inputKey);
-      if (existingGroup) {
-        existingGroup.artifactIds.push(artifact.id);
-        continue;
-      }
-      pendingGroups.set(inputKey, {
-        inputKey,
-        artifactIds: [artifact.id],
-        request: {
-          localServiceUrl,
-          workingDirectory,
-          projectCandidates: getLocalServiceContextCandidates(artifact),
-          ...(cachedCandidate?.directory
-            ? { cachedProjectDirectory: cachedCandidate.directory }
-            : {}),
-        },
-      });
-    }
-    if (!pendingGroups.size) return;
-
-    const applyResolution = (
-      group: PendingResolutionGroup,
-      result: Awaited<ReturnType<typeof detectProjectCandidates>>,
-    ) => {
-      if (!result?.success || !result.candidates[0]) return;
-      for (const artifactId of group.artifactIds) {
-        if (localServiceProjectResolutionKeysRef.current.get(artifactId) !== group.inputKey) {
-          continue;
-        }
-        dispatch(updateLocalServiceProjectMetadata({
-          sessionId,
-          artifactId,
-          projectDirectory: result.candidates[0].directory,
-          projectCandidates: result.candidates,
-        }));
-      }
-    };
-
-    const scheduleProcessDirectoryRetry = (group: PendingResolutionGroup) => {
-      const timerKey = `${sessionId}:${group.inputKey}`;
-      if (localServiceProjectRetryTimersRef.current.has(timerKey)) return;
-      const timer = window.setTimeout(() => {
-        localServiceProjectRetryTimersRef.current.delete(timerKey);
-        const hasActiveArtifact = group.artifactIds.some(artifactId =>
-          localServiceProjectResolutionKeysRef.current.get(artifactId) === group.inputKey
-        );
-        if (!hasActiveArtifact) return;
-        void detectProjectCandidates(group.request)
-          .then(result => {
-            applyResolution(group, result);
-            if (result?.success && result.candidates[0]) return;
-            for (const artifactId of group.artifactIds) {
-              if (localServiceProjectResolutionKeysRef.current.get(artifactId) === group.inputKey) {
-                localServiceProjectResolutionKeysRef.current.delete(artifactId);
-              }
-            }
-          })
-          .catch(() => {
-            for (const artifactId of group.artifactIds) {
-              if (localServiceProjectResolutionKeysRef.current.get(artifactId) === group.inputKey) {
-                localServiceProjectResolutionKeysRef.current.delete(artifactId);
-              }
-            }
-          });
-      }, LOCAL_SERVICE_PROCESS_DIRECTORY_RETRY_DELAY_MS);
-      localServiceProjectRetryTimersRef.current.set(timerKey, timer);
-    };
-
-    void Promise.all(Array.from(pendingGroups.values()).map(async group => {
-      try {
-        const result = await detectProjectCandidates(group.request);
-        return { group, result };
-      } catch {
-        return { group, result: null };
-      }
-    })).then(resolutions => {
-      for (const { group, result } of resolutions) {
-        if (result) applyResolution(group, result);
-        const hasProcessDirectory = result?.success && result.candidates.some(candidate =>
-          candidate.source === ShareDeploymentCandidateSource.Process ||
-          candidate.source === ShareDeploymentCandidateSource.ProcessCwd
-        );
-        if (!hasProcessDirectory) {
-          scheduleProcessDirectoryRetry(group);
-        }
-      }
-    });
-  }, [currentSession?.cwd, dispatch, rawSessionArtifacts, sessionId]);
 
   // Mid-turn artifact detection: detect MEDIA/file artifacts from backfilled tool results
   // while still streaming. The main effect above skips when isStreaming=true, but incremental
@@ -5636,7 +5362,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
                 mapDisplayText={mapDisplayText}
                 localServiceDirectory={currentSession?.cwd}
                 onOpenLocalService={handleOpenLocalServiceArtifact}
-                onDeployLocalService={handleDeployLocalServiceArtifact}
                 onOpenHtmlFile={handleOpenHtmlFileInBrowser}
                 onForkMessage={remoteManaged ? undefined : handleForkMessage}
                 renderToolGroupOverride={(group) => {
@@ -6558,7 +6283,7 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
         </button>
       )}
     </div>
-    {(shouldRenderArtifactPanel || Boolean(localServiceDeploymentRequest)) && (
+    {shouldRenderArtifactPanel && (
       <div
         className={`${
           artifactPanelIsOverlay
@@ -6590,21 +6315,16 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
               key={currentSession.id}
               sessionId={currentSession.id}
               artifacts={sessionArtifacts}
-              workingDirectory={currentSession.cwd}
               activeSpecialTab={activeSpecialPreviewTab}
               minPanelWidth={artifactPanelRenderMinWidth}
               maxPanelWidth={artifactPanelRenderMaxWidth}
               isPanelExpanded={isArtifactPanelExpanded}
               browserAddress={browserPreviewAddress}
               browserUrl={browserPreviewUrl}
-              browserLocalServiceContext={browserLocalServiceContext}
-              localServiceDeploymentRequest={localServiceDeploymentRequest}
               browserHtmlArtifactId={browserHtmlPreviewDisplayArtifactId}
               onBrowserAddressChange={handleBrowserPreviewAddressChange}
               onBrowserUrlChange={handleBrowserPreviewUrlChange}
               onBrowserTitleChange={handleBrowserPreviewTitleChange}
-              onBrowserLocalServiceContextChange={setSessionBrowserLocalServiceContext}
-              onLocalServiceDeploymentRequestConsumed={handleLocalServiceDeploymentRequestConsumed}
               onOpenFileListTab={handleOpenArtifactFileListTab}
               onOpenBrowserTab={handleOpenArtifactBrowserTab}
               onOpenHtmlFileInBrowser={handleOpenHtmlFileInBrowser}

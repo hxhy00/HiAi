@@ -1,3 +1,4 @@
+import type { SkillMarketplaceSource } from '../../shared/skills/marketplaceSources';
 import { BUNDLED_SKILL_DISPLAY_NAMES } from '../components/skills/bundledSkillNames';
 import { LocalizedText, LocalSkillInfo, MarketplaceSkill, MarketTag, Skill } from '../types/skill';
 import { i18nService } from './i18n';
@@ -425,6 +426,27 @@ class SkillService {
     } catch (error) {
       console.error('Failed to fetch marketplace skills:', error);
       return { skills: [], tags: [] };
+    }
+  }
+
+  /**
+   * Fetch one page from a non-official marketplace source (ClawHub, SkillHub,
+   * skills.sh). Results are already normalised to `MarketplaceSkill` by the main
+   * process, so the UI can render them alongside the official store.
+   */
+  async fetchMarketplaceSource(
+    source: SkillMarketplaceSource,
+    query: { query?: string; limit?: number; cursor?: string } = {},
+  ): Promise<{ skills: MarketplaceSkill[]; nextCursor?: string }> {
+    try {
+      const result = await window.electron.skills.fetchMarketplaceSource(source, query);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch marketplace source');
+      }
+      return { skills: result.skills ?? [], nextCursor: result.nextCursor };
+    } catch (error) {
+      console.error(`Failed to fetch marketplace source "${source}":`, error);
+      return { skills: [] };
     }
   }
 

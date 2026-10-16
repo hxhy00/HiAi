@@ -1,9 +1,9 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import {
-  ShareDeploymentCandidateSource,
-  type ShareDeploymentProjectCandidate,
-} from '../../../shared/shareDeployment/constants';
+  LocalWebServiceCandidateSource,
+  type LocalWebServiceProjectCandidate,
+} from '../../../shared/localWebServices/constants';
 import {
   dedupeArtifactsForDisplay,
   dedupeArtifactsWithinMessages,
@@ -54,7 +54,7 @@ interface UpdateLocalServiceProjectMetadataPayload {
   sessionId: string;
   artifactId: string;
   projectDirectory: string;
-  projectCandidates: ShareDeploymentProjectCandidate[];
+  projectCandidates: LocalWebServiceProjectCandidate[];
 }
 
 interface ArtifactState {
@@ -87,12 +87,12 @@ const isSameMessageArtifact = (left: Artifact, right: Artifact): boolean =>
   left.messageId === right.messageId;
 
 const LOCAL_SERVICE_RESOLVED_CANDIDATE_SOURCES = new Set<string>([
-  ShareDeploymentCandidateSource.Process,
-  ShareDeploymentCandidateSource.ProcessCwd,
-  ShareDeploymentCandidateSource.Cache,
-  ShareDeploymentCandidateSource.ArtifactMetadata,
-  ShareDeploymentCandidateSource.Workspace,
-  ShareDeploymentCandidateSource.WorkspaceChild,
+  LocalWebServiceCandidateSource.Process,
+  LocalWebServiceCandidateSource.ProcessCwd,
+  LocalWebServiceCandidateSource.Cache,
+  LocalWebServiceCandidateSource.ArtifactMetadata,
+  LocalWebServiceCandidateSource.Workspace,
+  LocalWebServiceCandidateSource.WorkspaceChild,
 ]);
 
 const hasResolvedLocalServiceProjectMetadata = (artifact: Artifact): boolean => (

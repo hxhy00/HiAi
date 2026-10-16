@@ -35,7 +35,6 @@ import {
   LibraryItemKind,
 } from '../../../shared/library/constants';
 import type {
-  DeployedSiteItem,
   LibraryCloudItem,
   LibraryCloudListData,
   LibrarySessionRef,
@@ -45,11 +44,6 @@ import {
   normalizePublishingSubscriptionRecoveryMode,
   type PublishingQuotaErrorData,
 } from '../../../shared/publishing/constants';
-import {
-  type SiteDetail,
-  SiteKind,
-  SiteStatus,
-} from '../../../shared/site/constants';
 import { copyTextToClipboard } from '../../services/clipboard';
 import { getPortalPricingUrl, PortalPricingKeyfrom } from '../../services/endpoints';
 import { i18nService } from '../../services/i18n';
@@ -76,7 +70,6 @@ import {
   MANAGEMENT_TITLE_TEXT,
 } from '../common/managementTypography';
 import FileTypeIcon from '../icons/fileTypes/FileTypeIcon';
-import { SitesView } from '../sites';
 import Tooltip, { TooltipAlign, TooltipPosition } from '../ui/Tooltip';
 import { LIBRARY_ACTION_MENU_WIDTH_PX } from './libraryActionMenuPresentation';
 import LibraryAvailabilityDropdown from './LibraryAvailabilityDropdown';
@@ -138,8 +131,6 @@ interface LibraryCloudViewProps {
   onItemUpdated: (item: LibraryCloudItem) => void;
   onItemDeleted: (item: LibraryCloudItem) => void;
   onToggleFavorite: (item: LibraryCloudItem) => void;
-  hideSites?: boolean;
-  sitesReadOnly?: boolean;
 }
 
 interface ShareDetailState {
@@ -277,45 +268,6 @@ const mergeShareDetail = (
   return merged;
 };
 
-const mergeSiteDetail = (
-  item: DeployedSiteItem,
-  site: SiteDetail,
-): DeployedSiteItem => {
-  const parsedUpdatedAt = Date.parse(site.updatedAt);
-  const shareStatus = Object.values(HtmlShareStatus).includes(
-    site.shareStatus as HtmlShareStatusValue,
-  )
-    ? site.shareStatus as HtmlShareStatusValue
-    : item.shareStatus;
-  const merged = clearEffectiveAccessProjection<DeployedSiteItem>({
-    ...item,
-    title: site.title,
-    url: site.url,
-    siteKind: site.siteKind,
-    siteStatus: site.siteStatus,
-    shareStatus,
-    accessMode: site.accessMode,
-    updatedAt: site.updatedAt,
-    sortTime: Number.isFinite(parsedUpdatedAt) ? parsedUpdatedAt : item.sortTime,
-    subscriptionRecoveryMode: normalizePublishingSubscriptionRecoveryMode(
-      site.subscriptionRecoveryMode,
-    ),
-    ...(site.deploymentId ? { deploymentId: site.deploymentId } : {}),
-    ...(site.deploymentStatus ? { deploymentStatus: site.deploymentStatus } : {}),
-    ...(site.artifactId ? { artifactId: site.artifactId } : {}),
-  });
-  if (Object.prototype.hasOwnProperty.call(site, 'expiresAt')) {
-    if (site.expiresAt === null) {
-      merged.accessExpiresAt = null;
-    } else {
-      const accessExpiresAt = readDateMillis(site.expiresAt);
-      if (accessExpiresAt === undefined) delete merged.accessExpiresAt;
-      else merged.accessExpiresAt = accessExpiresAt;
-    }
-  }
-  return merged;
-};
-
 const loadLatestSharedFileItem = async (
   baseItem: SharedFileItem,
 ): Promise<SharedFileItem> => {
@@ -363,9 +315,6 @@ const CloudAvailabilityLabel: React.FC<{
     LibraryCloudAvailabilityFilter.Available,
     now,
   );
-  const requiresNodeRedeploy = item.itemKind === LibraryItemKind.DeployedSite
-    && item.siteKind === SiteKind.NodeService
-    && item.siteStatus === SiteStatus.RedeployRequired;
   const expiryLabel = typeof item.accessExpiresAt !== 'number'
     ? undefined
     : item.accessExpiresAt <= now
@@ -393,15 +342,13 @@ const CloudAvailabilityLabel: React.FC<{
       <span className={`${textClassName} ${
         isAvailable ? 'text-emerald-600 dark:text-emerald-400' : 'text-secondary'
       }`}>
-        {requiresNodeRedeploy
-          ? i18nService.t('sitesStatus_redeploy_required')
-          : i18nService.t(`libraryCloudAvailability_${
-              isAvailable
-                ? LibraryCloudAvailabilityFilter.Available
-                : LibraryCloudAvailabilityFilter.Unavailable
-            }`)}
+        {i18nService.t(`libraryCloudAvailability_${
+          isAvailable
+            ? LibraryCloudAvailabilityFilter.Available
+            : LibraryCloudAvailabilityFilter.Unavailable
+        }`)}
       </span>
-      {expiryLabel && !requiresNodeRedeploy && (
+      {expiryLabel && (
         <div className="mt-0.5 whitespace-nowrap text-[11px] leading-4 text-muted">
           {expiryLabel}
         </div>
@@ -1203,12 +1150,9 @@ const LibraryCloudView: React.FC<LibraryCloudViewProps> = ({
   onItemUpdated,
   onItemDeleted,
   onToggleFavorite,
-  hideSites = false,
-  sitesReadOnly = false,
 }) => {
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const [activeItem, setActiveItem] = useState<SharedFileItem>();
-  const [activeSite, setActiveSite] = useState<DeployedSiteItem>();
   const [interactionError, setInteractionError] = useState<string>();
   const loading = loadingFeedback.showInitialSkeleton;
   const busy = loadingFeedback.ariaBusy;
@@ -1220,10 +1164,9 @@ const LibraryCloudView: React.FC<LibraryCloudViewProps> = ({
     [data.list],
   );
   const effectiveNow = useLibraryServerClock(data.serverNow, expirations);
-  const items = useMemo(() => data.list.filter(item => (
-    (!hideSites || item.itemKind !== LibraryItemKind.DeployedSite)
-    && matchesLibraryCloudAvailability(item, displayStatus, effectiveNow)
-  )), [data.list, displayStatus, effectiveNow, hideSites]);
+  const items = useMemo(() => data.list.filter(
+    item => matchesLibraryCloudAvailability(item, displayStatus, effectiveNow),
+  ), [data.list, displayStatus, effectiveNow]);
 
   const handleSharedItemDeleted = (item: SharedFileItem): void => {
     if (item.isFavorite) onToggleFavorite(item);
@@ -1242,40 +1185,6 @@ const LibraryCloudView: React.FC<LibraryCloudViewProps> = ({
         onItemDeleted={handleSharedItemDeleted}
         onOpenSession={onOpenSession}
         onToggleFavorite={onToggleFavorite}
-      />
-    );
-  }
-
-  if (activeSite) {
-    const updateActiveSite = (site: SiteDetail): void => {
-      const updatedItem = mergeSiteDetail(activeSite, site);
-      setActiveSite(updatedItem);
-      onItemUpdated(updatedItem);
-    };
-    return (
-      <SitesView
-        isAuthenticated={isAuthenticated}
-        onCreateSiteByChat={() => undefined}
-        isSidebarCollapsed={false}
-        onToggleSidebar={() => undefined}
-        readOnly={sitesReadOnly}
-        embedded
-        initialShareId={activeSite.shareId}
-        initialAccessExpired={isLibraryCloudAccessExpired(activeSite, effectiveNow)}
-        initialDetailTab="settings"
-        onBack={() => setActiveSite(undefined)}
-        onSiteUpdated={updateActiveSite}
-        onSiteDeleted={() => onItemDeleted(activeSite)}
-        isFavorite={activeSite.isFavorite}
-        onToggleFavorite={() => {
-          onToggleFavorite(activeSite);
-          setActiveSite(current => current
-            ? { ...current, isFavorite: !current.isFavorite }
-            : current);
-        }}
-        onOpenRelatedTask={activeSite.latestSession
-          ? () => onOpenSession(activeSite.latestSession as LibrarySessionRef)
-          : undefined}
       />
     );
   }
@@ -1301,21 +1210,19 @@ const LibraryCloudView: React.FC<LibraryCloudViewProps> = ({
     onDetailOpen(item);
     if (item.itemKind === LibraryItemKind.SharedFile) {
       setActiveItem(item);
-    } else {
-      setActiveSite(item);
     }
   };
 
   const buildMenuItems = (item: LibraryCloudItem): CardOverflowMenuItem[] => {
     const menuItems: CardOverflowMenuItem[] = [
-      {
+      // Share settings only exist for shared files; legacy deployed-site rows
+      // are kept renderable for old cloud payloads but have no management UI.
+      ...(item.itemKind === LibraryItemKind.SharedFile ? [{
         key: 'settings',
-        label: item.itemKind === LibraryItemKind.SharedFile
-          ? i18nService.t('libraryShareSettings')
-          : i18nService.t('libraryManageSite'),
+        label: i18nService.t('libraryShareSettings'),
         icon: <Cog6ToothIcon className="h-4 w-4" />,
         onSelect: () => openItem(item),
-      },
+      }] : []),
       {
         key: 'open-link',
         label: i18nService.t('libraryOpenLink'),
@@ -1370,9 +1277,7 @@ const LibraryCloudView: React.FC<LibraryCloudViewProps> = ({
           <div className="flex shrink-0 items-center gap-2">
             <LibraryCategoryDropdown
               value={category}
-              options={CATEGORY_FILTERS.filter(value => (
-                !hideSites || value !== LibraryCategory.Site
-              ))}
+              options={CATEGORY_FILTERS.filter(value => value !== LibraryCategory.Site)}
               onChange={onCategoryChange}
               grouped
             />

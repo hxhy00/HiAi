@@ -1,4 +1,4 @@
-import { ENABLE_HTML_SHARE, ENABLE_SITE_DEPLOYMENT } from '../../../shared/featureFlags';
+import { ENABLE_HTML_SHARE } from '../../../shared/featureFlags';
 import { LibraryItemKind } from '../../../shared/library/constants';
 import type { LibraryItem } from '../../../shared/library/types';
 
@@ -10,7 +10,6 @@ export const LibraryItemAction = {
   RelatedSessions: 'related_sessions',
   OpenLink: 'open_link',
   CopyLink: 'copy_link',
-  ManageSite: 'manage_site',
 } as const;
 
 export type LibraryItemAction =
@@ -34,7 +33,6 @@ const SITE_ACTIONS = [
   LibraryItemAction.ToggleFavorite,
   LibraryItemAction.OpenLink,
   LibraryItemAction.CopyLink,
-  LibraryItemAction.ManageSite,
   LibraryItemAction.RelatedSessions,
 ] as const;
 
@@ -56,7 +54,6 @@ const getLibraryItemActionIds = (item: LibraryItem): readonly LibraryItemAction[
       : SITE_ACTIONS;
   const visibleActions = actions.filter(action => {
     if (action === LibraryItemAction.ShareLocal && !ENABLE_HTML_SHARE) return false;
-    if (action === LibraryItemAction.ManageSite && !ENABLE_SITE_DEPLOYMENT) return false;
     return true;
   });
   return hasRelatedSessions(item)

@@ -46,6 +46,22 @@ function formatDownloadUrlForLog(rawUrl: string): string {
   }
 }
 
+/**
+ * Resolve the security-relevant origin actually served after redirects.
+ * Electron documents `Response.url` as unreliable for `session.fetch()`, so
+ * this is best-effort and callers must fall back to the validated input origin.
+ */
+function resolveFinalResponseOrigin(response: Response): string | null {
+  const finalUrl = (response as { url?: string }).url;
+  if (!finalUrl) return null;
+  try {
+    const origin = new URL(finalUrl).origin;
+    return isSecureWindowsInstallerOrigin(origin) ? origin : null;
+  } catch {
+    return null;
+  }
+}
+
 let activeDownloadController: AbortController | null = null;
 
 export function cancelActiveDownload(): boolean {
@@ -146,10 +162,11 @@ export async function downloadUpdate(
   try {
     const response = await session.defaultSession.fetch(url, {
       signal: controller.signal,
-      // Electron documents Response.url as unreliable for session.fetch().
-      // Reject Windows redirects so the validated input remains the download
-      // source without relying on that field for final-URL provenance.
-      ...(process.platform === 'win32' ? { redirect: 'error' as const } : {}),
+      // Follow redirects. GitHub Releases asset URLs (github.com/.../releases/
+      // download/...) 302 to a CDN (objects.githubusercontent.com); the input
+      // URL is validated against the transport policy before download, and the
+      // resolver below records the final security-relevant output only from
+      // trusted origins.
     });
 
     console.log(`[AppUpdate] HTTP response: ${response.status} ${response.statusText}`);
@@ -248,7 +265,9 @@ export async function downloadUpdate(
             windowsInstallerUrlPolicyReceipt: {
               policyVersion: WINDOWS_INSTALLER_URL_POLICY_VERSION,
               inputOrigin: validatedWindowsInputUrl.origin,
-              finalOrigin: validatedWindowsInputUrl.origin,
+              // Prefer the origin actually served after redirects; fall back to
+              // the validated input origin when the final URL is unavailable.
+              finalOrigin: resolveFinalResponseOrigin(response) ?? validatedWindowsInputUrl.origin,
             },
           }
         : {}),

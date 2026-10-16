@@ -5,7 +5,6 @@ import type {
   HtmlShareStatus,
 } from '../htmlShare/constants';
 import type { PublishingSubscriptionRecoveryMode } from '../publishing/constants';
-import type { SiteKind, SiteStatus } from '../site/constants';
 import type {
   LibraryArtifactType,
   LibraryAvailability,
@@ -100,12 +99,16 @@ export interface SharedFileItem extends LibraryItemBase {
   subscriptionRecoveryMode?: PublishingSubscriptionRecoveryMode;
 }
 
+/**
+ * Legacy kind retained for reading cloud library payloads produced by older
+ * builds. Site deployment itself was removed; no new items carry this kind.
+ */
 export interface DeployedSiteItem extends LibraryItemBase {
   itemKind: 'deployed_site';
   shareId: string;
   url: string;
-  siteKind: SiteKind;
-  siteStatus: SiteStatus;
+  siteKind: string;
+  siteStatus: string;
   shareStatus: HtmlShareStatus;
   accessMode: HtmlShareAccessMode;
   deploymentId?: string;

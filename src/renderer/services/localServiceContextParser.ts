@@ -3,9 +3,9 @@ import {
   isInternalCompactionSystemText,
 } from '../../common/coworkSystemMessages';
 import {
-  ShareDeploymentCandidateSource,
-  type ShareDeploymentProjectCandidate,
-} from '../../shared/shareDeployment/constants';
+  LocalWebServiceCandidateSource,
+  type LocalWebServiceProjectCandidate,
+} from '../../shared/localWebServices/constants';
 import { type Artifact, ArtifactTypeValue } from '../types/artifact';
 import type { CoworkMessage } from '../types/cowork';
 import {
@@ -45,7 +45,7 @@ type ServiceEvidenceKind = 'assistant' | 'browser';
 interface DirectoryEvidence {
   kind: DirectoryEvidenceKind;
   order: number;
-  candidates: ShareDeploymentProjectCandidate[];
+  candidates: LocalWebServiceProjectCandidate[];
   ports: Set<number>;
   explicitPortBindings: Set<number>;
   isServiceStart: boolean;
@@ -66,7 +66,7 @@ interface ShellToolContext {
 
 interface AggregatedLocalService {
   artifact: Artifact;
-  candidates: ShareDeploymentProjectCandidate[];
+  candidates: LocalWebServiceProjectCandidate[];
 }
 
 export interface LocalServiceContextParserOptions {
@@ -179,20 +179,20 @@ function sanitizeDirectoryValue(value: string): string {
 
 function createToolDirectoryCandidate(
   directory: string,
-  source: ShareDeploymentProjectCandidate['source'],
+  source: LocalWebServiceProjectCandidate['source'],
   confidence: number,
   messageId: string,
   fallbackProjectDirectory: string | undefined,
   reason: string,
   evidence?: string,
-): ShareDeploymentProjectCandidate | null {
+): LocalWebServiceProjectCandidate | null {
   const sanitized = sanitizeDirectoryValue(directory);
   if (!sanitized || /\$\(|\$\{|%[^%]+%/.test(sanitized)) return null;
   const parsed = collectProjectDirectoryCandidatesFromText(
     `project directory: ${sanitized}`,
     fallbackProjectDirectory,
     messageId,
-  ).find(candidate => candidate.source === ShareDeploymentCandidateSource.TextLabeledPath);
+  ).find(candidate => candidate.source === LocalWebServiceCandidateSource.TextLabeledPath);
   if (!parsed) return null;
   return {
     ...parsed,
@@ -204,9 +204,9 @@ function createToolDirectoryCandidate(
 }
 
 function mergeCandidates(
-  ...candidateGroups: Array<readonly ShareDeploymentProjectCandidate[] | undefined>
-): ShareDeploymentProjectCandidate[] {
-  const result: ShareDeploymentProjectCandidate[] = [];
+  ...candidateGroups: Array<readonly LocalWebServiceProjectCandidate[] | undefined>
+): LocalWebServiceProjectCandidate[] {
+  const result: LocalWebServiceProjectCandidate[] = [];
   const indexByDirectory = new Map<string, number>();
   for (const candidates of candidateGroups) {
     for (const candidate of candidates ?? []) {
@@ -235,20 +235,20 @@ function getShellDirectoryEvidence(
   const workingDirectories = getStringValues(input, TOOL_WORKING_DIRECTORY_KEYS);
   const fallbackDirectory = workingDirectories[workingDirectories.length - 1] || workingDirectory;
   const isServiceStart = commands.some(command => SERVICE_START_COMMAND_RE.test(command));
-  const cdCandidates: ShareDeploymentProjectCandidate[] = [];
+  const cdCandidates: LocalWebServiceProjectCandidate[] = [];
 
   for (const command of commands) {
     const commandCandidates = collectProjectDirectoryCandidatesFromText(
       command,
       fallbackDirectory,
       message.id,
-    ).filter(candidate => candidate.source === ShareDeploymentCandidateSource.TextCdCommand);
+    ).filter(candidate => candidate.source === LocalWebServiceCandidateSource.TextCdCommand);
     cdCandidates.push(...commandCandidates);
   }
 
   const orderedCdCandidates = cdCandidates.reverse().map((candidate, index) => ({
     ...candidate,
-    source: ShareDeploymentCandidateSource.ToolCdCommand,
+    source: LocalWebServiceCandidateSource.ToolCdCommand,
     confidence: Math.max(90, 94 - index),
     reason: 'Matched the effective directory from a shell tool command.',
   }));
@@ -257,14 +257,14 @@ function getShellDirectoryEvidence(
     .reverse()
     .map((directory, index) => createToolDirectoryCandidate(
       directory,
-      ShareDeploymentCandidateSource.ToolWorkingDirectory,
+      LocalWebServiceCandidateSource.ToolWorkingDirectory,
       Math.max(88, 92 - index),
       message.id,
       workingDirectory,
       'Matched the working directory supplied to a shell tool.',
       directory,
     ))
-    .filter((candidate): candidate is ShareDeploymentProjectCandidate => Boolean(candidate));
+    .filter((candidate): candidate is LocalWebServiceProjectCandidate => Boolean(candidate));
   const candidates = mergeCandidates(orderedCdCandidates, cwdCandidates);
   const ports = new Set<number>();
   const explicitPortBindings = new Set<number>();
@@ -294,7 +294,7 @@ function extractPwdResultCandidate(
   message: CoworkMessage,
   shellContext: ShellToolContext,
   workingDirectory?: string,
-): ShareDeploymentProjectCandidate | null {
+): LocalWebServiceProjectCandidate | null {
   if (
     message.metadata?.isError ||
     shellContext.commands.length !== 1 ||
@@ -310,7 +310,7 @@ function extractPwdResultCandidate(
     if (!ABSOLUTE_DIRECTORY_LINE_RE.test(line)) continue;
     const candidate = createToolDirectoryCandidate(
       line,
-      ShareDeploymentCandidateSource.ToolPwdResult,
+      LocalWebServiceCandidateSource.ToolPwdResult,
       95,
       message.id,
       workingDirectory,
@@ -365,8 +365,8 @@ function getClosestExplicitToolEvidence(
     const item = evidence[index];
     if (item.order > event.order || item.kind !== 'tool') continue;
     if (item.candidates.some(candidate =>
-      candidate.source === ShareDeploymentCandidateSource.ToolCdCommand ||
-      candidate.source === ShareDeploymentCandidateSource.ToolPwdResult
+      candidate.source === LocalWebServiceCandidateSource.ToolCdCommand ||
+      candidate.source === LocalWebServiceCandidateSource.ToolPwdResult
     )) {
       return item;
     }
@@ -377,7 +377,7 @@ function getClosestExplicitToolEvidence(
 function getCandidatesForServiceEvidence(
   event: ServiceEvidence,
   directoryEvidence: DirectoryEvidence[],
-): ShareDeploymentProjectCandidate[] {
+): LocalWebServiceProjectCandidate[] {
   const port = getPortFromLocalServiceUrl(event.artifact.url || event.artifact.content);
   const matchingToolEvidence = port
     ? directoryEvidence

@@ -11,6 +11,12 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import type { SkillSecurityReport as SkillSecurityReportData } from '../../../main/libs/skillSecurity/skillSecurityTypes';
 import { ENABLE_OPENCLAW_SKILL_SYNC } from '../../../shared/featureFlags';
+import {
+  DefaultSkillMarketplaceSource,
+  SKILL_MARKETPLACE_SOURCE_ORDER,
+  SKILL_MARKETPLACE_SOURCES,
+  type SkillMarketplaceSource,
+} from '../../../shared/skills/marketplaceSources';
 import { i18nService } from '../../services/i18n';
 import { compareVersions,resolveLocalizedText, skillService } from '../../services/skill';
 import { RootState } from '../../store';
@@ -30,7 +36,6 @@ import PlusCircleIcon from '../icons/PlusCircleIcon';
 import SearchIcon from '../icons/SearchIcon';
 import TrashIcon from '../icons/TrashIcon';
 import UploadIcon from '../icons/UploadIcon';
-
 import { SKILL_LOAD_ISSUE_I18N_KEYS } from './skillLoadIssue';
 import SkillSecurityReport from './SkillSecurityReport';
 import { SKILL_TAB_LABEL_KEYS, SKILL_TAB_ORDER, SkillTab } from './skillTabs';
@@ -92,6 +97,9 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
   const [marketTags, setMarketTags] = useState<MarketTag[]>([]);
   const [activeMarketTag, setActiveMarketTag] = useState('all');
   const [isLoadingMarketplace, setIsLoadingMarketplace] = useState(false);
+  const [marketSource, setMarketSource] = useState<SkillMarketplaceSource>(
+    DefaultSkillMarketplaceSource,
+  );
   const [installingSkillId, setInstallingSkillId] = useState<string | null>(null);
   const [selectedMarketplaceSkill, setSelectedMarketplaceSkill] = useState<MarketplaceSkill | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
@@ -148,14 +156,55 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
   useEffect(() => {
     let isActive = true;
     setIsLoadingMarketplace(true);
-    skillService.fetchMarketplaceSkills().then((data) => {
+    setActiveMarketTag('all');
+
+    const load = marketSource === DefaultSkillMarketplaceSource
+      // The official store keeps its own legacy endpoint and tag taxonomy.
+      ? skillService.fetchMarketplaceSkills().then(data => ({
+          skills: data.skills,
+          tags: data.tags,
+        }))
+      // Every other source is normalised by the main process; tags are omitted.
+      : skillService.fetchMarketplaceSource(marketSource).then(data => ({
+          skills: data.skills,
+          tags: [] as MarketTag[],
+        }));
+
+    load.then((data) => {
       if (!isActive) return;
       setMarketplaceSkills(data.skills);
       setMarketTags(data.tags);
       setIsLoadingMarketplace(false);
     });
     return () => { isActive = false; };
-  }, []);
+  }, [marketSource]);
+
+  // Sources without a list API (SkillHub is search-driven, skills.sh has none)
+  // are queried remotely as the user types. Debounce so each keystroke does not
+  // fire a request; an empty term reloads the browse view.
+  useEffect(() => {
+    if (marketSource === DefaultSkillMarketplaceSource) return;
+    if (!SKILL_MARKETPLACE_SOURCES[marketSource].supportsSearch) return;
+    const term = skillSearchQuery.trim();
+
+    let isActive = true;
+    const timer = window.setTimeout(() => {
+      setIsLoadingMarketplace(true);
+      skillService
+        .fetchMarketplaceSource(marketSource, term ? { query: term } : {})
+        .then((data) => {
+          if (!isActive) return;
+          setMarketplaceSkills(data.skills);
+          setMarketTags([]);
+          setIsLoadingMarketplace(false);
+        });
+    }, term ? 350 : 0);
+
+    return () => {
+      isActive = false;
+      window.clearTimeout(timer);
+    };
+  }, [marketSource, skillSearchQuery]);
 
   useEffect(() => {
     if (!ENABLE_OPENCLAW_SKILL_SYNC) return;
@@ -252,7 +301,9 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
   const filteredMarketplaceSkills = useMemo(() => {
     const query = skillSearchQuery.trim().replace(/\s+/g, ' ').toLowerCase();
     let results = marketplaceSkills;
-    if (query) {
+    // Non-official sources filter server-side, so their results are already
+    // scoped to the search term and must not be narrowed again here.
+    if (query && marketSource === DefaultSkillMarketplaceSource) {
       results = results.filter(skill => {
         return skill.name.toLowerCase().includes(query)
           || resolveLocalizedText(skill.description).toLowerCase().includes(query);
@@ -262,7 +313,7 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
       results = results.filter(skill => skill.tags?.includes(activeMarketTag));
     }
     return results;
-  }, [marketplaceSkills, skillSearchQuery, activeMarketTag]);
+  }, [marketplaceSkills, skillSearchQuery, activeMarketTag, marketSource]);
 
   const formatSkillDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -1049,6 +1100,26 @@ const SkillsManager: React.FC<SkillsManagerProps> = ({ readOnly, onCreateByChat,
             </div>
           )}
         </div>
+
+        {/* Marketplace source switch (Marketplace only) */}
+        {activeTab === SkillTab.Marketplace && (
+          <div className="flex items-center gap-1.5 flex-wrap" data-testid="skill-market-source-switch">
+            {SKILL_MARKETPLACE_SOURCE_ORDER.map((source) => (
+              <button
+                key={source}
+                type="button"
+                onClick={() => setMarketSource(source)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  marketSource === source
+                    ? 'bg-primary text-white'
+                    : 'bg-surface-raised text-secondary hover:text-foreground'
+                }`}
+              >
+                {i18nService.t(SKILL_MARKETPLACE_SOURCES[source].labelKey)}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Tag filter pills (Marketplace only) */}
         {activeTab === SkillTab.Marketplace && !isLoadingMarketplace && marketTags.length > 0 && (

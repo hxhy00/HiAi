@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { ShareDeploymentCandidateSource } from '../../shared/shareDeployment/constants';
+import { LocalWebServiceCandidateSource } from '../../shared/localWebServices/constants';
 import { type Artifact, ArtifactTypeValue } from '../types/artifact';
 import {
   dedupeArtifactsForDisplay,
@@ -801,7 +801,7 @@ describe('parseLocalServiceUrlsFromText', () => {
       expect.arrayContaining([
         expect.objectContaining({
           directory: '/Users/admin/lobsterai/project/chinese-navy-site',
-          source: ShareDeploymentCandidateSource.TextLabeledPath,
+          source: LocalWebServiceCandidateSource.TextLabeledPath,
         }),
       ]),
     );
@@ -823,7 +823,7 @@ describe('parseLocalServiceUrlsFromText', () => {
       expect.arrayContaining([
         expect.objectContaining({
           directory: '/Users/admin/lobsterai/project/chinese-navy-site',
-          source: ShareDeploymentCandidateSource.TextCommonParent,
+          source: LocalWebServiceCandidateSource.TextCommonParent,
         }),
       ]),
     );

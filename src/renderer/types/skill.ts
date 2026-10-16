@@ -49,4 +49,9 @@ export interface MarketplaceSkill {
   displayName?: string | LocalizedText;
   icon?: string;
   downloadCount?: number;
+  /**
+   * Which marketplace this entry came from. Only set for multi-source results
+   * (ClawHub / SkillHub / skills.sh); the official store leaves it undefined.
+   */
+  marketplace?: string;
 }
