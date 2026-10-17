@@ -1,11 +1,9 @@
 {
-  "id": "lobster-media-generation",
-  "name": "LobsterMediaGeneration",
-  "description": "Image/video generation and AI skin management tools powered by LobsterAI.",
+  "id": "lobster-skin",
+  "name": "LobsterSkin",
+  "description": "AI skin pack management tools powered by LobsterAI.",
   "contracts": {
     "tools": [
-      "hiai_image_generate",
-      "hiai_video_generate",
       "hiai_skin_manage"
     ]
   },
@@ -15,7 +13,7 @@
     "properties": {
       "callbackUrl": {
         "type": "string",
-        "description": "LobsterAI HTTP callback URL for media generation requests"
+        "description": "LobsterAI loopback bridge URL for skin management requests"
       },
       "secret": {
         "type": "string",
@@ -24,7 +22,8 @@
       "requestTimeoutMs": {
         "type": "number",
         "minimum": 1000,
-        "description": "Request timeout in milliseconds"
+        "description": "Request timeout in milliseconds",
+        "default": 30000
       }
     }
   }

@@ -15,6 +15,8 @@ export type StartupCacheWarmupDeps = {
   fetchWithAuth: (url: string, options?: RequestInit) => Promise<Response>;
   appendKeyfromQuery: (url: string) => string;
   clientVersion: string;
+  /** Offline guard; when it reports false the request is skipped entirely. */
+  isOnline?: () => boolean;
 };
 
 export type StartupCacheWarmupResult = Record<string, never>;
@@ -39,7 +41,13 @@ export async function runStartupCacheWarmup(deps: StartupCacheWarmupDeps): Promi
     fetchWithAuth,
     appendKeyfromQuery,
     clientVersion,
+    isOnline,
   } = deps;
+
+  if (isOnline && !isOnline()) {
+    console.debug('[Main] startup cache warmup: offline, skipping server model request');
+    return {};
+  }
 
   try {
     const url = appendKeyfromQuery(`${serverBaseUrl}/api/models/available`);

@@ -72,7 +72,6 @@ import {
   updateSessionStatus,
   updateSessionTitle,
   updateSteerStatus,
-  updateToolUseMediaStatus,
 } from '../store/slices/coworkSlice';
 import { clearActiveSkills, setActiveSkillIds } from '../store/slices/skillSlice';
 import type {
@@ -100,7 +99,6 @@ import {
 } from './coworkSessionRefreshPolicy';
 import { i18nService } from './i18n';
 import { restoreNativeQuestionPermissions } from './nativeQuestionRecovery';
-
 import { isConfigApplyPendingStatus, resolveEngineNotReadyMessage } from './openclawEngineStatus';
 import { resolveOpenClawRepairHistoryWarning } from './openclawRepair';
 
@@ -339,18 +337,6 @@ class CoworkService {
       store.dispatch(updateMessageContent({ sessionId, messageId, content, metadata }));
     });
     this.streamListenerCleanups.push(messageUpdateCleanup);
-
-    const mediaStatusPollCleanup = cowork.onMediaStatusPollUpdate?.(({ sessionId, toolCallId, details }) => {
-      const session = store.getState().cowork.sessions.find(s => s.id === sessionId);
-      if (session?.status !== 'completed') {
-        store.dispatch(updateSessionStatus({ sessionId, status: 'running' }));
-        this.queuedFollowUpCoordinator.handleSessionRunning(sessionId);
-      }
-      store.dispatch(updateToolUseMediaStatus({ sessionId, toolCallId, details }));
-    });
-    if (mediaStatusPollCleanup) {
-      this.streamListenerCleanups.push(mediaStatusPollCleanup);
-    }
 
     const sessionStatusCleanup = cowork.onStreamSessionStatus?.(({ sessionId, status }) => {
       const coworkState = store.getState().cowork;
@@ -1135,8 +1121,6 @@ class CoworkService {
       kitReferences: options.kitReferences,
       resolvedKitCapabilities: options.resolvedKitCapabilities,
       imageAttachments: options.imageAttachments,
-      mediaSelection: options.mediaSelection,
-      mediaReferences: options.mediaReferences,
       selectedTextSnippets: options.selectedTextSnippets,
       browserAnnotations: options.browserAnnotations,
     });

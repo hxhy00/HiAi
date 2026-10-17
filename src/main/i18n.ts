@@ -205,8 +205,6 @@ const translations: Record<LanguageType, Record<string, string>> = {
     skillErrClawhubDownloadFailed: '从 ClawHub 下载技能失败，请稍后重试。',
 
     // Media/account guards (userId retained in task metadata)
-    authAccountChanged: '登录账号已发生变化，请重试。',
-    mediaTaskAccountMismatch: '该媒体任务属于其他账号，无法操作。',
 
     // Data migration dialogs
     dataMigrationBackupDialogTitle: '备份 HiAi 数据',
@@ -615,8 +613,6 @@ const translations: Record<LanguageType, Record<string, string>> = {
     skillErrClawhubDownloadFailed: 'Failed to download skill from ClawHub. Please try again later.',
 
     // Media/account guards (userId retained in task metadata)
-    authAccountChanged: 'The signed-in account changed. Try again.',
-    mediaTaskAccountMismatch: 'This media task belongs to another account.',
 
     mediaImageProviderNotConfigured: 'No image model is configured. Add an image model in Settings and try again.',
     mediaVideoProviderNotConfigured: 'No video model is configured. Add a video model in Settings and try again.',

@@ -4,11 +4,6 @@ import {
   validateCoworkImageAttachmentSize,
 } from '../../shared/cowork/imageAttachments';
 import type { CoworkSelectedTextSnippet } from '../../shared/cowork/selectedText';
-import {
-  computeMediaLabels,
-  extractMediaReferencesFromPrompt,
-} from '../components/cowork/mediaMentionUtils';
-import type { MediaAttachmentRef } from '../types/mediaGeneration';
 
 export interface CoworkPromptAttachment {
   path: string;
@@ -21,7 +16,6 @@ export interface CoworkPromptAttachment {
 export interface PreparedCoworkPromptPayload {
   finalPrompt: string;
   imageAttachments?: CoworkImageAttachmentPayload[];
-  mediaReferences?: MediaAttachmentRef[];
   selectedTextSnippets?: CoworkSelectedTextSnippet[];
 }
 
@@ -180,15 +174,11 @@ export async function prepareCoworkPromptPayload(
   const finalPrompt = options.basePrompt
     ? (attachmentLines ? `${options.basePrompt}\n\n${attachmentLines}` : options.basePrompt)
     : attachmentLines;
-  const mediaLabels = computeMediaLabels(options.attachments);
-  const mediaReferences = extractMediaReferencesFromPrompt(finalPrompt, mediaLabels);
-
   return {
     success: true,
     payload: {
       finalPrompt,
       imageAttachments: imageAttachments.length > 0 ? imageAttachments : undefined,
-      mediaReferences: mediaReferences.length > 0 ? mediaReferences : undefined,
       selectedTextSnippets: options.selectedTextSnippets.length > 0
         ? options.selectedTextSnippets
         : undefined,

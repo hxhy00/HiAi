@@ -2394,25 +2394,23 @@ describe('OpenClawConfigSync runtime config output', () => {
     expect(config.agents.defaults.models).toBeUndefined();
   });
 
-  test('always enables the media generation plugin', async () => {
+  test('enables the skin plugin with a bridge callback', async () => {
     const sync = await createSync({
-      getMediaCallbackUrl: () => 'http://127.0.0.1:5175/media-callback',
+      getSkinCallbackUrl: () => 'http://127.0.0.1:5175/skin/tool',
     });
 
-    const result = sync.sync('media-generation-enabled');
+    const result = sync.sync('skin-enabled');
     expect(result.ok).toBe(true);
 
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    expect(config.plugins.entries['lobster-media-generation']).toEqual({
+    expect(config.plugins.entries['lobster-skin']).toEqual({
       enabled: true,
       config: {
-        callbackUrl: 'http://127.0.0.1:5175/media-callback',
+        callbackUrl: 'http://127.0.0.1:5175/skin/tool',
         secret: '${LOBSTER_MCP_BRIDGE_SECRET}',
-        requestTimeoutMs: 150000,
+        requestTimeoutMs: 30000,
       },
     });
-    expect(config.tools.deny).not.toContain('image_generate');
-    expect(config.tools.deny).not.toContain('video_generate');
   });
 
   test('hides OpenClaw tools that need a paired node', async () => {

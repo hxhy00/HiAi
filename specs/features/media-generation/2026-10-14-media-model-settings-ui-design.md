@@ -1,5 +1,12 @@
 # 媒体生成模型设置界面设计文档
 
+> **已失效（2026-10-17）：本文设计的「媒体生成模型」设置页已随内置媒体链路整体删除。**
+>
+> 图片/视频生成改由 `seedream` / `seedance` skill 的脚本承担，配置写在
+> `SKILLs/<skill>/config.json`，不再有应用内的 provider 设置界面。
+> 现行口径见
+> [移除内置媒体生成链路设计](../../refactors/remove-builtin-media-generation/2026-10-17-remove-builtin-media-generation-design.md)。
+>
 > 关联：[媒体生成模型配置](../../refactors/de-server-dependency/) 相关设计、[LobsterAI 生图生视频托管工具](./2026-05-13-media-generation-design.md)。
 
 ## 1. 概述

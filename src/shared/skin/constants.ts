@@ -85,6 +85,9 @@ export const SkinIpc = {
 
 export type SkinIpc = typeof SkinIpc[keyof typeof SkinIpc];
 
+/** Bundled OpenClaw plugin that exposes the skin authoring tool. */
+export const SKIN_PLUGIN_ID = 'lobster-skin';
+
 export const SkinToolName = {
   Manage: 'hiai_skin_manage',
 } as const;

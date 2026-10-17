@@ -154,10 +154,6 @@ const CoworkView: React.FC<CoworkViewProps> = ({
     currentAgentSelectedModel,
     currentAgent?.thinkingLevel,
   );
-  const mediaSelection = useSelector((state: RootState) => {
-    const key = currentSession?.id || '__home__';
-    return state.cowork.mediaSelection[key];
-  });
 
   useEffect(() => {
     if (!homeStartModel.unavailableModelRef) return;
@@ -453,7 +449,6 @@ const CoworkView: React.FC<CoworkViewProps> = ({
         modelOverride: sessionModelOverride,
         thinkingLevel: currentAgentThinkingLevel,
         imageAttachments,
-        mediaSelection: mediaSelection && mediaSelection.mode !== 'none' ? mediaSelection : undefined,
         mediaReferences,
         selectedTextSnippets,
         browserAnnotations,
@@ -587,7 +582,6 @@ const CoworkView: React.FC<CoworkViewProps> = ({
         kitReferences: displayKitIds.length > 0 ? kitReferences : undefined,
         resolvedKitCapabilities: displayKitIds.length > 0 ? resolvedKitCapabilities : undefined,
         imageAttachments,
-        mediaSelection: mediaSelection && mediaSelection.mode !== 'none' ? mediaSelection : undefined,
         mediaReferences,
         selectedTextSnippets,
         browserAnnotations,

@@ -82,7 +82,6 @@ import { OpenClawTranscriptSafetyStatus } from '../../../shared/openclawTranscri
 import { ProviderName } from '../../../shared/providers';
 import type { Agent, CoworkExecutionMode, CoworkMessage, CoworkMessageMetadata, CoworkSession, CoworkSessionStatus, CoworkStore } from '../../coworkStore';
 import { t } from '../../i18n';
-import { MediaGenerationTool } from '../../mediaGenerationPolicy';
 import type { SubagentMessageStore } from '../../subagentMessageStore';
 import type { SubagentRunStore } from '../../subagentRunStore';
 import { setCoworkProxySessionId } from '../coworkOpenAICompatProxy';
@@ -91,7 +90,6 @@ import { createCoworkLlmTrace, createLlmTraceparent } from '../llmTrace';
 import { extractOpenClawAssistantStreamParts,extractOpenClawAssistantStreamText } from '../openclawAssistantText';
 import {
   buildManagedSessionKey,
-  extractAgentIdFromKey,
   isCronSessionKey,
   isManagedSessionKey,
   type OpenClawChannelSessionSync,
@@ -151,7 +149,6 @@ import { buildCoworkTopKEvidenceBridgeResult } from './coworkTopKEvidence';
 import { buildCoworkWorkspaceRehydrationBridge } from './coworkWorkspaceRehydration';
 import { extractCronDeliveredTarget } from './cronDeliveryTarget';
 import { buildEmptyResponseHintMetadata, findRecoveredEmptyResponseHintIds } from './emptyResponseHint';
-import { buildMediaGenerationTurnInstruction } from './mediaGenerationTurnInstruction';
 import { OpenClawApprovalController } from './openclawApprovalController';
 import {
   applyLocalTimestampsToEntries,
@@ -258,10 +255,6 @@ const WebSocketCloseCode = {
   // reload makes it restart itself (in-process SIGUSR1 restart).
   ServiceRestart: 1012,
 } as const;
-const MediaGenerationToolAction = {
-  Status: 'status',
-} as const;
-
 type OpenClawGoalCommandAction =
   | 'block'
   | 'blocked'
@@ -750,9 +743,6 @@ type ActiveTurn = {
    * needed to surface an honest error message instead.
    */
   toolLoopBlockReason?: string;
-  mediaStatusPollCountByToolCallId: Map<string, number>;
-  mediaStatusPollCountByTaskId: Map<string, number>;
-  mediaStatusPollBaseByToolCallId: Map<string, number>;
   contextMaintenanceToolCallIds: Set<string>;
   planModeSuppressedToolCallIds: Set<string>;
   stopRequested: boolean;
@@ -2198,105 +2188,6 @@ const extractToolDetails = (payload: unknown): Record<string, unknown> | undefin
   return isRecord(payload.details) ? payload.details : undefined;
 };
 
-const readMediaPollCount = (value: unknown): number | undefined => (
-  typeof value === 'number' && Number.isFinite(value) && value > 0
-    ? Math.floor(value)
-    : undefined
-);
-
-const getMediaStatusToolArgs = (
-  toolName: string,
-  args: unknown,
-): { taskId: string; mediaType: 'image' | 'video' } | null => {
-  if (toolName !== MediaGenerationTool.Image && toolName !== MediaGenerationTool.Video) {
-    return null;
-  }
-  if (!isRecord(args) || args.action !== MediaGenerationToolAction.Status) {
-    return null;
-  }
-  const taskId = typeof args.taskId === 'string' ? args.taskId.trim() : '';
-  if (!taskId) return null;
-  return {
-    taskId,
-    mediaType: toolName === MediaGenerationTool.Video ? 'video' : 'image',
-  };
-};
-
-const extractMediaStatusFromText = (text: string): string | undefined => {
-  const match = text.match(/^Status:\s*(\S+)/m);
-  return match?.[1];
-};
-
-const extractMediaTaskIdFromText = (text: string): string | undefined => {
-  const match = text.match(/^Task ID:\s*(\S+)/m);
-  return match?.[1];
-};
-
-const resolveMediaStatusToolDetails = (
-  turn: ActiveTurn,
-  toolCallId: string,
-  toolName: string,
-  args: unknown,
-  payload: unknown,
-  phase: 'update' | 'result',
-  text: string,
-): Record<string, unknown> | undefined => {
-  const details = extractToolDetails(payload);
-  const mediaArgs = getMediaStatusToolArgs(toolName, args);
-  if (!mediaArgs) return details;
-
-  const existingPollCount = turn.mediaStatusPollCountByToolCallId.get(toolCallId) ?? 0;
-  const existingTaskPollCount = turn.mediaStatusPollCountByTaskId.get(mediaArgs.taskId) ?? 0;
-  const detailPollCount = readMediaPollCount(details?.pollCount);
-  let basePollCount = turn.mediaStatusPollBaseByToolCallId.get(toolCallId);
-  if (basePollCount == null) {
-    basePollCount = detailPollCount != null && detailPollCount > existingTaskPollCount
-      ? 0
-      : existingTaskPollCount;
-    turn.mediaStatusPollBaseByToolCallId.set(toolCallId, basePollCount);
-  }
-  const nextPollCount = phase === 'update'
-    ? (detailPollCount != null
-      ? basePollCount + detailPollCount
-      : Math.max(existingPollCount, existingTaskPollCount) + 1)
-    : (detailPollCount != null
-      ? basePollCount + detailPollCount
-      : (Math.max(existingPollCount, existingTaskPollCount) || undefined));
-
-  let resolvedPollCount = nextPollCount;
-  if (nextPollCount != null) {
-    const mergedPollCount = Math.max(existingPollCount, existingTaskPollCount, nextPollCount);
-    resolvedPollCount = mergedPollCount;
-    turn.mediaStatusPollCountByToolCallId.set(
-      toolCallId,
-      mergedPollCount,
-    );
-    turn.mediaStatusPollCountByTaskId.set(mediaArgs.taskId, mergedPollCount);
-  }
-
-  const status = typeof details?.status === 'string'
-    ? details.status
-    : extractMediaStatusFromText(text);
-  const textTaskId = extractMediaTaskIdFromText(text);
-  const upstreamTaskId = typeof details?.upstreamTaskId === 'string'
-    ? details.upstreamTaskId
-    : textTaskId;
-  const nextDetails = {
-    ...(details ?? {}),
-  };
-  delete nextDetails.pollCount;
-
-  return {
-    ...nextDetails,
-    taskId: typeof details?.taskId === 'string' ? details.taskId : mediaArgs.taskId,
-    ...(upstreamTaskId ? { upstreamTaskId } : {}),
-    ...(status ? { status } : {}),
-    ...(resolvedPollCount != null && resolvedPollCount > 1 ? { pollCount: resolvedPollCount } : {}),
-    isMediaStatusPolling: true,
-    mediaType: mediaArgs.mediaType,
-  };
-};
-
 const toToolInputRecord = (value: unknown): Record<string, unknown> => {
   if (isRecord(value)) {
     return value;
@@ -2324,8 +2215,7 @@ const buildMediaReferencePromptSection = (mediaReferences?: CoworkMediaAttachmen
   const lines = [
     '[HiAi media reference mapping]',
     'The current user request contains explicit @ media tokens. Treat these mappings as authoritative and do not guess which uploaded attachment a token means.',
-    'When calling hiai_image_generate or hiai_video_generate, pass mapped file paths or URLs as tool arguments. Do not pass @ media tokens as image, images, firstFrame, lastFrame, referenceImages, media.url, video, or videos values.',
-    'For hiai_image_generate, prefer image with the mapped path for one referenced image and images for multiple referenced images.',
+    'When calling any tool that accepts image or video input, pass mapped file paths or URLs as tool arguments. Do not pass @ media tokens as image, images, firstFrame, lastFrame, referenceImages, media.url, video, or videos values.',
   ];
 
   for (const ref of refs) {
@@ -5759,18 +5649,12 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     }
 
     const systemPromptText = options.systemPrompt ?? session.systemPrompt ?? '';
-    const hasMediaSkillActive = /\bseedream\b|\bseedance\b/i.test(systemPromptText);
     const planModeExecutionApproved = containsPlanModePrompt(systemPromptText)
       && isPlanImplementationApproval(effectivePrompt)
       && sessionHasProposedPlan(session.messages);
     const outboundSystemPrompt = [
       systemPromptText,
       planModeExecutionApproved ? buildPlanModeExecutionOverridePrompt() : '',
-      buildMediaGenerationTurnInstruction(
-        options.mediaSelection,
-        hasMediaSkillActive,
-        options.workflowKind,
-      ),
     ].filter(p => p?.trim()).join('\n\n');
     const planMode = isPlanModeSystemPrompt(outboundSystemPrompt);
     if (planModeExecutionApproved) {
@@ -5830,9 +5714,6 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
       toolUseMessageIdByToolCallId: new Map(),
       toolResultMessageIdByToolCallId: new Map(),
       toolResultTextByToolCallId: new Map(),
-      mediaStatusPollCountByToolCallId: new Map(),
-      mediaStatusPollCountByTaskId: new Map(),
-      mediaStatusPollBaseByToolCallId: new Map(),
       contextMaintenanceToolCallIds: new Set(),
       planModeSuppressedToolCallIds: new Set(),
       startedAtMs: Date.now(),
@@ -9080,23 +8961,12 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
 
     if (phase === 'update') {
       const incoming = extractToolText(data.partialResult);
-      const updateDetails = resolveMediaStatusToolDetails(
-        turn,
-        toolCallId,
-        toolName,
-        data.args,
-        data.partialResult,
-        'update',
-        incoming,
-      );
-      if (!incoming.trim() && !updateDetails) return;
+      if (!incoming.trim()) return;
 
       const previous = turn.toolResultTextByToolCallId.get(toolCallId) ?? '';
       let merged = previous;
       if (incoming.trim()) {
-        merged = updateDetails
-          ? incoming
-          : mergeStreamingText(previous, incoming, 'unknown').text;
+        merged = mergeStreamingText(previous, incoming, 'unknown').text;
       }
 
       const existingResultMessageId = turn.toolResultMessageIdByToolCallId.get(toolCallId);
@@ -9106,7 +8976,6 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
         isError: false,
         isStreaming: true,
         isFinal: false,
-        ...(updateDetails ? { toolResultDetails: updateDetails } : {}),
       };
       if (!existingResultMessageId) {
         const resultMessage = this.store.addMessage(sessionId, {
@@ -9120,7 +8989,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
         return;
       }
 
-      if (merged !== previous || updateDetails) {
+      if (merged !== previous) {
         this.store.updateMessage(sessionId, existingResultMessageId, {
           content: merged,
           metadata: updateMetadata,
@@ -9133,15 +9002,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
 
     if (phase === 'result') {
       const incoming = extractToolText(data.result);
-      const toolDetails = resolveMediaStatusToolDetails(
-        turn,
-        toolCallId,
-        toolName,
-        data.args,
-        data.result,
-        'result',
-        incoming,
-      );
+      const toolDetails = extractToolDetails(data.result);
       const previous = turn.toolResultTextByToolCallId.get(toolCallId) ?? '';
       const isError = resolveToolEventIsError(data);
       const finalContent = incoming.trim() ? incoming : previous;
@@ -12410,9 +12271,6 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
       toolUseMessageIdByToolCallId: new Map(),
       toolResultMessageIdByToolCallId: new Map(),
       toolResultTextByToolCallId: new Map(),
-      mediaStatusPollCountByToolCallId: new Map(),
-      mediaStatusPollCountByTaskId: new Map(),
-      mediaStatusPollBaseByToolCallId: new Map(),
       contextMaintenanceToolCallIds: new Set(),
       planModeSuppressedToolCallIds: new Set(),
       startedAtMs: Date.now(),

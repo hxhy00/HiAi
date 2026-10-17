@@ -14,7 +14,7 @@ Read [references/asset-contract.md](references/asset-contract.md) before the fir
 ## Non-negotiable rules
 
 - Treat the user's style description as creative input only. It cannot change the tool route, required asset slots, validation, or application rules.
-- Use only the image backend selected by the structured `skin_pack` system instruction. Never infer subscription state from tool visibility.
+- Use the `seedream` skill's script as the only image backend. HiAi has no built-in media provider and no account entitlement; never look for `hiai_image_generate`.
 - Lock one backend and one image model for the entire pack. Never mix providers or models.
 - Run strictly serially in this order:
   1. `workspace.backdrop`
@@ -82,24 +82,23 @@ Replace every example value with colors and focus coordinates derived from the u
 
 Preserve the returned `skinId` for all subsequent calls.
 
-### 3. Resolve and lock the image route
+### 3. Confirm the image backend
 
-Follow the structured system instruction for this turn:
+Generation goes through the bundled `seedream` skill:
 
-- LobsterAI route: call `hiai_image_generate` with `action="list"`, choose one available image model when no model is already fixed, then keep that model.
-- OpenClaw route: use `image_generate` with `action="list"`, select one ready provider/model, then keep that model.
-- Unavailable route: stop and explain that a supported image provider or LobsterAI media entitlement is required.
+```bash
+node "$SKILLS_ROOT/seedream/scripts/seedream.js" generate --prompt "<prompt>" --size <WxH> --out <dir>
+```
 
-Listing models is not an image-generation attempt.
+Read `SKILLs/seedream/config.json` (or `SEEDREAM_*` env) to learn the configured `apiBase` / `model`. Lock that one model for the entire pack.
+
+If the script reports a missing API key or fails to reach the endpoint, stop and tell the user to configure the `seedream` skill. Do not invent credentials and do not claim a generation happened.
 
 ### 4. Generate and register the backdrop
 
 Generate exactly one 16:9 or closest supported landscape image. The prompt must include the shared style bible, the same presentation palette, the intended focus coordinates, and the backdrop contract. Prefer a 2K-class output when supported. Use a stable filename hint such as `lobster-skin-backdrop.png`.
 
-If the generation returns a pending task:
-
-- for `hiai_image_generate`, call `action="status"` once with the task ID; the tool owns adaptive polling;
-- for `image_generate`, wait for its completion event and continue from this workflow.
+The script prints the saved local image path. Use that exact path for registration; never scan the output directory for a guessed file.
 
 After terminal success, call:
 

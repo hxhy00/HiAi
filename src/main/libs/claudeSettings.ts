@@ -154,20 +154,6 @@ export function setStoreGetter(getter: () => SqliteStore | null): void {
   storeGetter = getter;
 }
 
-// Auth token getter injected from main.ts for server model provider
-let authTokensGetter: (() => { accessToken: string; refreshToken: string } | null) | null = null;
-
-export function setAuthTokensGetter(getter: () => { accessToken: string; refreshToken: string } | null): void {
-  authTokensGetter = getter;
-}
-
-// Server base URL getter injected from main.ts
-let serverBaseUrlGetter: (() => string) | null = null;
-
-export function setServerBaseUrlGetter(getter: () => string): void {
-  serverBaseUrlGetter = getter;
-}
-
 // Cached server model metadata (populated when auth:getModels is called).
 // Keyed by modelId -> server-provided metadata used for OpenClaw config sync.
 let serverModelMetadataCache: Map<string, CachedServerModelMetadata> = new Map();
@@ -370,33 +356,6 @@ export function evaluateServerModelRunGate(modelId: string): ServerModelRunGateR
   return { allowed: true, metadata };
 }
 
-function buildServerFallbackModels(effectiveModelId: string): NonNullable<LocalProviderConfig['models']> {
-  const models = getAllServerModelMetadata().map((model) => ({
-    id: model.modelId,
-    name: model.modelName || model.modelId,
-    supportsImage: model.supportsImage,
-    supportsVideo: model.supportsVideo,
-    supportsThinking: model.supportsThinking,
-    contextWindow: model.contextWindow,
-    maxTokens: model.maxTokens,
-  }));
-
-  if (!models.some(model => model.id === effectiveModelId)) {
-    const cachedMeta = serverModelMetadataCache.get(effectiveModelId);
-    models.unshift({
-      id: effectiveModelId,
-      name: cachedMeta?.modelName || effectiveModelId,
-      supportsImage: cachedMeta?.supportsImage,
-      supportsVideo: cachedMeta?.supportsVideo,
-      supportsThinking: cachedMeta?.supportsThinking,
-      contextWindow: cachedMeta?.contextWindow,
-      maxTokens: cachedMeta?.maxTokens,
-    });
-  }
-
-  return models;
-}
-
 function normalizeProviderModels(providerName: string, models?: ProviderModelInputConfig[]): ProviderModelConfig[] {
   return (models ?? [])
     .filter(model => model.id?.trim())
@@ -499,43 +458,6 @@ function shouldUseXaiOAuth(providerName: string, providerConfig: LocalProviderCo
   return providerName === ProviderName.Xai && providerConfig.authType === 'oauth';
 }
 
-function tryLobsteraiServerFallback(modelId?: string): MatchedProvider | null {
-  const tokens = authTokensGetter?.();
-  const serverBaseUrl = serverBaseUrlGetter?.();
-  if (!tokens?.accessToken || !serverBaseUrl) return null;
-  const effectiveModelId = modelId?.trim() || '';
-  if (!effectiveModelId) return null;
-  const baseURL = `${serverBaseUrl}/api/proxy/v1`;
-  const cachedMeta = serverModelMetadataCache.get(effectiveModelId);
-  const effectiveApiFormat = cachedMeta?.apiFormat
-    ? normalizeProviderApiFormat(cachedMeta.apiFormat)
-    : 'openai';
-  console.debug('[ClaudeSettings] lobsterai-server provider resolved:', {
-    baseURL,
-    modelId: effectiveModelId,
-    apiFormat: effectiveApiFormat,
-    supportsImage: cachedMeta?.supportsImage,
-    supportsThinking: cachedMeta?.supportsThinking,
-    thinkingConfig: cachedMeta?.thinkingConfig,
-  });
-  return {
-    providerName: ProviderName.LobsteraiServer,
-    providerConfig: { enabled: true, apiKey: tokens.accessToken, baseUrl: baseURL, apiFormat: effectiveApiFormat, models: buildServerFallbackModels(effectiveModelId) },
-    modelId: effectiveModelId,
-    apiFormat: effectiveApiFormat,
-    baseURL,
-    runtimeProfile: cachedMeta?.runtimeProfile,
-    supportsImage: cachedMeta?.supportsImage,
-    supportsVideo: cachedMeta?.supportsVideo,
-    supportsThinking: cachedMeta?.supportsThinking,
-    thinkingConfig: cachedMeta?.thinkingConfig,
-    requestCapabilities: cachedMeta?.requestCapabilities,
-    modelName: cachedMeta?.modelName,
-    contextWindow: cachedMeta?.contextWindow,
-    maxTokens: cachedMeta?.maxTokens,
-  };
-}
-
 function resolveMatchedProvider(appConfig: AppConfig): { matched: MatchedProvider | null; error?: string } {
   const providers = appConfig.providers ?? {};
 
@@ -566,8 +488,6 @@ function resolveMatchedProvider(appConfig: AppConfig): { matched: MatchedProvide
   if (!modelId) {
     const fallback = resolveFallbackModel();
     if (!fallback) {
-      const serverFallback = tryLobsteraiServerFallback(configuredModelId);
-      if (serverFallback) return { matched: serverFallback };
       return { matched: null, error: 'No available model configured in enabled providers.' };
     }
     modelId = fallback.modelId;
@@ -575,14 +495,6 @@ function resolveMatchedProvider(appConfig: AppConfig): { matched: MatchedProvide
 
   let providerEntry: [string, LocalProviderConfig] | undefined;
   const preferredProviderName = appConfig.model?.defaultModelProvider?.trim();
-
-  // Handle lobsterai-server provider: dynamically construct from auth tokens
-  if (preferredProviderName === ProviderName.LobsteraiServer) {
-    const serverMatch = tryLobsteraiServerFallback(modelId);
-    if (serverMatch) {
-      return { matched: serverMatch };
-    }
-  }
 
   if (preferredProviderName) {
     const preferredProvider = providers[preferredProviderName];
@@ -609,8 +521,6 @@ function resolveMatchedProvider(appConfig: AppConfig): { matched: MatchedProvide
       modelId = fallback.modelId;
       providerEntry = [fallback.providerName, fallback.providerConfig];
     } else {
-      const serverFallback = tryLobsteraiServerFallback(modelId);
-      if (serverFallback) return { matched: serverFallback };
       return { matched: null, error: `No enabled provider found for model: ${modelId}` };
     }
   }
@@ -624,16 +534,12 @@ function resolveMatchedProvider(appConfig: AppConfig): { matched: MatchedProvide
   // MiniMax OAuth mode guard: if OAuth is selected but login has not been completed
   // (no access token), do not use the stale API key as an OAuth token.
   if (providerName === ProviderName.Minimax && (providerConfig as any).authType === 'oauth' && !(providerConfig as any).oauthAccessToken) {
-    const serverFallback = tryLobsteraiServerFallback(modelId);
-    if (serverFallback) return { matched: serverFallback };
     return { matched: null, error: 'MiniMax OAuth mode selected but login not completed.' };
   }
 
   // xAI OAuth mode guard: without a credential in the OpenClaw auth-profiles
   // store the provider cannot serve requests yet.
   if (shouldUseXaiOAuth(providerName, providerConfig) && !hasXaiOAuthCredential()) {
-    const serverFallback = tryLobsteraiServerFallback(modelId);
-    if (serverFallback) return { matched: serverFallback };
     return { matched: null, error: 'xAI OAuth mode selected but login not completed.' };
   }
 
@@ -647,8 +553,6 @@ function resolveMatchedProvider(appConfig: AppConfig): { matched: MatchedProvide
   }
 
   if (!baseURL) {
-    const serverFallback = tryLobsteraiServerFallback(modelId);
-    if (serverFallback) return { matched: serverFallback };
     return { matched: null, error: `Provider ${providerName} is missing base URL.` };
   }
 
@@ -659,8 +563,6 @@ function resolveMatchedProvider(appConfig: AppConfig): { matched: MatchedProvide
     || shouldUseOpenAICodexOAuth(providerName, providerConfig)
     || (shouldUseXaiOAuth(providerName, providerConfig) && hasXaiOAuthCredential());
   if (apiFormat === 'anthropic' && providerRequiresApiKey(providerName) && !providerConfig.apiKey?.trim() && !hasApiKey && !hasOAuthCreds) {
-    const serverFallback = tryLobsteraiServerFallback(modelId);
-    if (serverFallback) return { matched: serverFallback };
     return { matched: null, error: `Provider ${providerName} requires API key for Anthropic-compatible mode.` };
   }
 

@@ -1,27 +1,19 @@
 # LobsterAI 生图生视频托管工具设计文档
 
-> **已废弃（2026-10-15 确认）——请勿按本文档实现。**
+> **已失效（2026-10-17 确认）——本文档描述的能力已整体移除，请勿参考。**
 >
-> 废弃原因：本文档描述的「走 `lobsterai-server` + 订阅计费 + 额度冻结」架构已不存在。
-> 后续连续重构移除了服务端媒体链路与会员体系，媒体生成改为**本地 provider adapter**：
+> 本文描述的服务端托管媒体链路先后经历三轮变迁：
 >
-> - `feat(media): localize image generation behind a media provider adapter`
-> - `feat(media): localize video generation and drop the server media flow`
-> - `refactor(membership): remove subscription, credits and server-model remnants`
+> 1. 2026-10-15：服务端媒体链路与会员体系移除，改为**本地 provider adapter**（设置页手填
+>    `baseUrl` / `apiKey` / `modelId`，`src/main/libs/mediaProvider/` 直连上游）。
+> 2. 2026-10-17：**本地 provider adapter 本身也一并移除**。应用不再内置任何图片/视频生成能力，
+>    图片与视频改由 `seedream` / `seedance` skill 的脚本直连上游完成。
 >
-> 当前架构：用户在**设置页手填** `baseUrl` / `apiKey` / `modelId`，配置存SQLite
-> （密钥经 `safeStorage` 加密），由 `src/main/libs/mediaProvider/` 的 adapter
-> （OpenAI 兼容图片 / MiniMax 视频）直接请求上游，经 MCP bridge 以工具形式暴露给
-> agent。**没有服务端、没有计费、没有额度。**
+> 现行口径见
+> [移除内置媒体生成链路设计](../../refactors/remove-builtin-media-generation/2026-10-17-remove-builtin-media-generation-design.md)。
 >
-> 仍然有效的部分：4.2「OpenClaw 插件形态」与 4.3「MCP bridge回调路由」的结构被
-> 现状继承（`POST /media-generation/tool`），4.1 架构图与 4.4/4.5 的 server 契约已失效。
->
-> 现行设计见
-> [媒体生成模型设置界面设计](./2026-10-14-media-model-settings-ui-design.md)。
-
-> 模型生成视频的服务端 NOS 持久化、历史任务恢复和客户端分享能力，见
-> [模型生成视频分享设计](../artifacts/2026-09-01-generated-video-share-design.md)。
+> 曾经有效的部分（4.2 插件形态、4.3 bridge 回调路由）的**结构**至今仍存活，但载体已换成
+> `lobster-skin` 插件的 `POST /skin/tool`，仅承载皮肤工具，不再承载媒体生成。
 
 ## 1. 概述
 

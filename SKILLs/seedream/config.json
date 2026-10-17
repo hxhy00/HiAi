@@ -1,0 +1,6 @@
+{
+  "apiBase": "https://ark.cn-beijing.volces.com/api/v3",
+  "apiKey": "在此填入你的 API Key",
+  "model": "doubao-seedream-4-5-251128",
+  "outputDir": "~/Downloads/hiai-images"
+}
