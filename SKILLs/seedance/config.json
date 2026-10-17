@@ -1,0 +1,8 @@
+{
+  "apiBase": "https://ark.cn-beijing.volces.com/api/v3",
+  "apiKey": "在此填入你的 API Key",
+  "model": "doubao-seedance-1-5-pro-251215",
+  "pollIntervalMs": 5000,
+  "timeoutMs": 600000,
+  "outputDir": "~/Downloads/hiai-videos"
+}

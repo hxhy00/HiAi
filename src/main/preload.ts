@@ -620,10 +620,6 @@ contextBridge.exposeInMainWorld('electron', {
     deleteSubagentSession: (options: { parentSessionId: string; runId: string }) =>
       ipcRenderer.invoke(CoworkIpcChannel.SubagentDelete, options),
 
-    // Media task management
-    cancelMediaTask: (taskId: string) =>
-      ipcRenderer.invoke(CoworkIpcChannel.CancelMediaTask, taskId),
-
     // Permission handling
     respondToPermission: (options: { requestId: string; result: any }) =>
       ipcRenderer.invoke(CoworkIpcChannel.PermissionRespond, options),
@@ -714,11 +710,6 @@ contextBridge.exposeInMainWorld('electron', {
       ) => callback(data);
       ipcRenderer.on('cowork:stream:messageUpdate', handler);
       return () => ipcRenderer.removeListener('cowork:stream:messageUpdate', handler);
-    },
-    onMediaStatusPollUpdate: (callback: (data: { sessionId: string; toolCallId: string; details: Record<string, unknown> }) => void) => {
-      const handler = (_event: any, data: { sessionId: string; toolCallId: string; details: Record<string, unknown> }) => callback(data);
-      ipcRenderer.on(CoworkIpcChannel.MediaStatusPollUpdate, handler);
-      return () => ipcRenderer.removeListener(CoworkIpcChannel.MediaStatusPollUpdate, handler);
     },
     onStreamSessionStatus: (callback: (data: { sessionId: string; status: string }) => void) => {
       const handler = (_event: any, data: { sessionId: string; status: string }) => callback(data);
@@ -1289,16 +1280,6 @@ contextBridge.exposeInMainWorld('electron', {
   },
   networkStatus: {
     send: (status: 'online' | 'offline') => ipcRenderer.send('network:status-change', status),
-  },
-  media: {
-    getModels: (type: 'image' | 'video') =>
-      ipcRenderer.invoke(CoworkIpcChannel.GetMediaModels, type) as Promise<{ success: boolean; models?: unknown[]; error?: string }>,
-    getProviders: () =>
-      ipcRenderer.invoke(CoworkIpcChannel.GetMediaProviders) as Promise<{ success: boolean; config?: unknown; error?: string }>,
-    setProviders: (config: unknown) =>
-      ipcRenderer.invoke(CoworkIpcChannel.SetMediaProviders, config) as Promise<{ success: boolean; config?: unknown; error?: string }>,
-    getTaskStatus: (taskId: string, type: 'image' | 'video') =>
-      ipcRenderer.invoke('media:getTaskStatus', taskId, type) as Promise<{ success: boolean; task?: unknown; error?: string }>,
   },
   feishu: {
     install: {

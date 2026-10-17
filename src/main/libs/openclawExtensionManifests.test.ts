@@ -31,12 +31,8 @@ describe('OpenClaw extension manifests', () => {
     expect(readContractTools('ask-user-question')).toEqual(['AskUserQuestion']);
   });
 
-  test('declares HiAi media generation and skin agent tool contracts', () => {
-    expect(readContractTools('lobster-media-generation')).toEqual([
-      'hiai_image_generate',
-      'hiai_video_generate',
-      'hiai_skin_manage',
-    ]);
+  test('declares the skin authoring agent tool contract', () => {
+    expect(readContractTools('lobster-skin')).toEqual(['hiai_skin_manage']);
   });
 
   test('declares the experimental decision model agent tool contract', () => {
@@ -46,7 +42,7 @@ describe('OpenClaw extension manifests', () => {
   test('declares TypeScript entries for local extensions that are precompiled for packaging', () => {
     expect(readPackageOpenClawExtensions('mcp-bridge')).toEqual(['./index.ts']);
     expect(readPackageOpenClawExtensions('ask-user-question')).toEqual(['./index.ts']);
-    expect(readPackageOpenClawExtensions('lobster-media-generation')).toEqual(['./index.ts']);
+    expect(readPackageOpenClawExtensions('lobster-skin')).toEqual(['./index.ts']);
     expect(readPackageOpenClawExtensions('lobster-decision')).toEqual(['./index.ts']);
     expect(readPackageOpenClawExtensions('hiai-model-compat')).toEqual(['./index.ts']);
   });

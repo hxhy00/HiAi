@@ -311,7 +311,7 @@ npm run dist:win:web -- --keyfrom <渠道> [--silent] [--pkg-base-url <CDN 目�
 | `src/main/libs/openclawConfigSync.ts` | 将 LobsterAI 的 provider、model、agent、IM 绑定、skills、MCP 和工作区指令渲染为 OpenClaw 配置 |
 | `src/main/libs/agentEngine/openclawRuntimeAdapter.ts` | 将 OpenClaw 网关事件翻译为 Cowork 流式事件 |
 | `src/main/coworkStore.ts` | Cowork 会话、消息、配置、Agents、记忆元数据和 SQLite CRUD |
-| `src/renderer/components/cowork/` | 主 Cowork UI、输入框、会话详情、权限、思考/工具展示、媒体和语音输入 |
+| `src/renderer/components/cowork/` | 主 Cowork UI、输入框、会话详情、权限、思考/工具展示和语音输入 |
 | `src/renderer/components/agent/` | Agent 创建和设置 UI |
 | `src/renderer/components/skills/` | 技能管理 UI |
 | `src/renderer/components/mcp/` | MCP 服务管理 UI |

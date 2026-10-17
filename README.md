@@ -314,7 +314,7 @@ Offline or private-source packaging can use:
 | `src/main/libs/openclawConfigSync.ts` | Renders LobsterAI providers, models, agents, IM bindings, skills, MCP, and workspace instructions into OpenClaw config |
 | `src/main/libs/agentEngine/openclawRuntimeAdapter.ts` | Translates OpenClaw gateway events into Cowork stream events |
 | `src/main/coworkStore.ts` | Cowork sessions, messages, config, agents, memory metadata, and SQLite CRUD |
-| `src/renderer/components/cowork/` | Main Cowork UI, prompt input, session detail, permissions, thinking/tool display, media, and voice input |
+| `src/renderer/components/cowork/` | Main Cowork UI, prompt input, session detail, permissions, thinking/tool display, and voice input |
 | `src/renderer/components/agent/` | Agent creation and settings UI |
 | `src/renderer/components/skills/` | Skill management UI |
 | `src/renderer/components/mcp/` | MCP server management UI |

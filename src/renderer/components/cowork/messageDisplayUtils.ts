@@ -15,7 +15,6 @@ import { i18nService } from '../../services/i18n';
 import type { Artifact } from '../../types/artifact';
 import type { CoworkMessage, CoworkMessageMetadata } from '../../types/cowork';
 import { ActivityStepKind } from './constants';
-import type { MediaPollingGroup } from './MediaPollingIndicator';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -664,14 +663,11 @@ export const hasRenderableAssistantContent = (turn: ConversationTurn): boolean =
 );
 
 // True when the turn contains an element that carries its own running
-// state (pending or still-streaming tool step, media generation, streaming
-// thinking block). Kept in step with ActivityGroupBlock's live-item check.
+// state (pending or still-streaming tool step, streaming thinking block). Kept in step with ActivityGroupBlock's live-item check.
 export const turnHasSelfIndicatingActivity = (turn: ConversationTurn): boolean =>
   turn.assistantItems.some(item => {
     if (item.type === 'tool_group') {
-      return !isToolGroupSettled(item.group)
-        || isMediaGenerateRunning(item.group)
-        || isMediaStatusPollRunning(item.group);
+      return !isToolGroupSettled(item.group);
     }
     return item.type === 'assistant'
       && Boolean(item.message.metadata?.isThinking)
@@ -959,15 +955,8 @@ const LOCAL_VIDEO_PATH_DISPLAY_RE = /(?:^|[\s"'`(：:])((?:\/|[A-Za-z]:\/)[^\n"'
 const SAVED_GENERATED_MEDIA_RE = /^Saved generated (?:video|image)s?:/i;
 const GENERATED_MEDIA_SUCCEEDED_RE = /^(?:Video|Image) generation succeeded\./i;
 const GENERATED_VIDEO_TEXT_RE = /(?:视频(?:已生成|生成完成)|video\s+(?:generated|generation\s+succeeded|generation\s+complete))/i;
-const TERMINAL_MEDIA_STATUSES = new Set(['succeeded', 'failed', 'timeout', 'cancelled']);
 
-export type MediaStreamingInfo = {
-  taskId?: string;
-  upstreamTaskId?: string;
-  pollCount?: number;
-};
-
-export type ConsolidatedItem = AssistantTurnItem | { type: 'media_polling_group'; group: MediaPollingGroup };
+export type ConsolidatedItem = AssistantTurnItem;
 
 const stripMediaDisplayTokens = (value: string): string =>
   value.replace(MEDIA_TOKEN_DISPLAY_RE, '').trimEnd();
@@ -1080,285 +1069,6 @@ export const getMediaCompletionDisplayText = (
   return i18nService.t('mediaGenerationComplete');
 };
 
-export const isMediaStatusPoll = (group: ToolGroupItem): boolean => {
-  const toolName = group.toolUse.metadata?.toolName;
-  if (!toolName) return false;
-  const normalized = normalizeToolName(toolName);
-  if (normalized !== 'hiaivideogenerate' && normalized !== 'hiaiimagegenerate') return false;
-  const input = group.toolUse.metadata?.toolInput as Record<string, unknown> | undefined;
-  return input?.action === 'status' && typeof input?.taskId === 'string';
-};
-
-const getMediaStatusDetails = (group: ToolGroupItem): Record<string, unknown> | undefined => {
-  const liveDetails = group.toolUse.metadata?.mediaStatusDetails as Record<string, unknown> | undefined;
-  const resultDetails = group.toolResult?.metadata?.toolResultDetails as Record<string, unknown> | undefined;
-  if (!liveDetails) return resultDetails;
-  if (!resultDetails) return liveDetails;
-  const livePollCount = typeof liveDetails.pollCount === 'number' ? liveDetails.pollCount : undefined;
-  const resultPollCount = typeof resultDetails.pollCount === 'number' ? resultDetails.pollCount : undefined;
-  const pollCount = livePollCount == null
-    ? resultPollCount
-    : resultPollCount == null
-      ? livePollCount
-      : Math.max(livePollCount, resultPollCount);
-  return {
-    ...liveDetails,
-    ...resultDetails,
-    ...(pollCount != null ? { pollCount } : {}),
-  };
-};
-
-const readMediaPollCount = (value: unknown): number | undefined => (
-  typeof value === 'number' && Number.isFinite(value) && value > 0
-    ? Math.floor(value)
-    : undefined
-);
-
-export const getDisplayMediaPollCount = (value: number | undefined): number | undefined => (
-  value != null && value > 1 ? value : undefined
-);
-
-const getMediaStatusDetailPollCount = (group: ToolGroupItem): number | undefined => {
-  const details = getMediaStatusDetails(group);
-  return readMediaPollCount(details?.pollCount);
-};
-
-const getMediaPollCount = (group: ToolGroupItem): number | undefined => {
-  const detailPollCount = getMediaStatusDetailPollCount(group);
-  if (detailPollCount == null) return group.mediaPollOrdinal;
-  if (group.mediaPollOrdinal == null) return detailPollCount;
-  return Math.max(detailPollCount, group.mediaPollOrdinal);
-};
-
-export const isMediaGenerateRunning = (group: ToolGroupItem): boolean => {
-  const toolName = group.toolUse.metadata?.toolName;
-  if (!toolName) return false;
-  const normalized = normalizeToolName(toolName);
-  if (normalized !== 'hiaivideogenerate') return false;
-  const input = group.toolUse.metadata?.toolInput as Record<string, unknown> | undefined;
-  const action = input?.action;
-  if (action !== 'generate' && action !== undefined) return false;
-  if (!group.toolResult) return true;
-  const meta = group.toolResult.metadata;
-  if (meta?.isStreaming && !meta?.isFinal) return true;
-  return false;
-};
-
-export const isMediaStatusPollRunning = (group: ToolGroupItem): boolean => {
-  if (!isMediaStatusPoll(group)) return false;
-  if (!group.toolResult) return true;
-  const meta = group.toolResult.metadata;
-  if (meta?.isStreaming && !meta?.isFinal) return true;
-  return false;
-};
-
-const getMediaTaskIdKeys = (info: Pick<MediaStreamingInfo, 'taskId' | 'upstreamTaskId'>): string[] => {
-  const keys = [info.taskId, info.upstreamTaskId]
-    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-    .map(value => value.trim());
-  return [...new Set(keys)];
-};
-
-const setRetainedMediaPollCount = (
-  counts: Map<string, number>,
-  info: Pick<MediaStreamingInfo, 'taskId' | 'upstreamTaskId'>,
-  pollCount: number | undefined,
-): void => {
-  const displayPollCount = getDisplayMediaPollCount(pollCount);
-  if (displayPollCount == null) return;
-  for (const key of getMediaTaskIdKeys(info)) {
-    counts.set(key, Math.max(counts.get(key) ?? 0, displayPollCount));
-  }
-};
-
-export const getRetainedMediaPollCount = (
-  info: Pick<MediaStreamingInfo, 'taskId' | 'upstreamTaskId'>,
-  retainedCounts?: Map<string, number>,
-): number | undefined => {
-  if (!retainedCounts) return undefined;
-  let pollCount: number | undefined;
-  for (const key of getMediaTaskIdKeys(info)) {
-    const retained = retainedCounts.get(key);
-    if (retained != null) {
-      pollCount = Math.max(pollCount ?? 0, retained);
-    }
-  }
-  return getDisplayMediaPollCount(pollCount);
-};
-
-export const parseMediaStreamingInfo = (group: ToolGroupItem): MediaStreamingInfo => {
-  const input = group.toolUse.metadata?.toolInput as Record<string, unknown> | undefined;
-  const inputTaskId = typeof input?.taskId === 'string' && input.taskId.trim()
-    ? input.taskId.trim()
-    : undefined;
-  const statusFallbackPollCount = input?.action === 'status' ? group.mediaPollOrdinal : undefined;
-  const details = getMediaStatusDetails(group);
-  const pollCount = getDisplayMediaPollCount(getMediaPollCount(group) ?? statusFallbackPollCount);
-  if (details?.taskId || inputTaskId) {
-    return {
-      taskId: details?.taskId ? String(details.taskId) : inputTaskId,
-      upstreamTaskId: details?.upstreamTaskId ? String(details.upstreamTaskId) : undefined,
-      ...(pollCount != null ? { pollCount } : {}),
-    };
-  }
-  if (!group.toolResult) {
-    return inputTaskId
-      ? { taskId: inputTaskId, ...(pollCount != null ? { pollCount } : {}) }
-      : {};
-  }
-  return {};
-};
-
-export const collectMediaPollCounts = (items: ConsolidatedItem[]): Map<string, number> => {
-  const counts = new Map<string, number>();
-  for (const item of items) {
-    if (item.type === 'media_polling_group') {
-      setRetainedMediaPollCount(
-        counts,
-        { taskId: item.group.taskId, upstreamTaskId: item.group.upstreamTaskId },
-        item.group.pollCount,
-      );
-      continue;
-    }
-    if (item.type !== 'tool_group') continue;
-    const info = parseMediaStreamingInfo(item.group);
-    setRetainedMediaPollCount(counts, info, info.pollCount);
-  }
-  return counts;
-};
-
-const extractMediaPollStatus = (poll: ToolGroupItem): string | null => {
-  const details = getMediaStatusDetails(poll);
-  if (typeof details?.status === 'string' && details.status.trim()) {
-    return details.status.trim();
-  }
-  const result = poll.toolResult;
-  if (!result) return null;
-  const text = result.content || (result.metadata?.toolResult as string) || '';
-  const match = text.match(/^Status:\s*(\S+)/m);
-  return match ? match[1] : null;
-};
-
-const extractUpstreamTaskId = (poll: ToolGroupItem): string | undefined => {
-  const details = getMediaStatusDetails(poll);
-  return details?.upstreamTaskId ? String(details.upstreamTaskId) : undefined;
-};
-
-const extractMediaPollCount = (poll: ToolGroupItem): number | undefined => {
-  return getMediaPollCount(poll);
-};
-
-export const consolidateMediaPolling = (items: AssistantTurnItem[]): ConsolidatedItem[] => {
-  const pollsByTaskId = new Map<string, { toolName: string; indices: number[] }>();
-  const mediaPollOrdinals = new Map<number, number>();
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    if (item.type === 'tool_group' && isMediaStatusPoll(item.group)) {
-      const toolName = item.group.toolUse.metadata!.toolName!;
-      const input = item.group.toolUse.metadata!.toolInput as Record<string, string>;
-      const taskId = input.taskId;
-      const entry = pollsByTaskId.get(taskId);
-      if (entry) {
-        entry.indices.push(i);
-      } else {
-        pollsByTaskId.set(taskId, { toolName, indices: [i] });
-      }
-    }
-  }
-
-  for (const { indices } of pollsByTaskId.values()) {
-    let cumulativePollCount = 0;
-    for (const itemIndex of indices) {
-      const group = (items[itemIndex] as { type: 'tool_group'; group: ToolGroupItem }).group;
-      const detailPollCount = getMediaStatusDetailPollCount(group);
-      const nextPollCount = detailPollCount == null
-        ? cumulativePollCount + 1
-        : detailPollCount > cumulativePollCount
-          ? detailPollCount
-          : cumulativePollCount + detailPollCount;
-      cumulativePollCount = Math.max(cumulativePollCount, nextPollCount);
-      mediaPollOrdinals.set(itemIndex, cumulativePollCount);
-    }
-  }
-
-  const skipIndices = new Set<number>();
-  const insertAfterIndex = new Map<number, MediaPollingGroup>();
-
-  for (const [taskId, { toolName, indices }] of pollsByTaskId) {
-    if (indices.length < 2) continue;
-    const consolidatedPolls: ToolGroupItem[] = [];
-    for (let k = 1; k < indices.length; k++) {
-      skipIndices.add(indices[k]);
-      const group = (items[indices[k]] as { type: 'tool_group'; group: ToolGroupItem }).group;
-      consolidatedPolls.push({
-        ...group,
-        mediaPollOrdinal: mediaPollOrdinals.get(indices[k]),
-      });
-    }
-    const lastPoll = consolidatedPolls[consolidatedPolls.length - 1];
-    const lastStatus = extractMediaPollStatus(lastPoll);
-    let isComplete = lastStatus != null && TERMINAL_MEDIA_STATUSES.has(lastStatus);
-
-    if (!isComplete) {
-      const completionPattern = new RegExp(
-        `Task ID: ${taskId}[\\s\\S]*?generation (succeeded|failed|timed out|cancelled)`
-        + `|generation (succeeded|failed|timed out|cancelled)[\\s\\S]*?Task ID: ${taskId}`,
-        'i',
-      );
-      for (const item of items) {
-        if (item.type === 'system' || item.type === 'tool_result') {
-          if (completionPattern.test(item.message.content)) {
-            isComplete = true;
-            break;
-          }
-          const details = item.message.metadata?.toolResultDetails as Record<string, unknown> | undefined;
-          if (details?.status && TERMINAL_MEDIA_STATUSES.has(details.status as string)) {
-            isComplete = true;
-            break;
-          }
-          if (/^Saved generated (video|image)s?:/m.test(item.message.content)) {
-            isComplete = true;
-            break;
-          }
-        }
-      }
-    }
-    const lastIndex = indices[indices.length - 1];
-    insertAfterIndex.set(lastIndex, {
-      type: 'media_polling_group',
-      toolName,
-      taskId,
-      upstreamTaskId: extractUpstreamTaskId(lastPoll),
-      lastStatus,
-      pollCount: extractMediaPollCount(lastPoll) ?? indices.length,
-      polls: consolidatedPolls,
-      isComplete,
-    });
-  }
-
-  const result: ConsolidatedItem[] = [];
-  for (let i = 0; i < items.length; i++) {
-    if (!skipIndices.has(i)) {
-      const item = items[i];
-      const mediaPollOrdinal = mediaPollOrdinals.get(i);
-      if (item.type === 'tool_group' && mediaPollOrdinal != null) {
-        result.push({
-          ...item,
-          group: { ...item.group, mediaPollOrdinal },
-        });
-      } else {
-        result.push(item);
-      }
-    }
-    const group = insertAfterIndex.get(i);
-    if (group) {
-      result.push({ type: 'media_polling_group', group });
-    }
-  }
-
-  return result;
-};
-
 // ── Activity grouping (collapsed consecutive tool/thinking steps) ────────────
 
 export type ActivityChunkEntry = { item: ConsolidatedItem; index: number };
@@ -1376,7 +1086,6 @@ export const ACTIVITY_GROUP_MIN_ITEMS = 1;
 
 /** Stable React key for a work item, shared by a run and its step lines. */
 export const getConsolidatedItemKey = (item: ConsolidatedItem): string => {
-  if (item.type === 'media_polling_group') return `media-${item.group.taskId}`;
   if (item.type === 'tool_group') return item.group.toolUse.id;
   return item.message.id;
 };
@@ -1509,12 +1218,7 @@ export type ActivityGroupSummary = {
   stepCount: number;
 };
 
-const getActivityItemStepCount = (item: ConsolidatedItem): number => {
-  if (item.type === 'media_polling_group') {
-    return Math.max(1, item.group.polls.length);
-  }
-  return 1;
-};
+const getActivityItemStepCount = (_item: ConsolidatedItem): number => 1;
 
 export const getActivityGroupSummary = (items: ConsolidatedItem[]): ActivityGroupSummary => {
   let stepCount = 0;
@@ -1567,10 +1271,6 @@ const countActivityCategories = (items: ConsolidatedItem[]): ActivityCategoryCou
       } else {
         counts.tools += 1;
       }
-      continue;
-    }
-    if (item.type === 'media_polling_group') {
-      counts.tools += Math.max(1, item.group.polls.length);
       continue;
     }
     if (item.type === 'tool_result') {
@@ -1674,9 +1374,6 @@ export const getActivityStepDisplay = (item: ConsolidatedItem): ActivityStepDisp
       item.group.toolUse.metadata?.toolInput,
     );
   }
-  if (item.type === 'media_polling_group') {
-    return { name: getToolDisplayName(item.group.toolName), summary: null };
-  }
   if (item.type === 'tool_result') {
     return { name: i18nService.t('coworkToolResult'), summary: null };
   }
@@ -1691,15 +1388,6 @@ export const getActivityStepDisplay = (item: ConsolidatedItem): ActivityStepDisp
 export const getActivityCurrentActionText = (item: ConsolidatedItem): string => {
   if (item.type === 'assistant') {
     return i18nService.t('coworkActivityThinkingNow');
-  }
-  const mediaToolName = item.type === 'media_polling_group'
-    ? item.group.toolName
-    : item.type === 'tool_group' && isMediaStatusPoll(item.group)
-      ? item.group.toolUse.metadata?.toolName
-      : null;
-  if (typeof mediaToolName === 'string') {
-    const isVideo = normalizeToolName(mediaToolName) === 'hiaivideogenerate';
-    return i18nService.t(isVideo ? 'mediaGeneratingVideo' : 'mediaGeneratingImage');
   }
   if (item.type === 'tool_group') {
     const rawName = item.group.toolUse.metadata?.toolName;
@@ -1801,12 +1489,7 @@ export const getActivityLiveDetail = (item: ConsolidatedItem): ActivityLiveDetai
  */
 export const isActivityItemLive = (item: ConsolidatedItem): boolean => {
   if (item.type === 'tool_group') {
-    return !isToolGroupSettled(item.group)
-      || isMediaGenerateRunning(item.group)
-      || isMediaStatusPollRunning(item.group);
-  }
-  if (item.type === 'media_polling_group') {
-    return !item.group.isComplete;
+    return !isToolGroupSettled(item.group);
   }
   return item.type === 'assistant' && Boolean(item.message.metadata?.isStreaming);
 };
@@ -1946,23 +1629,12 @@ export const getActivityLiveStatusText = (item: ConsolidatedItem): string => {
   if (item.type === 'assistant') {
     return i18nService.t(item.message.metadata?.isThinking ? 'coworkThinking' : 'coworkActivityStatusReplying');
   }
-  if (item.type === 'media_polling_group') {
-    return i18nService.t(
-      normalizeToolName(item.group.toolName) === 'hiaivideogenerate' ? 'mediaGeneratingVideo' : 'mediaGeneratingImage',
-    );
-  }
   if (item.type !== 'tool_group') {
     return i18nService.t('coworkActivityStatusTool');
   }
   const rawName = item.group.toolUse.metadata?.toolName;
   const toolName = typeof rawName === 'string' ? rawName : undefined;
   const normalized = toolName ? normalizeToolName(toolName) : '';
-  if (normalized === 'hiaivideogenerate') {
-    return i18nService.t('mediaGeneratingVideo');
-  }
-  if (normalized === 'hiaiimagegenerate') {
-    return i18nService.t('mediaGeneratingImage');
-  }
   const toolInput = item.group.toolUse.metadata?.toolInput;
   if (item.group.toolUse.metadata?.isGenerating) {
     return i18nService.t(
@@ -1993,13 +1665,11 @@ export const getActivityLiveStatusText = (item: ConsolidatedItem): string => {
   return i18nService.t('coworkActivityStatusTool');
 };
 
-const MEDIA_GENERATE_TOOL_NAMES = new Set(['hiaivideogenerate', 'hiaiimagegenerate']);
 const SUBAGENT_TOOL_NAMES = new Set(['sessionsspawn', 'sessionsyield', ...SUBAGENT_IO_TOOL_NAMES]);
 
 /** Which icon a step line leads with; thinking lines carry none. */
 export const getActivityStepKind = (item: ConsolidatedItem): ActivityStepKind => {
   if (item.type === 'assistant') return ActivityStepKind.Thinking;
-  if (item.type === 'media_polling_group') return ActivityStepKind.Media;
   if (item.type !== 'tool_group') return ActivityStepKind.Tool;
   const rawName = item.group.toolUse.metadata?.toolName;
   const toolName = typeof rawName === 'string' ? rawName : undefined;
@@ -2015,7 +1685,7 @@ export const getActivityStepKind = (item: ConsolidatedItem): ActivityStepKind =>
   ) {
     return ActivityStepKind.Web;
   }
-  if (MEDIA_GENERATE_TOOL_NAMES.has(normalized) || IMAGE_VIEW_TOOL_NAMES.has(normalized)) return ActivityStepKind.Media;
+  if (IMAGE_VIEW_TOOL_NAMES.has(normalized)) return ActivityStepKind.Media;
   if (SUBAGENT_TOOL_NAMES.has(normalized)) return ActivityStepKind.Agent;
   if (isPlanToolName(toolName)) return ActivityStepKind.Todo;
   if (isCronToolName(toolName)) return ActivityStepKind.Schedule;
@@ -2046,19 +1716,12 @@ export const getActivityStepDoneLabel = (item: ConsolidatedItem): string => {
   if (item.type === 'assistant') {
     return i18nService.t('coworkActivityThoughtProcess');
   }
-  if (item.type === 'media_polling_group') {
-    return i18nService.t(
-      normalizeToolName(item.group.toolName) === 'hiaivideogenerate' ? 'coworkActivityDoneVideo' : 'coworkActivityDoneImage',
-    );
-  }
   if (item.type !== 'tool_group') {
     return getActivityStepDisplay(item).name;
   }
   const rawName = item.group.toolUse.metadata?.toolName;
   const toolName = typeof rawName === 'string' ? rawName : undefined;
   const normalized = toolName ? normalizeToolName(toolName) : '';
-  if (normalized === 'hiaivideogenerate') return i18nService.t('coworkActivityDoneVideo');
-  if (normalized === 'hiaiimagegenerate') return i18nService.t('coworkActivityDoneImage');
   if (normalized === 'sessionsspawn') return i18nService.t('coworkActivityDoneSpawnSubagent');
   if (normalized === 'sessionsyield') return i18nService.t('coworkToolWaitingSubagents');
   const toolInput = item.group.toolUse.metadata?.toolInput;

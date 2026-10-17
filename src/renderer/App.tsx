@@ -11,7 +11,6 @@ import {
   isManualDownloadUrl,
 } from '../shared/appUpdate/constants';
 import { BrowserPasskeyUiEvent } from '../shared/browserWebAccess/passkeys';
-import { MediaProviderUiEvent } from '../shared/cowork/mediaProviders';
 import { OpenClawQuestion } from '../shared/cowork/openclawQuestion';
 import {
   LibraryNavigationEvent,
@@ -1616,11 +1615,6 @@ const App: React.FC = () => {
     return () => window.removeEventListener(BrowserPasskeyUiEvent.OpenBrowserSettings, openBrowserSettings);
   }, [handleShowSettings]);
 
-  useEffect(() => {
-    const openMediaProviderSettings = () => handleShowSettings({ initialTab: 'mediaProvider' });
-    window.addEventListener(MediaProviderUiEvent.OpenSettings, openMediaProviderSettings);
-    return () => window.removeEventListener(MediaProviderUiEvent.OpenSettings, openMediaProviderSettings);
-  }, [handleShowSettings]);
 
   // 监听托盘菜单打开设置的 IPC 事件
   useEffect(() => {

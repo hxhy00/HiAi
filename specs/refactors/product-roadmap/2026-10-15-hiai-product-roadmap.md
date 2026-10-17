@@ -38,36 +38,43 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 | 11 | 删除设置中的「帮助改进 HiAi」 | ✅ 已完成 | 移除使用统计开关（随任务 10 一并删除） |
 | 12 | 开启 Agent 间通信（A2A） | ⏳ 待执行 | 开启 OpenClaw 的 `sessions_send` 跨 Agent 通信门控 |
 | 13 | Skill 市场多源聚合 | ✅ 已完成 | 统一聚合 Youdao + SkillHub，支持跨源搜索与安装 |
+| 14 | 移除内置媒体生成链路 | ✅ 已完成 | 删除内置图片/视频生成与账户作用域，生图生视频统一走 skill |
 | — | Web Search 方案调研 | 🔜 暂缓 | 调研联网搜索方案，本期不落地 |
 
 ## 3. 各项说明
 
-### 任务 2 · 彻底移除云端模块 ⏳
+### 任务 2 · 移除失效云端链路（保留分享体系）⏳
 
-**现状（2026-10-16 审计结论）**：`de-server-dependency` 与 `remove-membership` 已断开登录、媒体生成、ASR、企业账号、分享/部署入口，但**仍有 4 条会真实发起请求的云端链路**，且入口对用户可见。断网环境下应用能启动，但点开对应界面即失败。
+**定位（2026-10-17 修订）**：本任务**不再追求"彻底移除云端"**。用户已决定：三个商店（R1/R2/R3）**保留**，HTML 分享与云端素材库**保留**（待将来恢复分享能力）。因此本任务范围收窄为——**删除已死/已失效的云端代码链路，并消除离线时的无效请求**。分享体系及其 `lobsterai-server` 基址不动。
 
-**残留清单（按必须处理排序）**：
+**已完成（2026-10-17）**：
 
-| # | 残留 | 位置 | 触发时机 |
-| --- | --- | --- | --- |
-| R1 | Skill Store | `src/main/libs/skillMarketplace/youdaoAdapter.ts:91` → `getSkillStoreUrl()`（`endpoints.ts:79`） | 技能市场每次搜索/浏览都会请求（youdao 是聚合市场的一等源，非死代码） |
-| R2 | Kit Store | `kits:fetchStore`（`src/main/ipcHandlers/kits/handlers.ts:234`）→ `getKitStoreUrl()` | 输入框工具栏 Kit 按钮每次打开 Popover |
-| R3 | MCP Marketplace | `src/main/ipcHandlers/mcp/handlers.ts:409-410`（硬编码 `api-overmind.youdao.com`） | `McpManager` 组件挂载即请求（设置→技能与连接器） |
-| R4 | Server API 基址 | `getServerApiBaseUrl()`（`endpoints.ts:31`） | 剩余调用点以"依赖登录态"的路径为主：HTML 分享 handler 全套（`main.ts` 约 18 处）、灰度更新 `appUpdateGrayClient.ts:111`、云端素材库 `libraryCloudClient.ts:317`、模型列表 `main.ts:4885`、LLM 代理回退 `claudeSettings.ts:508`。**注**：登录已移除，多数因无 token 而实际不发请求，但代码路径仍在 |
+| 项 | 原位置 | 处理 |
+| --- | --- | --- |
+| LLM 代理回退 | `claudeSettings.ts` `tryLobsteraiServerFallback` 及其 6 处调用点、`buildServerFallbackModels`、`authTokensGetter`/`serverBaseUrlGetter` 注入 | **已删除**（登录移除后恒返回 null 的死代码） |
+| 灰度更新检查 | `appUpdateGrayClient.ts`（整文件 + 测试）、`appUpdateCoordinator.ts` 全部 `grayUpdates` 分支、`main.ts` 装配 | **已删除**（更新检查已走 GitHub Releases） |
+| 服务器模型列表 | `main.ts` `loadAvailableServerModels`、`startupCacheWarmup.ts` | **已加离线短路**：`net.isOnline()` 为 false 时返回空目录、不发请求 |
 
-**同时清理的死代码**：`llmTurnUsage.ts` 的 `LLM_TRACE_USAGE_API_PATH`、renderer 侧 `TurnUsageChip → cowork.ts` 的 IPC 残链（对应 handler 已不存在，调用必失败）。
+**明确保留（不再处理）**：
 
-**仅文案类（不发请求，最后清理即可）**：i18n 里的 portal 定价链接、`shared/platform/constants.ts` 的 IM 指南 URL、`decisionModelClient.ts:16` 的 OpenRouter Referer 头、`shared/providers/constants.ts:360` 的有道智云 LLM provider（用户配置该 provider 才发请求，属正常业务能力，保留与否需单独决策）。
+| 项 | 位置 | 保留理由 |
+| --- | --- | --- |
+| R1 技能市场 | `skillMarketplace/youdaoAdapter.ts:91` → `getSkillStoreUrl()` | 商店保留 |
+| R2 Kit 商店 | `kits:fetchStore` → `getKitStoreUrl()` | 商店保留 |
+| R3 MCP 市场 | `mcp/handlers.ts:409-410` | 商店保留 |
+| HTML 分享 | `main.ts` HtmlShare IPC 全族 + `htmlShareClient` | 待将来恢复分享 |
+| 云端素材库 | `libraryCloudClient.ts` + `library.listCloud` | 分享管理面板，依附分享功能 |
 
-**待确认项**：R1/R2/R3 三个商店的去向——自建静态托管、改由 GitHub Releases/仓库文件托管，还是随 `ENABLE_*` flag 直接下线入口？`getServerApiBaseUrl()` 余下调用点是"仅删除代码"还是需要替代实现（尤其是 HTML 分享 handler，服务层已断入口但代码未删）？
+**说明**：R1–R3 指向 `api-overmind.youdao.com`，与 R4 的 `lobsterai-server.youdao.com` 是**不同域名**，彼此独立。分享链路（`ENABLE_HTML_SHARE` 当前为 false，入口已隐藏）依赖 `lobsterai-server`，因此 `getServerApiBaseUrl()` 必须保留。
 
-**验收要点**（前两条为硬验收，必须实测）：
-1. **屏蔽验收**：在 hosts 中屏蔽 `api-overmind.youdao.com` 与 `lobsterai-server.youdao.com`，重启应用后**技能市场 / Kit 按钮 / MCP 连接器三个界面均可用**（本地兜底或入口隐藏），不出现空白或报错。这是本任务区别于 `de-server-dependency` AC-G1 的关键——AC-G1 只需"应用能启动"，而登录摘除后多数请求因无 token 而静默跳过，**即使 R1–R4 全未处理也能通过**，故不能用作本任务验收。
-2. **零请求**：断网 + 抓包确认全流程零云端请求。
-3. 全局搜索非测试代码无 `lobsterai-server.youdao.com` / `api-overmind.youdao.com` 的 API 调用引用。
-4. 技能市场 / Kit / MCP 市场入口在无网络时行为明确（隐藏或本地兜底）。
+**验收要点（修订）**：
+1. ~~**零请求**~~ → 改为 **无死代码残留**：非测试代码中不再存在 `appUpdateGrayClient` 与 `tryLobsteraiServerFallback` 引用。
+2. ~~全局搜索无 `lobsterai-server.youdao.com` 引用~~ → 撤回（分享体系保留该基址）。
+3. **离线不刷错误**：断网启动并运行一次会话，日志中不出现 `/api/models/available` 的请求与失败告警。
+4. **商店可用**：技能市场 / Kit / MCP 市场在联网时正常拉取（保持现状，不回归）。
+5. **分享入口行为明确**：`ENABLE_HTML_SHARE = false` 下相关 UI 不出现（现状已满足）。
 
-**相关文档**：`specs/refactors/de-server-dependency/2026-10-13-de-server-dependency-design.md`（§2.1 表中"本期不动"项即本任务的 R1–R4，U-6 未决项）。
+**相关文档**：`specs/refactors/de-server-dependency/2026-10-13-de-server-dependency-design.md`（§2.1 表中"本期不动"项）。
 
 ### 任务 3 · 建立规则系统（对标 CodeBuddy）🔜 暂缓
 
@@ -160,7 +167,7 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 
 **验收要点**：发布新 GitHub Release 后应用能检测到并提示更新；断网时不阻塞启动。
 
-**残留归属**：本任务余下的仅是 `getServerApiBaseUrl()` 上的**灰度更新检查**（`appUpdateGrayClient.ts:111`），归任务 2 R4 处理。
+**残留归属**：原余下项为 `getServerApiBaseUrl()` 上的灰度更新检查（`appUpdateGrayClient.ts`）。**2026-10-17 已随任务 2 删除**，本任务彻底完成。
 
 ### 任务 10 · 彻底移除遥测功能 ✅ 已完成
 
@@ -197,6 +204,16 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 
 **现有文档**：`specs/features/agent-a2a/2026-10-16-agent-to-agent-communication-design.md`（阶段 1–6 已定稿，待确认后进入实现）。
 
+### 任务 14 · 移除内置媒体生成链路 ✅ 已完成
+
+**定位**：「去会员」「去服务端依赖」之后，媒体生成仍以本地 provider adapter 形式内置在应用里（设置页手填 `baseUrl`/`apiKey`/`modelId`，主进程 adapter 直连上游，并挂着一套无意义的账户作用域）。而 `seedream`/`seedance` skill 已能直接完成同样的生成，等于同一能力维护两套。
+
+**处置**：删除内置媒体生成整体——`mediaProvider`、`MediaGenerationPolicy`、`mediaAssetPersistence`、`mediaGenerationTurnInstruction`、`mediaSelectionTypes`、全部 `media:*` IPC、设置页「媒体生成模型」区块、前端模型选择器与 Lottie 轮询指示器，以及 `MediaAccountScope` 等账户作用域机制。图片/视频生成统一由 skill 脚本承担。
+
+**附带修复**：皮肤工作流原依赖内置媒体工具，改为经 `lobster-skin` 插件的 `POST /skin/tool` 使用 `hiai_skin_manage`，生图改走 `seedream` skill。
+
+**设计文档**：[移除内置媒体生成链路](../remove-builtin-media-generation/2026-10-17-remove-builtin-media-generation-design.md)
+
 ### 任务 13 · Skill 市场多源聚合 ✅ 已完成
 
 **结论**：即任务 7 的落地形态，已独立成文并完成实现（详见任务 7 说明与设计文档）。
@@ -209,11 +226,11 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 
 ## 4. 依赖与排序建议
 
-- **任务 9（改 GitHub Releases）已先行完成**，任务 2 的直接依赖已解除；仅剩灰度更新检查一条链路仍需随任务 2 R4 处理。
-- **任务 2（移除云端）内部有顺序**：R1/R2/R3（三个商店）需先定"替代托管方案"再动手；R4（server baseUrl 余下调用点）以删代码为主，可并行；死代码与纯文案清理放在最后。
+- **任务 9（改 GitHub Releases）已完成**；其残留的灰度更新检查已于 2026-10-17 随任务 2 删除。
+- **任务 2（移除失效云端链路）已收窄并基本完成**：用户决定保留三个商店与分享体系，故 R1/R2/R3 不再处理；R4 中的 LLM 代理回退与灰度更新已删除，服务器模型列表已加离线短路。剩余仅"仅文案类"清理（不影响功能）。
 - **任务 3 / 4（规则 / Hook）已暂缓**，恢复时同属"agent 可扩展机制"，可共享一套配置与加载框架，建议**一起设计**。
 - **任务 5（润色）** 与 **任务 12（A2A）** 相互独立，可并行推进。
-- **任务 6 / 7（含 13）/ 8 / 9 / 10 / 11** 已完成，无需再排期。
+- **任务 6 / 7（含 13）/ 8 / 9 / 10 / 11 / 14** 已完成，无需再排期。
 
 ## 5. 变更记录
 
@@ -221,6 +238,7 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 | --- | --- |
 | 2026-10-15 | 建档；归档 10 项任务状态。其中任务 8（凭据冷却期）、任务 10（遥测）已完成；任务 6（思考展示）已定位根因为上游未下发数据；Web Search 暂缓。 |
 | 2026-10-15 | 任务 6 修复完成：用户自配 provider 桥接 thinkingConfig（`buildCustomModelThinkingConfig`）。任务 3（规则系统）、任务 4（Hook 系统）按用户决定暂缓。 |
+| 2026-10-17 | 新增任务 14 并已完成：移除内置媒体生成链路（含账户作用域），生图生视频统一走 `seedream`/`seedance` skill；皮肤改用 `lobster-skin` 插件 + `/skin/tool`。 |
 | 2026-10-15 | 登记任务 11（删除「帮助改进 HiAi」开关），核实其已随任务 10 的 `74734f2` 一并删除，标记为已完成。 |
 | 2026-10-16 | 登记任务 12（开启 Agent 间通信 A2A），设计阶段 1–6 已完成，待确认方案后进入实现。 |
 | 2026-10-16 | 更新任务 7（Skill 市场）为已完成：诉求改由多源统一聚合落地（Youdao + SkillHub），并同步登记任务 13 作为其落地条目。 |
@@ -230,3 +248,4 @@ LobsterAI 已迁移为 HiAi 品牌，并完成「去服务端依赖」「去会�
 | 2026-10-16 | 任务 2 验收要点改为「屏蔽 `api-overmind` + `lobsterai-server` 后三界面仍可用」为硬验收；原「断网能启动」不足以判别，因登录摘除后请求多因无 token 静默跳过，R1–R4 全未处理亦可通过。同步回填 `de-server-dependency` §2.1 调用清单与 U-6。 |
 | 2026-10-17 | 完成任务 5（提示词润色）：输入框语音键左侧新增「润色」按钮，主进程 `promptPolisher.ts` 做一次性改写，`resolveOneShotLlmConfig` 与 IM 共用。设计文档 `specs/features/prompt-polish/2026-10-17-prompt-polish-design.md`。 |
 | 2026-10-17 | 完成任务 12（A2A）：`coworkStore` 新键 `a2aEnabled` / `a2aAllowAgentIds`；`openclawConfigSync` 写入 `tools.agentToAgent` 并在开启时同步 `tools.sessions.visibility='agent'`（缺失则该特性不可用，已补入设计文档 §4.0）。 |
+| 2026-10-17 | 任务 2 **重新定位并收窄**：用户决定保留三商店（R1/R2/R3）与 HTML 分享/云端素材库（待将来恢复分享），故任务 2 改为"移除失效云端链路"。已删除 LLM 代理回退（`tryLobsteraiServerFallback` 等 6 处调用 + 3 个注入符号）与灰度更新（`appUpdateGrayClient.ts` 整文件 + 协调器全部分支），并给 `loadAvailableServerModels` / `startupCacheWarmup` 加 `net.isOnline()` 离线短路。验收改为"无死代码残留 + 离线不刷错误"，撤回原"零请求"与"全局无 lobsterai-server 引用"两条。 |

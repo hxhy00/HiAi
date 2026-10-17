@@ -1,5 +1,11 @@
 # AI 皮肤包主进程职责抽离设计文档
 
+> **2026-10-17 修订**：`skinMediaBridge.ts` 已删除，皮肤工具改由桥接服务的 `POST /skin/tool`
+> 直达 `SkinRuntimeController.handleToolRequest`；`prepareTurn` 不再产出 `mediaSelection`，
+> 仅返回 `workflowKind`。生图由 `seedream` skill 完成。详见
+> [移除内置媒体生成链路](../../remove-builtin-media-generation/2026-10-17-remove-builtin-media-generation-design.md)。
+> 下文保留抽离当时的形态描述，"媒体桥 / 会员路线"相关条目仅作历史记录。
+
 ## 1. 概述
 
 ### 1.1 问题/动机
@@ -26,9 +32,9 @@ AI 皮肤包 MVP 同时涉及可信 Kit 校验、会话事务、媒体工具路�
 
 | 模块 | 单一职责 | 对外接口 |
 |------|----------|----------|
-| `skinRuntimeController.ts` | 组合皮肤 Store、Registry 和 Bridge | `prepareTurn`、`handleToolRequest`、`preflightLobsterImageGeneration`、会话生命周期方法 |
+| `skinRuntimeController.ts` | 组合皮肤 Store、Registry 和工具处理 | `prepareTurn`、`handleToolRequest`、会话生命周期方法 |
 | `skinWorkflowRegistry.ts` | 可信 Kit 与会话流程状态 | Turn 准备、父会话解析、draft、完成或清理 |
-| `skinMediaBridge.ts` | 本地工具桥策略 | 皮肤管理工具校验、会员生图前置校验 |
+| ~~`skinMediaBridge.ts`~~ | **已删除** | 皮肤管理工具校验移入 `skinToolHandler.ts` |
 | `registerSkinElectron.ts` | Electron 边界 | 特权 scheme、协议/IPC 注册、变更广播 |
 | `skinPackKitLifecycle.ts` | 内置 Kit 生命周期 | 目录合并、离线目录、安装和卸载委托 |
 | `skinStore.ts` 等既有模块 | 受管资产与安全读取 | Store、图片验证、协议响应 |
@@ -39,7 +45,7 @@ AI 皮肤包 MVP 同时涉及可信 Kit 校验、会话事务、媒体工具路�
 
 1. Renderer 选择内置 `ai-skin-designer` Kit 并开始或继续 Turn。
 2. Controller 同时校验稳定 Kit ID 和已安装记录中的 `skin_pack` 标记，随后建立新的内存事务。
-3. 会员路线强制使用 LobsterAI 图片模式；非会员路线不启用 LobsterAI 媒体选择，由 OpenClaw 原生工具处理。
+3. 生图由 `seedream` skill 脚本承担；皮肤事务只记录 `workflowKind`，不再产出媒体选择。
 4. `runtime complete` 保留事务，以支持原生后台生图完成后的同会话 wake。
 5. 成功 `apply`/`deactivate` 清理事务；显式不带 Kit 的新 Turn、runtime error、单个或批量会话删除也会清理。
 6. MVP 不跨进程重启恢复未完成事务，半成品 draft 仍可留作诊断但不会自动应用。
@@ -65,7 +71,6 @@ AI 皮肤包 MVP 同时涉及可信 Kit 校验、会话事务、媒体工具路�
 - `src/main/skins/index.ts`
 - `src/main/skins/skinRuntimeController.ts`
 - `src/main/skins/skinWorkflowRegistry.ts`
-- `src/main/skins/skinMediaBridge.ts`
 - `src/main/skins/registerSkinElectron.ts`
 - `src/main/skins/skinPackKitLifecycle.ts`
 - `src/main/main.ts`

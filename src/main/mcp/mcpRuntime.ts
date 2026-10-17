@@ -17,8 +17,8 @@ import {
   type DecisionToolHandler,
   type EditorToolHandler,
   McpBridgeServer,
-  type MediaGenerationRequest,
-  type MediaGenerationResponse,
+  type SkinToolRequest,
+  type SkinToolResponse,
 } from '../libs/mcpBridgeServer';
 import { OpenClawConfigImpact } from '../libs/openclawConfigImpact';
 import type { ResolvedMcpServer } from '../libs/openclawConfigSync';
@@ -31,7 +31,7 @@ import { McpLaunchResolverManager } from './mcpLaunchResolverManager';
 import { type McpServerRecord, McpStore } from './mcpStore';
 import type { McpToolDiscoveryLaunch } from './mcpToolDiscovery';
 
-export type { AskUserResponse, MediaGenerationRequest, MediaGenerationResponse };
+export type { AskUserResponse };
 
 const getPackagedNpmBinDir = (): string => (app.isPackaged
   ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', 'npm', 'bin')
@@ -87,13 +87,13 @@ export class McpRuntime {
   private bridgeServer: McpBridgeServer | null = null;
   private readonly bridgeSecret: string;
   private resolvedServersCache: ResolvedMcpServer[] = [];
-  private mediaGenerationHandler:
-    | ((request: MediaGenerationRequest) => Promise<MediaGenerationResponse>)
-    | null = null;
   private browserToolHandler:
     | ((request: BrowserToolRequest) => Promise<BrowserToolResponse>)
     | null = null;
   private decisionToolHandler: DecisionToolHandler | null = null;
+  private skinToolHandler:
+    | ((request: SkinToolRequest) => Promise<SkinToolResponse>)
+    | null = null;
   private readonly editorToolHandlers = new Map<string, { editorName: string; handler: EditorToolHandler }>();
 
   constructor(private readonly deps: McpRuntimeDeps) {
@@ -130,12 +130,6 @@ export class McpRuntime {
     this.getLaunchResolverManager().ensureResolved(serverId, reason);
   }
 
-  setMediaGenerationHandler(
-    handler: (request: MediaGenerationRequest) => Promise<MediaGenerationResponse>,
-  ): void {
-    this.mediaGenerationHandler = handler;
-  }
-
   setBrowserToolHandler(
     handler: (request: BrowserToolRequest) => Promise<BrowserToolResponse>,
   ): void {
@@ -145,6 +139,29 @@ export class McpRuntime {
 
   setDecisionToolHandler(handler: DecisionToolHandler): void {
     this.decisionToolHandler = handler;
+  }
+
+  setSkinToolHandler(
+    handler: (request: SkinToolRequest) => Promise<SkinToolResponse>,
+  ): void {
+    this.skinToolHandler = handler;
+    this.registerSkinToolRoute();
+  }
+
+  getSkinCallbackUrl(): string | null {
+    return this.bridgeServer?.skinCallbackUrl ?? null;
+  }
+
+  private registerSkinToolRoute(): void {
+    this.bridgeServer?.onSkinTool(async (request) => {
+      if (!this.skinToolHandler) {
+        return {
+          content: [{ type: 'text', text: 'Skin management service is not ready yet.' }],
+          isError: true,
+        };
+      }
+      return await this.skinToolHandler(request);
+    });
   }
 
   /** Serve a document editor's agent tools on the bridge at `/<route>/tool`. */
@@ -159,10 +176,6 @@ export class McpRuntime {
 
   getAskUserCallbackUrl(): string | null {
     return this.bridgeServer?.askUserCallbackUrl ?? null;
-  }
-
-  getMediaCallbackUrl(): string | null {
-    return this.bridgeServer?.mediaCallbackUrl ?? null;
   }
 
   getBrowserCallbackUrl(): string | null {
@@ -250,16 +263,6 @@ export class McpRuntime {
       this.deps.onAskUserDismissed?.(requestId);
     });
 
-    this.bridgeServer.onMediaGeneration(async (request) => {
-      if (!this.mediaGenerationHandler) {
-        return {
-          content: [{ type: 'text', text: 'Media generation service is not ready yet.' }],
-          isError: true,
-        };
-      }
-      return await this.mediaGenerationHandler(request);
-    });
-
     this.bridgeServer.onDecisionTool(async (request, signal) => {
       if (!this.decisionToolHandler) {
         return {
@@ -275,6 +278,9 @@ export class McpRuntime {
     }
     for (const [route, { editorName, handler }] of this.editorToolHandlers) {
       this.bridgeServer.onEditorTool(route, editorName, handler);
+    }
+    if (this.skinToolHandler) {
+      this.registerSkinToolRoute();
     }
   }
 

@@ -254,8 +254,9 @@ Main areas:
 - `src/renderer/store/slices/agentSlice.ts`: agent state.
 - `src/renderer/store/slices/artifactSlice.ts`: artifact state.
 - `src/renderer/components/cowork/`: main Cowork UI, prompt input, session
-  detail, permissions, thinking/tool display, context usage, forks, media, and
-  voice input.
+  detail, permissions, thinking/tool display, context usage, forks, and voice
+  input. Image/video generation goes through the `seedream` / `seedance` skills;
+  the app has no built-in media provider.
 - `src/renderer/components/agent/`: agent creation and settings UI.
 - `src/renderer/components/agentSidebar/`: agent/session tree and subagent
   session UI.

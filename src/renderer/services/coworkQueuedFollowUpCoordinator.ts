@@ -321,8 +321,6 @@ export class CoworkQueuedFollowUpCoordinator {
         kitReferences: queuedSteer.kitReferences,
         resolvedKitCapabilities: queuedSteer.resolvedKitCapabilities,
         imageAttachments: prepared.payload.imageAttachments,
-        mediaSelection: queuedSteer.mediaSelection,
-        mediaReferences: prepared.payload.mediaReferences,
         selectedTextSnippets: prepared.payload.selectedTextSnippets,
         browserAnnotations: queuedSteer.browserAnnotations,
       });

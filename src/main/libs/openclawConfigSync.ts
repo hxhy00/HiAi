@@ -52,6 +52,7 @@ import {
   supportsLobsterAIRequestOptionsV1,
 } from '../../shared/providers/lobsterAIRequestOptions';
 import type { ModelThinkingConfig } from '../../shared/providers/modelThinking';
+import { SKIN_PLUGIN_ID } from '../../shared/skin/constants';
 import type { Agent, CoworkConfig, CoworkExecutionMode } from '../coworkStore';
 import type { DiscordInstanceConfig, IMSettings, TelegramInstanceConfig } from '../im/types';
 import type { DingTalkInstanceConfig, EmailMultiInstanceConfig, FeishuInstanceConfig, NeteaseBeeChanConfig, NimInstanceConfig, PopoInstanceConfig, QQInstanceConfig, WecomInstanceConfig, WeixinOpenClawConfig } from '../im/types';
@@ -1951,8 +1952,8 @@ type OpenClawConfigSyncDeps = {
   getIMSettings?: () => IMSettings | null;
   getResolvedMcpServers?: () => ResolvedMcpServer[];
   getAskUserCallbackUrl?: () => string | null;
-  getMediaCallbackUrl?: () => string | null;
   getDecisionCallbackUrl?: () => string | null;
+  getSkinCallbackUrl?: () => string | null;
   /** The experimental decision model is switched on and has a usable key. */
   isDecisionModelActive?: () => boolean;
   getBrowserCallbackUrl?: () => string | null;
@@ -1988,8 +1989,8 @@ export class OpenClawConfigSync {
   private readonly getIMSettings?: () => IMSettings | null;
   private readonly getResolvedMcpServers?: () => ResolvedMcpServer[];
   private readonly getAskUserCallbackUrl?: () => string | null;
-  private readonly getMediaCallbackUrl?: () => string | null;
   private readonly getDecisionCallbackUrl?: () => string | null;
+  private readonly getSkinCallbackUrl?: () => string | null;
   private readonly isDecisionModelActive?: () => boolean;
   private readonly getBrowserCallbackUrl?: () => string | null;
   private readonly getLobsterBrowserMcpCommand?: () => string | null;
@@ -2023,8 +2024,8 @@ export class OpenClawConfigSync {
     this.getIMSettings = deps.getIMSettings;
     this.getResolvedMcpServers = deps.getResolvedMcpServers;
     this.getAskUserCallbackUrl = deps.getAskUserCallbackUrl;
-    this.getMediaCallbackUrl = deps.getMediaCallbackUrl;
     this.getDecisionCallbackUrl = deps.getDecisionCallbackUrl;
+    this.getSkinCallbackUrl = deps.getSkinCallbackUrl;
     this.isDecisionModelActive = deps.isDecisionModelActive;
     this.getBrowserCallbackUrl = deps.getBrowserCallbackUrl;
     this.getLobsterBrowserMcpCommand = deps.getLobsterBrowserMcpCommand;
@@ -2397,8 +2398,8 @@ export class OpenClawConfigSync {
       preinstalledPlugins.some((plugin) => pluginMatches(plugin, ...ids))
     );
     const hasAskUserPlugin = isBundledPluginAvailable('ask-user-question');
-    const hasMediaGenPlugin = isBundledPluginAvailable('lobster-media-generation');
     const hasDecisionPlugin = isBundledPluginAvailable(DECISION_MODEL_PLUGIN_ID);
+    const hasSkinPlugin = isBundledPluginAvailable(SKIN_PLUGIN_ID);
     // Runtime-bundled xai extension (dist/extensions/xai): provides the Grok
     // model compat hooks (e.g. only grok-4.3 accepts reasoningEffort) plus the
     // OAuth refresh hook for credentials in the auth-profiles store. Declare
@@ -2650,7 +2651,6 @@ export class OpenClawConfigSync {
             ? { feishu: { enabled: false } }
             : {}),
           ...(hasAskUserPlugin ? { 'ask-user-question': { enabled: true } } : {}),
-          ...(hasMediaGenPlugin ? { 'lobster-media-generation': { enabled: true } } : {}),
           // Experimental; enabled below only once the user turns it on.
           ...(hasDecisionPlugin ? { [DECISION_MODEL_PLUGIN_ID]: { enabled: false } } : {}),
           ...(hasModelCompatConfig
@@ -2791,21 +2791,6 @@ export class OpenClawConfigSync {
       };
     }
 
-    // Sync LobsterMediaGeneration plugin config — uses media callback endpoint
-    const mediaCallbackUrl = this.getMediaCallbackUrl?.();
-    if (hasMediaGenPlugin && mediaCallbackUrl && managedConfig.plugins) {
-      const plugins = managedConfig.plugins as Record<string, unknown>;
-      const entries = plugins.entries as Record<string, Record<string, unknown>>;
-      entries['lobster-media-generation'] = {
-        enabled: true,
-        config: {
-          callbackUrl: mediaCallbackUrl,
-          secret: '${LOBSTER_MCP_BRIDGE_SECRET}',
-          requestTimeoutMs: 150000,
-        },
-      };
-    }
-
     // Sync the experimental decision model plugin. The API key never enters
     // openclaw.json: the tool calls back into HiAi, which owns the key.
     const decisionCallbackUrl = this.getDecisionCallbackUrl?.();
@@ -2820,6 +2805,22 @@ export class OpenClawConfigSync {
           // Longer than the provider timeout in main, so callers get its
           // structured timeout error instead of a dropped connection.
           requestTimeoutMs: 45000,
+        },
+      };
+    }
+
+    // Sync the AI skin authoring plugin. Like the decision model, the desktop
+    // keeps the skin store and only exposes a loopback tool endpoint.
+    const skinCallbackUrl = this.getSkinCallbackUrl?.();
+    if (hasSkinPlugin && skinCallbackUrl && managedConfig.plugins) {
+      const plugins = managedConfig.plugins as Record<string, unknown>;
+      const entries = plugins.entries as Record<string, Record<string, unknown>>;
+      entries[SKIN_PLUGIN_ID] = {
+        enabled: true,
+        config: {
+          callbackUrl: skinCallbackUrl,
+          secret: '${LOBSTER_MCP_BRIDGE_SECRET}',
+          requestTimeoutMs: 30000,
         },
       };
     }

@@ -4,11 +4,6 @@ import {
   type SkinWorkflowKind as SkinWorkflowKindValue,
 } from '../../shared/skin/constants';
 import { SkinPackKitId } from '../../shared/skin/kit';
-import {
-  MediaSelectionMode,
-  type MediaSelectionState,
-} from '../mediaGenerationPolicy';
-
 export interface SkinWorkflowSessionState {
   workflowKind: SkinWorkflowKindValue;
   draftSkinId?: string;
@@ -22,12 +17,10 @@ export interface ResolvedSkinWorkflowState {
 export interface PrepareSkinWorkflowTurnInput {
   sessionId: string;
   kitIds?: string[];
-  mediaSelection?: MediaSelectionState;
 }
 
 export interface PreparedSkinWorkflowTurn {
   workflowKind?: SkinWorkflowKindValue;
-  mediaSelection?: MediaSelectionState;
 }
 
 export interface SkinWorkflowRegistryOptions {
@@ -47,7 +40,7 @@ export class SkinWorkflowRegistry {
     const workflowKind = requestedWorkflowKind
       ?? this.resolve(input.sessionId)?.state.workflowKind;
     if (!workflowKind) {
-      return { mediaSelection: input.mediaSelection };
+      return {};
     }
 
     if (requestedWorkflowKind) {
@@ -57,20 +50,7 @@ export class SkinWorkflowRegistry {
       }
     }
 
-    const selectedImageModelId = input.mediaSelection?.imageModelId
-      ?? (input.mediaSelection?.mode === MediaSelectionMode.Image
-        ? input.mediaSelection.modelId
-        : undefined);
-    return {
-      workflowKind,
-      mediaSelection: {
-        mode: MediaSelectionMode.Image,
-        ...(selectedImageModelId ? { imageModelId: selectedImageModelId } : {}),
-        ...(input.mediaSelection?.modelName
-          ? { modelName: input.mediaSelection.modelName }
-          : {}),
-      },
-    };
+    return { workflowKind };
   }
 
   resolve(sessionId: string | null): ResolvedSkinWorkflowState | undefined {
@@ -111,10 +91,10 @@ export class SkinWorkflowRegistry {
   }
 
   handleRuntimeComplete(_sessionId: string): void {
-    // Native image_generate finishes through a background wake after the
-    // runtime emits complete. Keep the transaction until apply/deactivate,
-    // an error, or session deletion. Follow-up turns may omit the Kit after
-    // the renderer clears its one-turn capability selection.
+    // Asset generation finishes outside the turn that started it, so keep the
+    // transaction until apply/deactivate, an error, or session deletion.
+    // Follow-up turns may omit the Kit after the renderer clears its one-turn
+    // capability selection.
   }
 
   handleRuntimeError(sessionId: string): void {

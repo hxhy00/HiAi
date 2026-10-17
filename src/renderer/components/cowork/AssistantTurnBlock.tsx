@@ -1,5 +1,5 @@
 import { ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, FolderIcon } from '@heroicons/react/24/outline';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 import { classifyErrorKey } from '../../../common/coworkErrorClassify';
 import { ContextCompactionStatus } from '../../../common/coworkSystemMessages';
@@ -25,14 +25,11 @@ import ActivityGroupBlock from './ActivityGroupBlock';
 import { ActivityStepLine } from './ActivityStepLine';
 import AssistantMessageItem from './AssistantMessageItem';
 import { ActivityEntryVariant } from './constants';
-import MediaPollingIndicator from './MediaPollingIndicator';
 import { MessageCopyButton } from './MessageActionButton';
 import {
   canFoldTurnProcess,
   chunkConsolidatedItemsForDisplay,
-  collectMediaPollCounts,
   type ConsolidatedItem,
-  consolidateMediaPolling,
   type ConversationTurn,
   COWORK_DETAIL_CONTENT_CLASS,
   COWORK_DETAIL_GUTTER_CLASS,
@@ -43,7 +40,6 @@ import {
   getConsolidatedItemKey,
   getContextCompactionMessageLabel,
   getMediaCompletionDisplayText,
-  getRetainedMediaPollCount,
   getStreamingTextSignature,
   getThinkingPhaseLabels,
   getToolResultDisplay,
@@ -463,10 +459,7 @@ const AssistantTurnBlock: React.FC<{
     }),
     [turn.assistantItems, isStreamingTurn],
   );
-  const consolidatedItems = useMemo(
-    () => consolidateMediaPolling(visibleAssistantItems),
-    [visibleAssistantItems],
-  );
+  const consolidatedItems = visibleAssistantItems;
   const toolGroupOverrides = useMemo(() => {
     const overrides = new Map<string, React.ReactNode>();
     if (!renderToolGroupOverride) return overrides;
@@ -498,23 +491,6 @@ const AssistantTurnBlock: React.FC<{
     return artifactCardsExpanded ? artifactCards : artifactCards.slice(0, 3);
   }, [artifactCards, artifactCardsExpanded]);
   const hiddenArtifactCardCount = Math.max(0, artifactCards.length - visibleArtifactCards.length);
-  const retainedMediaPollCountsRef = useRef<Map<string, number>>(new Map());
-  const currentMediaPollCounts = useMemo(
-    () => collectMediaPollCounts(consolidatedItems),
-    [consolidatedItems],
-  );
-  const retainedMediaPollCounts = useMemo(() => {
-    const next = new Map(retainedMediaPollCountsRef.current);
-    for (const [key, pollCount] of currentMediaPollCounts) {
-      next.set(key, Math.max(next.get(key) ?? 0, pollCount));
-    }
-    return next;
-  }, [currentMediaPollCounts]);
-
-  useEffect(() => {
-    retainedMediaPollCountsRef.current = retainedMediaPollCounts;
-  }, [retainedMediaPollCounts]);
-
   useEffect(() => {
     setArtifactCardsExpanded(false);
     setProcessExpanded(false);
@@ -651,7 +627,7 @@ const AssistantTurnBlock: React.FC<{
   const timelineToolIndices = new Set(
     renderChunks
       .filter((chunk): chunk is Extract<typeof renderChunks[number], { kind: 'item' }> => chunk.kind === 'item')
-      .filter((chunk) => chunk.item.type === 'tool_group' || chunk.item.type === 'media_polling_group')
+      .filter((chunk) => chunk.item.type === 'tool_group')
       .map((chunk) => chunk.index),
   );
 
@@ -663,25 +639,6 @@ const AssistantTurnBlock: React.FC<{
   ): React.ReactNode => {
     // A step line inside an activity run has no timeline connector to draw.
     const isGroupEntry = displayVariant !== 'timeline';
-    if (item.type === 'media_polling_group') {
-      const isLastInSequence = isGroupEntry || !timelineToolIndices.has(index + 1);
-      const retainedPollCount = getRetainedMediaPollCount(
-        { taskId: item.group.taskId, upstreamTaskId: item.group.upstreamTaskId },
-        retainedMediaPollCounts,
-      );
-      const indicator = (
-        <MediaPollingIndicator
-          key={`media-poll-${item.group.taskId}`}
-          group={{
-            ...item.group,
-            pollCount: retainedPollCount ?? item.group.pollCount,
-          }}
-          isLastInSequence={isLastInSequence}
-        />
-      );
-      return indicator;
-    }
-
     if (item.type === 'assistant') {
       if (item.message.metadata?.isThinking) {
         return (
@@ -711,7 +668,7 @@ const AssistantTurnBlock: React.FC<{
 
       const hasToolGroupAfter = consolidatedItems
         .slice(index + 1)
-        .some(laterItem => laterItem.type === 'tool_group' || laterItem.type === 'media_polling_group');
+        .some(laterItem => laterItem.type === 'tool_group');
       const isLastAssistant = showCopyButtons && !hasToolGroupAfter;
       const hasAssistantAfter = consolidatedItems
         .slice(index + 1)
@@ -758,7 +715,6 @@ const AssistantTurnBlock: React.FC<{
           group={item.group}
           isLastInSequence={isLastInSequence}
           mapDisplayText={mapDisplayText}
-          retainedMediaPollCounts={retainedMediaPollCounts}
           variant={displayVariant}
           isLive={isLive}
         />

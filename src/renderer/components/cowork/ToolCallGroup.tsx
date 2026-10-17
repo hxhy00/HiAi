@@ -1,8 +1,6 @@
-import Lottie from 'lottie-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 
-import mediaGeneratingAnimation from '../../assets/lottie/media-generating.json';
 import { i18nService } from '../../services/i18n';
 import { selectIsStreaming } from '../../store/selectors/coworkSelectors';
 import { ActivityPlanDetail } from './ActivityPlanDetail';
@@ -18,7 +16,6 @@ import {
   getActivityStepDoneLabel,
   getActivityStepKind,
   getLargeToolResultSummary,
-  getRetainedMediaPollCount,
   getToolDisplayName,
   getToolInputSummary,
   getToolResultCollapsedDisplay,
@@ -27,15 +24,10 @@ import {
   hasText,
   isBashLikeToolName,
   isCronToolName,
-  isMediaGenerateRunning,
-  isMediaStatusPoll,
-  isMediaStatusPollRunning,
   isPlanToolName,
   isTodoWriteToolName,
   isToolGroupSettled,
-  normalizeToolName,
   parseActivityPlan,
-  parseMediaStreamingInfo,
   type ToolGroupItem,
   truncatePreview,
 } from './messageDisplayUtils';
@@ -64,7 +56,6 @@ const ToolCallGroup: React.FC<{
   group: ToolGroupItem;
   isLastInSequence?: boolean;
   mapDisplayText?: (value: string) => string;
-  retainedMediaPollCounts?: Map<string, number>;
   footer?: React.ReactNode;
   /**
    * 'timeline' renders the classic dot row; 'row' the step's own line among
@@ -78,13 +69,11 @@ const ToolCallGroup: React.FC<{
   group,
   isLastInSequence = true,
   mapDisplayText,
-  retainedMediaPollCounts,
   footer,
   variant = 'timeline',
   isLive,
 }) => {
   const { toolUse, toolResult } = group;
-  const shouldExpandByDefault = isMediaStatusPoll(group);
   const isSessionStreaming = useSelector(selectIsStreaming);
   const rawToolName = typeof toolUse.metadata?.toolName === 'string' ? toolUse.metadata.toolName : 'Tool';
   const toolName = getToolDisplayName(rawToolName);
@@ -102,7 +91,7 @@ const ToolCallGroup: React.FC<{
     ? null
     : getToolInputSummary(rawToolName, toolInput) ?? toolInputDisplayRaw;
   const toolInputSummary = toolInputSummaryRaw ? mapText(toolInputSummaryRaw) : null;
-  const [isExpanded, setIsExpanded] = useState(shouldExpandByDefault);
+  const [isExpanded, setIsExpanded] = useState(false);
   const collapsedToolResult = useMemo(
     () => toolResult ? getToolResultCollapsedDisplay(toolResult) : null,
     [toolResult],
@@ -151,64 +140,6 @@ const ToolCallGroup: React.FC<{
     const nextExpanded = !isExpanded;
     setIsExpanded(nextExpanded);
   };
-
-  const renderMediaRunningIndicators = (containerClass: string) => (
-    <>
-      {isMediaGenerateRunning(group) && isSessionStreaming && (() => {
-        const streamingInfo = parseMediaStreamingInfo(group);
-        const pollCount = streamingInfo.pollCount ?? getRetainedMediaPollCount(streamingInfo, retainedMediaPollCounts);
-        return (
-          <div className={`${containerClass} flex items-center gap-2`}>
-            <Lottie
-              animationData={mediaGeneratingAnimation}
-              loop
-              autoplay
-              style={{ width: 36, height: 36 }}
-            />
-            <span className="text-sm font-medium text-secondary">
-              {i18nService.t('mediaGeneratingVideo')}
-            </span>
-            {streamingInfo.taskId && (
-              <span className="text-xs text-muted break-all">taskid:{streamingInfo.upstreamTaskId || streamingInfo.taskId}</span>
-            )}
-            {pollCount != null && (
-              <span className="text-xs text-muted">
-                {i18nService.t('mediaStatusQueryCount').replace('{count}', String(pollCount))}
-              </span>
-            )}
-          </div>
-        );
-      })()}
-      {isMediaStatusPollRunning(group) && isSessionStreaming && (() => {
-        const streamingInfo = parseMediaStreamingInfo(group);
-        const pollCount = streamingInfo.pollCount ?? getRetainedMediaPollCount(streamingInfo, retainedMediaPollCounts);
-        const displayTaskId = streamingInfo.upstreamTaskId || streamingInfo.taskId;
-        const mediaToolName = group.toolUse.metadata?.toolName || '';
-        const isVideo = normalizeToolName(mediaToolName) === 'hiaivideogenerate';
-        return (
-          <div className={`${containerClass} flex items-center gap-2 flex-wrap`}>
-            <Lottie
-              animationData={mediaGeneratingAnimation}
-              loop
-              autoplay
-              style={{ width: 36, height: 36 }}
-            />
-            <span className="text-sm font-medium text-secondary">
-              {i18nService.t(isVideo ? 'mediaGeneratingVideo' : 'mediaGeneratingImage')}
-            </span>
-            {displayTaskId && (
-              <span className="text-xs text-muted break-all">taskid:{displayTaskId}</span>
-            )}
-            {pollCount != null && (
-              <span className="text-xs text-muted">
-                {i18nService.t('mediaStatusQueryCount').replace('{count}', String(pollCount))}
-              </span>
-            )}
-          </div>
-        );
-      })()}
-    </>
-  );
 
   const renderDetailBody = () => (
     <>
@@ -355,7 +286,6 @@ const ToolCallGroup: React.FC<{
             {footer}
           </div>
         )}
-        {renderMediaRunningIndicators('mt-1')}
         {isExpanded && (
           <div className={`activity-row-detail mt-1.5 ${hasOwnFrame ? '' : 'rounded-lg border border-border px-4 py-3'}`}>
             {renderDetailBody()}
@@ -431,7 +361,6 @@ const ToolCallGroup: React.FC<{
           {footer}
         </div>
       )}
-      {renderMediaRunningIndicators('ml-4 mt-2')}
       {isExpanded && (
         <div className="ml-4 mt-2">
           {renderDetailBody()}

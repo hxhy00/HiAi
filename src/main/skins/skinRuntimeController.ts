@@ -1,9 +1,11 @@
 import type { InstalledKitRecord } from '../../shared/kit/constants';
-import { SkinToolName } from '../../shared/skin/constants';
-import type { MediaSelectionState } from '../mediaGenerationPolicy';
-import { SkinMediaBridge } from './skinMediaBridge';
+import { SkinToolName, SkinWorkflowKind } from '../../shared/skin/constants';
 import { SkinStore } from './skinStore';
-import type { SkinToolRequest, SkinToolResult } from './skinToolHandler';
+import {
+  createSkinToolHandler,
+  type SkinToolRequest,
+  type SkinToolResult,
+} from './skinToolHandler';
 import {
   type PreparedSkinWorkflowTurn,
   type PrepareSkinWorkflowTurnInput,
@@ -15,14 +17,13 @@ export interface SkinRuntimeControllerOptions {
   getInstalledKits: () => Record<string, InstalledKitRecord>;
   getParentSessionId: (sessionId: string) => string | null;
   resolveSessionId: (sessionKey: string) => string | null;
-  hasLocalImageModel: () => boolean;
   onChanged?: () => void;
 }
 
 export class SkinRuntimeController {
   readonly store: SkinStore;
   private readonly workflowRegistry: SkinWorkflowRegistry;
-  private readonly mediaBridge: SkinMediaBridge;
+  private readonly toolHandler: (request: SkinToolRequest) => Promise<SkinToolResult>;
 
   constructor(options: SkinRuntimeControllerOptions) {
     this.store = new SkinStore({ rootDir: options.rootDir });
@@ -30,12 +31,18 @@ export class SkinRuntimeController {
       getInstalledKits: options.getInstalledKits,
       getParentSessionId: options.getParentSessionId,
     });
-    this.mediaBridge = new SkinMediaBridge({
+    // Skin authoring stays a desktop-only tool: it validates that the calling
+    // session really is running the skin workflow, so the agent cannot create
+    // or activate skins from an ordinary chat turn.
+    this.toolHandler = createSkinToolHandler({
       store: this.store,
-      workflowRegistry: this.workflowRegistry,
-      resolveSessionId: options.resolveSessionId,
-      hasLocalImageModel: options.hasLocalImageModel,
-      onChanged: options.onChanged,
+      isWorkflowAllowed: (sessionKey) => {
+        const sessionId = options.resolveSessionId(sessionKey);
+        if (!sessionId) return false;
+        return this.workflowRegistry.resolve(sessionId)?.state.workflowKind
+          === SkinWorkflowKind.SkinPack;
+      },
+      ...(options.onChanged ? { onChanged: options.onChanged } : {}),
     });
   }
 
@@ -48,14 +55,7 @@ export class SkinRuntimeController {
   }
 
   handleToolRequest(request: SkinToolRequest): Promise<SkinToolResult> {
-    return this.mediaBridge.handleToolRequest(request);
-  }
-
-  preflightLobsterImageGeneration(
-    sessionId: string | null,
-    selection: MediaSelectionState | undefined,
-  ): Promise<SkinToolResult | null> {
-    return this.mediaBridge.preflightLobsterImageGeneration(sessionId, selection);
+    return this.toolHandler(request);
   }
 
   handleRuntimeComplete(sessionId: string): void {

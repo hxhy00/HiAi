@@ -22,7 +22,7 @@ import {
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { pathToFileURL } from 'url';
 
 import { CoworkSystemMessageKind } from '../common/coworkSystemMessages';
 import { buildGoalSettingMessageMetadata } from '../common/goalCommandDisplay';
@@ -105,7 +105,6 @@ import {
   formatCoworkImageAttachmentLimit,
   validateCoworkImageAttachmentSize,
 } from '../shared/cowork/imageAttachments';
-import { normalizeMediaProvidersConfig } from '../shared/cowork/mediaProviders';
 import { OpenClawQuestion } from '../shared/cowork/openclawQuestion';
 import { containsPlanModePrompt } from '../shared/cowork/planMode';
 import type { CoworkSearchMessageCursor } from '../shared/cowork/search';
@@ -156,7 +155,6 @@ import {
   type LocalWebService,
   LocalWebServicesIpc,
 } from '../shared/localWebServices/constants';
-import { canonicalizeMediaModelId, mediaModelDisplayName } from '../shared/mediaModelAliases';
 import {
   normalizeNotificationSettings,
   type NotificationSettings,
@@ -197,7 +195,7 @@ import { getRecentComputerUseLogEntries } from './computerUse/computerUseLogs';
 import { readEnvironmentSnapshot } from './conversation/environmentSnapshot';
 import { WorkspaceReviewSourceStore } from './conversation/reviewSource';
 import { isScopedReview, ScopedReviewStore } from './conversation/scopedReview';
-import { type CoworkForkContextMessage, type CoworkMessage, CoworkStore } from './coworkStore';
+import { type CoworkForkContextMessage, CoworkStore } from './coworkStore';
 import { setLanguage, t } from './i18n';
 import { IMGatewayConfig, IMGatewayManager } from './im';
 import {
@@ -259,7 +257,6 @@ import {
 } from './libs/appQuitConfirmation';
 import { hideAppWindowsForQuit } from './libs/appQuitWindows';
 import { AppUpdateCoordinator, INSTALLATION_UUID_KEY } from './libs/appUpdateCoordinator';
-import { AppUpdateGrayClient, type AppUpdateGraySession } from './libs/appUpdateGrayClient';
 import { ArtifactFileWatcher } from './libs/artifactFileWatcher';
 import type { BrowserAnnotationAssetIdentity, SaveBrowserAnnotationAssetInput } from './libs/browserAnnotationAssetStore';
 import { BrowserAnnotationAssetStore } from './libs/browserAnnotationAssetStore';
@@ -274,7 +271,6 @@ import {
   resolveRawApiConfig,
   type ServerModelMetadataInput,
   ServerModelRunGateReason,
-  setServerBaseUrlGetter,
   setStoreGetter,
   updateServerModelMetadata,
 } from './libs/claudeSettings';
@@ -375,24 +371,6 @@ import {
   type DevelopmentMainWindowLoadRecovery,
   MainWindowLoadErrorCode,
 } from './libs/mainWindowLoadRecovery';
-import { inferImageMimeTypeFromDataUrl, type PersistedGeneratedImageAsset, persistGeneratedImageAssets, type PersistGeneratedImageAssetsResult, persistGeneratedVideoAssets, type RemoteGeneratedMediaAsset } from './libs/mediaAssetPersistence';
-import {
-  getImageMediaProvider,
-  getVideoMediaProvider,
-  initMediaProviders,
-  type MediaProvider,
-  type MediaProviderTarget,
-  MediaTaskStatus,
-  mergeMediaProviderApiKeys,
-  readMediaProvidersConfigForRenderer,
-  resolveMediaTaskTarget,
-  setMediaProviderCrypto,
-  writeMediaProvidersConfig,
-} from './libs/mediaProvider';
-import {
-  formatMediaParameterSpec,
-  mediaParameterSpecFor,
-} from './libs/mediaProvider/parameterSpecs';
 import {
   migrateAgentModelRefs,
   resolveQualifiedAgentModelRef,
@@ -501,32 +479,6 @@ import { migrateLegacyUserDataDir, renameLegacySqliteFiles } from './libs/userDa
 import { type LoopbackFirewallRepairResult, repairWindowsLoopbackFirewall } from './libs/windowsLoopbackFirewall';
 import { getLogFilePath, getRecentMainLogEntries, initLogger } from './logger';
 import { type AskUserResponse, McpRuntime } from './mcp/mcpRuntime';
-import {
-  type AccountBoundValue,
-  bindAccountValue,
-  canAccessTrackedMediaTask,
-  createAccountScopedFetch,
-  createLocalMediaAccountScope,
-  isMediaAccountScopeCurrent,
-  isMediaAccountScopeSnapshotCurrent,
-  type MediaAccountScope,
-  rebindMediaAccountScope,
-  rememberMediaTaskOwnerAliases,
-  resolveAccountBoundValue,
-  shouldRemoveMediaTaskAfterPoll,
-} from './mediaAccountIsolation';
-import {
-  MediaGenerationGateReason,
-  MediaGenerationTool,
-  type MediaSelectionState,
-  resolveMediaGenerationGate,
-} from './mediaGenerationPolicy';
-import {
-  applyMediaReferencesToGenerationParams,
-  type MediaAttachmentRefMain,
-  MediaGenerationRequestType,
-  summarizeMediaGenerationParamsForLog,
-} from './mediaGenerationReferences';
 import { MAIN_OFFICE_FORMATS } from './office/formats';
 import { OfficeEditing } from './office/officeEditing';
 import { OpenClawSessionIpc } from './openclawSession/constants';
@@ -1699,7 +1651,6 @@ let coworkRuntimeForwarderBound = false;
 let memoryMigrationDone = false;
 let preventSleepBlockerId: number | null = null;
 let appUpdateCoordinator: AppUpdateCoordinator | null = null;
-let resolveAppUpdateGraySession: () => AppUpdateGraySession | null = () => null;
 let libraryIndexService: LibraryIndexService | null = null;
 let unsubscribeLibrarySessionChanges: (() => void) | null = null;
 
@@ -1851,13 +1802,7 @@ const formatAutoLaunchStatusForLog = (status: AutoLaunchStatus): string => {
 
 const getAppUpdateCoordinator = (): AppUpdateCoordinator => {
   if (!appUpdateCoordinator) {
-    appUpdateCoordinator = new AppUpdateCoordinator(getStore(), new AppUpdateGrayClient({
-      getSession: () => resolveAppUpdateGraySession(),
-      getServerBaseUrl: getServerApiBaseUrl,
-      fetch: (url, options) => session.defaultSession.fetch(url, options),
-      platform: process.platform,
-      arch: process.arch,
-    }));
+    appUpdateCoordinator = new AppUpdateCoordinator(getStore());
   }
   return appUpdateCoordinator;
 };
@@ -2186,8 +2131,8 @@ const getOpenClawConfigSync = (): OpenClawConfigSync => {
         return getMcpRuntime().getResolvedServersCache();
       },
       getAskUserCallbackUrl: () => getMcpRuntime().getAskUserCallbackUrl(),
-      getMediaCallbackUrl: () => getMcpRuntime().getMediaCallbackUrl(),
       getDecisionCallbackUrl: () => getMcpRuntime().getDecisionCallbackUrl(),
+      getSkinCallbackUrl: () => getMcpRuntime().getSkinCallbackUrl(),
       isDecisionModelActive: () => isDecisionModelFeatureActive(getStore()),
       getBrowserCallbackUrl: () => getMcpRuntime().getBrowserCallbackUrl(),
       getLobsterBrowserMcpCommand: () => {
@@ -3380,10 +3325,7 @@ const bindCoworkRuntimeForwarder = (): void => {
   });
 
   runtime.on('complete', (sessionId: string, claudeSessionId: string | null) => {
-    mediaSelectionBySession.delete(sessionId);
-    mediaTurnAccountScopeBySession.delete(sessionId);
     skinRuntimeController?.handleRuntimeComplete(sessionId);
-    mediaReferencesBySession.delete(sessionId);
     getDesktopNotificationManager().handleComplete(sessionId);
     const windows = BrowserWindow.getAllWindows();
     windows.forEach(win => {
@@ -3393,10 +3335,7 @@ const bindCoworkRuntimeForwarder = (): void => {
   });
 
   runtime.on('error', (sessionId: string, error: string) => {
-    mediaSelectionBySession.delete(sessionId);
-    mediaTurnAccountScopeBySession.delete(sessionId);
     skinRuntimeController?.handleRuntimeError(sessionId);
-    mediaReferencesBySession.delete(sessionId);
     // Mark session as error in store so the .catch() fallback can detect duplicates.
     try {
       getCoworkStore().updateSession(sessionId, { status: 'error' });
@@ -3554,6 +3493,7 @@ const startAskUserServer = async (): Promise<void> => {
   const runtime = getMcpRuntime();
   await runtime.startAskUserServer();
   runtime.setBrowserToolHandler(request => getAgentBrowserHost().handleToolRequest(request));
+  runtime.setSkinToolHandler(request => getSkinRuntimeController().handleToolRequest(request));
   for (const editor of officeEditing.editors) {
     runtime.setEditorToolHandler(editor.id, editor.editorName, request => officeEditing.callTool(editor.id, request.tool, request.args));
   }
@@ -3957,142 +3897,6 @@ const hideMainWindowForClose = (win: BrowserWindow): void => {
 // 存储活跃的流式请求控制器
 const activeStreamControllers = new Map<string, AbortController>();
 
-// Media generation selection and authenticated owner per session turn.
-const mediaSelectionBySession = new Map<string, AccountBoundValue<MediaSelectionState>>();
-const mediaTurnAccountScopeBySession = new Map<string, MediaAccountScope>();
-// Resolves the account scope when logged in, the shared local owner scope when
-// logged out, or null when an authenticated scope cannot be resolved (callers
-// must fail closed in that case). It is null until the IPC layer wires in the
-// real resolver, so any early call fails closed rather than assuming a scope.
-let resolveCurrentMediaOwnerScope = (): MediaAccountScope | null => null;
-
-// Media attachment references per session (for @ mentions, FR-9)
-const mediaReferencesBySession = new Map<string, MediaAttachmentRefMain[]>();
-const persistedGeneratedImageAssetsByUrl = new Map<string, PersistedGeneratedImageAsset>();
-const persistedGeneratedVideoAssetsByUrl = new Map<string, PersistedGeneratedImageAsset>();
-
-const resolveGeneratedMediaAssetMimeType = (mediaType: 'image' | 'video', url: string): string => {
-  if (mediaType === 'image') {
-    return inferImageMimeTypeFromDataUrl(url) || 'image/png';
-  }
-  return 'video/mp4';
-};
-
-// Async video task polling (FR-8)
-interface MediaTaskTracker {
-  taskId: string;
-  sessionId: string;
-  mediaType: 'image' | 'video';
-  model: string;
-  ownerAccountKey: string;
-  accountGeneration: number;
-  startedAt: number;
-  pollCount: number;
-  timeoutMs: number;
-  lastPollAt?: number;
-}
-const pendingMediaTasks = new Map<string, MediaTaskTracker>();
-
-const mediaTaskOwnerById = new Map<string, string>();
-const mediaStatusPollCounts = new Map<string, number>();
-const mediaTasksHandledByStatusPolling = new Set<string>();
-let mediaTaskPollTimer: ReturnType<typeof setInterval> | null = null;
-let mediaTaskPollInFlight = false;
-const MEDIA_POLL_FAST_MS = 10_000;
-const MEDIA_POLL_SLOW_MS = 30_000;
-const MEDIA_POLL_MEDIUM_MS = 120_000;
-const MEDIA_POLL_IDLE_MS = 600_000;
-const MEDIA_POLL_FAST_COUNT = 6;
-const MEDIA_POLL_SLOW_COUNT = 18;
-const MEDIA_POLL_MEDIUM_COUNT = 10;
-const MEDIA_TASK_DEFAULT_TIMEOUT_MS = 172_800_000;
-const TERMINAL_MEDIA_TASK_STATUSES = new Set(['succeeded', 'failed', 'cancelled']);
-
-const rememberMediaTaskOwnership = (
-  ownerAccountKey: string,
-  ...taskIds: unknown[]
-): void => {
-  rememberMediaTaskOwnerAliases(mediaTaskOwnerById, ownerAccountKey, taskIds);
-};
-
-const resolveMediaTaskOwner = (taskId: unknown): string | undefined => {
-  const normalizedTaskId = String(taskId ?? '').trim();
-  if (!normalizedTaskId) return undefined;
-  return pendingMediaTasks.get(normalizedTaskId)?.ownerAccountKey
-    ?? mediaTaskOwnerById.get(normalizedTaskId);
-};
-
-const normalizeOptionalMediaModelId = (modelId: string | undefined): string | undefined => {
-  const canonicalModelId = canonicalizeMediaModelId(modelId);
-  return canonicalModelId || undefined;
-};
-
-const normalizeMediaSelectionState = (selection?: MediaSelectionState): MediaSelectionState | undefined => {
-  if (!selection) return undefined;
-  const normalized: MediaSelectionState = {
-    ...selection,
-    modelId: normalizeOptionalMediaModelId(selection.modelId),
-    imageModelId: normalizeOptionalMediaModelId(selection.imageModelId),
-    videoModelId: normalizeOptionalMediaModelId(selection.videoModelId),
-  };
-  const displayModelId = normalized.modelId || normalized.imageModelId || normalized.videoModelId;
-  if (displayModelId) {
-    normalized.modelName = mediaModelDisplayName(displayModelId, selection.modelName);
-  }
-  return normalized;
-};
-
-const resolveMediaSelectionForSession = (sessionId: string | null): MediaSelectionState | undefined => {
-  let current = sessionId?.trim() || null;
-  const seen = new Set<string>();
-
-  for (let depth = 0; current && depth < 16; depth++) {
-    if (seen.has(current)) return undefined;
-    seen.add(current);
-
-    const selection = normalizeMediaSelectionState(resolveAccountBoundValue(
-      mediaSelectionBySession.get(current),
-      resolveCurrentMediaOwnerScope(),
-    ));
-    if (selection && selection.mode !== 'none') {
-      return selection;
-    }
-
-    try {
-      current = getCoworkParentSessionId(getStore().getDatabase(), current);
-    } catch (error) {
-      console.warn('[MediaGeneration] failed to resolve parent media selection:', error);
-      return undefined;
-    }
-  }
-
-  return undefined;
-};
-
-const resolveMediaTurnAccountScopeForSession = (
-  sessionId: string | null,
-): MediaAccountScope | null => {
-  let current = sessionId?.trim() || null;
-  const seen = new Set<string>();
-
-  for (let depth = 0; current && depth < 16; depth++) {
-    if (seen.has(current)) return null;
-    seen.add(current);
-
-    const scope = mediaTurnAccountScopeBySession.get(current);
-    if (scope) return scope;
-
-    try {
-      current = getCoworkParentSessionId(getStore().getDatabase(), current);
-    } catch (error) {
-      console.warn('[MediaGeneration] failed to resolve parent turn account scope:', error);
-      return null;
-    }
-  }
-
-  return null;
-};
-
 const getSkinRuntimeController = (): SkinRuntimeController => {
   if (!skinRuntimeController) {
     skinRuntimeController = new SkinRuntimeController({
@@ -4106,23 +3910,12 @@ const getSkinRuntimeController = (): SkinRuntimeController => {
       resolveSessionId: sessionKey => (
         resolveCoworkSessionIdByOpenClawSessionKey(getStore().getDatabase(), sessionKey)
       ),
-      hasLocalImageModel: () => (getImageMediaProvider()?.resolver.listModels().length ?? 0) > 0,
       onChanged: notifySkinChanged,
     });
   }
   return skinRuntimeController;
 };
 
-const mediaModelIdForOutput = (model: unknown, fallback?: string): string => {
-  const rawModel = typeof model === 'string' && model.trim() ? model : fallback;
-  return mediaModelDisplayName(rawModel, rawModel) || 'default';
-};
-
-type MediaStatusPollUpdate = {
-  sessionId: string;
-  toolCallId: string;
-  details: Record<string, unknown>;
-};
 let lastReloadAt = 0;
 const MIN_RELOAD_INTERVAL_MS = 5000;
 type AppConfigSettings = {
@@ -4185,72 +3978,6 @@ const resolveThemeFromConfig = (config?: AppConfigSettings): 'light' | 'dark' =>
 const getInitialTheme = (): 'light' | 'dark' => {
   const config = getStore().get<AppConfigSettings>('app_config');
   return resolveThemeFromConfig(config);
-};
-
-const MEDIA_STATUS_POLL_KEY_SEPARATOR = '\u0000';
-
-const getMediaStatusPollKey = (
-  sessionId: string | null,
-  ownerAccountKey: string,
-  taskId: string,
-): string => (
-  [sessionId ?? 'unknown', ownerAccountKey, taskId].join(MEDIA_STATUS_POLL_KEY_SEPARATOR)
-);
-
-const incrementMediaStatusPollCount = (
-  sessionId: string | null,
-  ownerAccountKey: string,
-  taskId: string,
-): number => {
-  const key = getMediaStatusPollKey(sessionId, ownerAccountKey, taskId);
-  const nextCount = (mediaStatusPollCounts.get(key) ?? 0) + 1;
-  mediaStatusPollCounts.set(key, nextCount);
-  return nextCount;
-};
-
-const markMediaTaskHandledByStatusPolling = (
-  sessionId: string,
-  ownerAccountKey: string,
-  taskId: string,
-): void => {
-  mediaTasksHandledByStatusPolling.add(getMediaStatusPollKey(sessionId, ownerAccountKey, taskId));
-  const tracker = pendingMediaTasks.get(taskId);
-  if (tracker?.ownerAccountKey === ownerAccountKey) {
-    pendingMediaTasks.delete(taskId);
-  }
-};
-
-const isMediaTaskHandledByStatusPolling = (
-  sessionId: string,
-  ownerAccountKey: string,
-  taskId: string,
-): boolean => (
-  mediaTasksHandledByStatusPolling.has(getMediaStatusPollKey(sessionId, ownerAccountKey, taskId))
-);
-
-const clearMediaStatusPollCountsForSession = (sessionId: string): void => {
-  const prefix = `${sessionId}${MEDIA_STATUS_POLL_KEY_SEPARATOR}`;
-  for (const key of mediaStatusPollCounts.keys()) {
-    if (key.startsWith(prefix)) {
-      mediaStatusPollCounts.delete(key);
-    }
-  }
-};
-
-const clearHandledMediaTasksForSession = (sessionId: string): void => {
-  const prefix = `${sessionId}${MEDIA_STATUS_POLL_KEY_SEPARATOR}`;
-  for (const key of mediaTasksHandledByStatusPolling) {
-    if (key.startsWith(prefix)) {
-      mediaTasksHandledByStatusPolling.delete(key);
-    }
-  }
-};
-
-const emitMediaStatusPollUpdate = (update: MediaStatusPollUpdate): void => {
-  BrowserWindow.getAllWindows().forEach(win => {
-    if (win.isDestroyed()) return;
-    win.webContents.send(CoworkIpcChannel.MediaStatusPollUpdate, update);
-  });
 };
 
 const getTitleBarOverlayOptions = () => {
@@ -4776,15 +4503,7 @@ if (!gotTheLock) {
 
   // ── Auth IPC handlers ──
   // Login capability removed (remove-membership §11 D1): no tokens, no cached
-  // user, no enterprise context. Media generation is bound to the shared
-  // "local" owner scope; `authAccountGeneration` survives only so per-app-run
-  // owner-scope snapshots stay stable.
-
-  let authAccountGeneration = 0;
-
-  const getCurrentMediaOwnerScope = (): MediaAccountScope =>
-    createLocalMediaAccountScope(authAccountGeneration);
-  resolveCurrentMediaOwnerScope = getCurrentMediaOwnerScope;
+  // user, no enterprise context. Shares still upload under the local owner key.
 
   const getOrCreateInstallationId = (): string | null => {
     try {
@@ -4833,8 +4552,6 @@ if (!gotTheLock) {
   const fetchWithAuth = async (url: string, options?: RequestInit): Promise<Response> =>
     net.fetch(url, options);
 
-  resolveAppUpdateGraySession = () => null;
-
   type AvailableServerModel = ServerModelMetadataInput & {
     modelId: string;
     modelName: string;
@@ -4846,11 +4563,20 @@ if (!gotTheLock) {
     accessible?: boolean;
   };
 
+
   const loadAvailableServerModels = async (options: {
     reason: string;
     awaitConfigSync?: boolean;
     forceConfigSync?: boolean;
   }): Promise<AvailableServerModel[]> => {
+    // Offline short-circuit: the app is fully usable without the server model
+    // catalog (users configure their own providers), so an offline machine must
+    // not fire a doomed request on every run preflight. Callers treat an empty
+    // catalog as "no server models" and fall back to user configuration.
+    if (!net.isOnline()) {
+      console.debug('[Auth:getModels] offline, skipping server model request');
+      return [];
+    }
     const serverBaseUrl = getServerApiBaseUrl();
     const url = appendKeyfromQuery(`${serverBaseUrl}/api/models/available`);
     console.log(`[Auth:getModels] requesting available models at ${url}`);
@@ -5093,1047 +4819,10 @@ if (!gotTheLock) {
     };
   };
 
-  const capturePublishingRequest = (): {
-    accountScope: MediaAccountScope;
-    scopedFetch: typeof fetchWithAuth;
-  } => {
-    const accountScope = getCurrentMediaOwnerScope();
-    return {
-      accountScope,
-      scopedFetch: createAccountScopedFetch(
-        accountScope,
-        getCurrentMediaOwnerScope,
-        fetchWithAuth,
-      ),
-    };
-  };
-
-  const extractSessionIdFromKey = (sessionKey: string): string | null =>
-    resolveCoworkSessionIdByOpenClawSessionKey(getStore().getDatabase(), sessionKey);
-
-  /**
-   * Recover the full provider target for a task id.
-   *
-   * The persisted registry deliberately omits the api key, so the credentials
-   * are re-resolved from the current provider config by model id. This keeps
-   * the plaintext key out of sqlite while still letting async tasks be polled
-   * and cancelled after a restart.
-   */
-  const resolveHydratedMediaTaskTarget = (
-    taskId: string,
-    provider: MediaProvider | undefined,
-  ): MediaProviderTarget | undefined => {
-    const persisted = resolveMediaTaskTarget(getStore(), taskId);
-    if (!persisted || !provider) return undefined;
-    const resolved = provider.resolver.resolveTarget(persisted.modelId);
-    if (!resolved) return undefined;
-    return {
-      ...persisted,
-      // Prefer the freshly resolved credentials; fall back to the persisted
-      // endpoint fields if the entry only partially matches.
-      providerKey: resolved.providerKey,
-      baseUrl: resolved.baseUrl,
-      apiKey: resolved.apiKey,
-      displayName: resolved.displayName,
-    };
-  };
-
-  /**
-   * Handle media generation tool callbacks from the OpenClaw plugin.
-   */
-  const handleMediaGenerationCallback = async (request: {
-    tool: string;
-    args: Record<string, unknown>;
-    context: { sessionKey: string; toolCallId: string };
-  }): Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean; details?: Record<string, unknown> }> => {
-    const { tool, args } = request;
-    const skinRuntime = getSkinRuntimeController();
-    if (skinRuntime.handlesTool(tool)) {
-      return skinRuntime.handleToolRequest(request);
-    }
-    const action = (args.action as string) || 'generate';
-    const sessionId = extractSessionIdFromKey(request.context.sessionKey);
-    // The turn scope is recorded when the turn starts; fall back to the current
-    // owner scope (account or local) for turns that predate scope tracking.
-    const turnAccountScope = resolveMediaTurnAccountScopeForSession(sessionId);
-    const resolveRequestScope = (): MediaAccountScope | null => (
-      turnAccountScope ?? getCurrentMediaOwnerScope()
-    );
-    const isRequestAccountCurrent = (): boolean => {
-      const scope = resolveRequestScope();
-      return scope !== null && isMediaAccountScopeCurrent(scope, getCurrentMediaOwnerScope());
-    };
-    const staleAccountResult = () => ({
-      content: [{
-        type: 'text',
-        text: t('authAccountChanged'),
-      }],
-      isError: true,
-      details: { status: 'cancelled', warnings: ['MEDIA_ACCOUNT_CHANGED'] },
-    });
-    const requestAccountScope = resolveRequestScope();
-    if (requestAccountScope === null || !isRequestAccountCurrent()) {
-      return staleAccountResult();
-    }
-    const selection = resolveMediaSelectionForSession(sessionId);
-    const prompt = typeof args.prompt === 'string' ? args.prompt : '';
-    const explicitModel = canonicalizeMediaModelId(typeof args.model === 'string' ? args.model : '');
-    const resolvedModelFromSelection = tool === MediaGenerationTool.Image
-      ? canonicalizeMediaModelId(selection?.imageModelId || selection?.modelId || '')
-      : canonicalizeMediaModelId(selection?.videoModelId || selection?.modelId || '');
-    let selectedModel = explicitModel || resolvedModelFromSelection;
-    let selectedModelSource = explicitModel ? 'tool' : resolvedModelFromSelection ? 'selection' : 'none';
-
-    if (action === 'generate' && tool === MediaGenerationTool.Image) {
-      const skinPreflight = await skinRuntime.preflightLobsterImageGeneration(
-        sessionId,
-        selection,
-      );
-      if (!isRequestAccountCurrent()) return staleAccountResult();
-      if (skinPreflight) return skinPreflight;
-    }
-
-    if (action === 'generate' && resolvedModelFromSelection && explicitModel && explicitModel !== resolvedModelFromSelection) {
-      console.warn(`[MediaGeneration] overriding LLM model choice "${explicitModel}" with user selection "${resolvedModelFromSelection}"`);
-      selectedModel = resolvedModelFromSelection;
-      selectedModelSource = 'selection-override';
-    }
-    console.log('[MediaGeneration] received tool request:', serializeForLog({
-      tool,
-      action,
-      sessionId: sessionId ?? '',
-      toolCallId: request.context.toolCallId,
-      selectionMode: selection?.mode ?? 'none',
-      selectedModel,
-      selectedModelSource,
-      promptLength: prompt.length,
-      promptPreview: prompt.slice(0, 120),
-    }));
-
-    // Tool gating: for generate action, check if media selection allows this tool
-    if (action === 'generate') {
-      const gate = resolveMediaGenerationGate({ action, tool, selection });
-      if (gate.allowed === false) {
-        if (gate.reason === MediaGenerationGateReason.MediaNotEnabled) {
-          console.warn('[MediaGeneration] blocked generate request because no media model was selected for this turn.');
-        } else {
-          console.warn('[MediaGeneration] blocked generate request because the selected turn model has a different media type.');
-        }
-        return {
-          content: [{ type: 'text', text: gate.message }],
-          isError: true,
-          details: { status: 'failed', warnings: [gate.reason] },
-        };
-      }
-    }
-
-    try {
-      if (action === 'list') {
-        const mediaType = tool === MediaGenerationTool.Image ? 'image' : 'video';
-
-        // Media models come entirely from the user's own provider config.
-        const mediaProvider = mediaType === 'image' ? getImageMediaProvider() : getVideoMediaProvider();
-        const localModels = mediaProvider?.resolver.listModels() ?? [];
-        console.log(`[MediaGeneration] loaded ${localModels.length} local ${mediaType} models from user config.`);
-        if (localModels.length === 0) {
-          return {
-            content: [{
-              type: 'text',
-              text: `No ${mediaType} models available.\n\nAsk the user to add a ${mediaType} model in Settings before generating.`,
-            }],
-            details: { status: 'succeeded', models: [] },
-          };
-        }
-        // The parameter table is identical for every model of a kind, so it is
-        // printed once after the model list instead of being repeated per model.
-        const parameterTable = formatMediaParameterSpec(
-          mediaParameterSpecFor(mediaType),
-        );
-        let text = `Available ${mediaType} models:\n\n${localModels.map(m => {
-          let line = `### ${m.displayName} (model: "${m.modelId}")`;
-          if (m.capabilities) line += `\n${m.capabilities}`;
-          return line;
-        }).join('\n\n')}`;
-        text += `\n\n---\nParameters accepted by ${mediaType} models (omit any of them that the request does not need):\n\n${parameterTable}`;
-        if (resolvedModelFromSelection) {
-          text += `\n\n---\n**Note:** The user has already selected model "${resolvedModelFromSelection}" for this session. You MUST use this model for the generate action. Do NOT choose a different model.`;
-        }
-        return { content: [{ type: 'text', text }], details: { status: 'succeeded', models: localModels } };
-      }
-
-      if (action === 'status') {
-        const taskId = args.taskId as string;
-        if (!taskId) {
-          console.warn('[MediaGeneration] blocked status request because taskId was missing.');
-          return { content: [{ type: 'text', text: 'taskId is required for status action.' }], isError: true };
-        }
-        const taskOwnerAccountKey = resolveMediaTaskOwner(taskId);
-        if (!canAccessTrackedMediaTask(taskOwnerAccountKey, requestAccountScope)) {
-          return staleAccountResult();
-        }
-        const pollCount = incrementMediaStatusPollCount(
-          sessionId,
-          requestAccountScope.ownerAccountKey,
-          taskId,
-        );
-        const mediaType = tool === MediaGenerationTool.Image ? 'images' : 'videos';
-        const statusMediaType = tool === MediaGenerationTool.Image ? 'image' : 'video';
-        const statusProvider = tool === MediaGenerationTool.Image
-          ? getImageMediaProvider()
-          : getVideoMediaProvider();
-        // Local tasks are polled upstream, so the owning provider target has to
-        // be recovered from the task id recorded at creation time.
-        const statusTarget = resolveHydratedMediaTaskTarget(taskId, statusProvider);
-        if (!statusProvider || !statusTarget) {
-          return {
-            content: [{ type: 'text', text: `Task "${taskId}" is not tracked by a local media provider.` }],
-            isError: true,
-            details: { status: 'failed', warnings: ['MEDIA_TASK_UNKNOWN'] },
-          };
-        }
-        console.log(`[MediaGeneration] checking ${mediaType} task status for local task ${taskId}.`);
-        const task = await statusProvider.status(taskId, statusTarget);
-        if (!isRequestAccountCurrent()) return staleAccountResult();
-
-        rememberMediaTaskOwnership(
-          requestAccountScope.ownerAccountKey,
-          task.taskId,
-          task.upstreamTaskId,
-        );
-        const status = task.status;
-        const resultUrls = task.resultUrls;
-        const outputModel = mediaModelIdForOutput(task.model);
-        if (sessionId && TERMINAL_MEDIA_TASK_STATUSES.has(status)) {
-          markMediaTaskHandledByStatusPolling(
-            sessionId,
-            requestAccountScope.ownerAccountKey,
-            taskId,
-          );
-        }
-        const assets = resultUrls.map((url, outputIndex) => ({
-          type: statusMediaType,
-          url,
-          outputIndex,
-          mimeType: resolveGeneratedMediaAssetMimeType(statusMediaType, url),
-        }));
-
-        let resultLines: string[];
-        let detailsAssets: unknown[] = assets;
-        if (status === MediaTaskStatus.Succeeded && statusMediaType === 'image' && sessionId) {
-          const persistResult = await persistGeneratedImages(sessionId, assets);
-          if (!isRequestAccountCurrent()) return staleAccountResult();
-          if (persistResult && persistResult.saved.length > 0) {
-            detailsAssets = persistResult.saved;
-            resultLines = persistResult.saved.map(asset =>
-              `  - [${asset.filename}](${pathToFileURL(asset.filePath).toString()})`
-            );
-          } else {
-            resultLines = resultUrls.map((url, index) => `  - ![Generated image ${index + 1}](${url})`);
-          }
-        } else if (status === MediaTaskStatus.Succeeded && statusMediaType === 'video' && sessionId) {
-          const persistResult = await persistGeneratedVideos(sessionId, assets);
-          if (!isRequestAccountCurrent()) return staleAccountResult();
-          if (persistResult && persistResult.saved.length > 0) {
-            detailsAssets = persistResult.saved;
-            resultLines = persistResult.saved.map(asset =>
-              `  - [${asset.filename}](${pathToFileURL(asset.filePath).toString()})`
-            );
-          } else {
-            resultLines = resultUrls.map(url => `  - ${url}`);
-          }
-        } else {
-          resultLines = statusMediaType === 'image'
-            ? resultUrls.map((_url, index) => `  - Generated image ${index + 1}`)
-            : resultUrls.map(url => `  - ${url}`);
-        }
-
-        const lines = [
-          `Task ID: ${task.upstreamTaskId || task.taskId}`,
-          `Model: ${outputModel}`,
-          ...(task.upstreamModel ? [`Selected model: ${task.upstreamModel}`] : []),
-          `Status: ${status}`,
-          ...(task.progress != null ? [`Progress: ${task.progress}%`] : []),
-          ...(resultUrls.length > 0 ? [`Results:\n${resultLines.join('\n')}`] : []),
-          ...(task.errorMessage ? [`Error: ${task.errorMessage}`] : []),
-        ];
-        const details = {
-          taskId: String(task.taskId),
-          ...(task.upstreamTaskId ? { upstreamTaskId: String(task.upstreamTaskId) } : {}),
-          status,
-          ...(pollCount > 1 ? { pollCount } : {}),
-          model: outputModel,
-          ...(task.upstreamModel ? { upstreamModel: task.upstreamModel } : {}),
-          mediaType: statusMediaType,
-          ...(detailsAssets.length > 0 ? { assets: detailsAssets } : {}),
-        };
-        if (sessionId) {
-          emitMediaStatusPollUpdate({
-            sessionId,
-            toolCallId: request.context.toolCallId,
-            details,
-          });
-        }
-
-        return {
-          content: [{ type: 'text', text: lines.join('\n') }],
-          details,
-        };
-      }
-
-      if (action === 'cancel' && tool === MediaGenerationTool.Video) {
-        const taskId = args.taskId as string;
-        if (!taskId) {
-          console.warn('[MediaGeneration] blocked cancel request because taskId was missing.');
-          return { content: [{ type: 'text', text: 'taskId is required for cancel action.' }], isError: true };
-        }
-        const taskOwnerAccountKey = resolveMediaTaskOwner(taskId);
-        if (!canAccessTrackedMediaTask(taskOwnerAccountKey, requestAccountScope)) {
-          return staleAccountResult();
-        }
-        const cancelProvider = getVideoMediaProvider();
-        const cancelTarget = resolveHydratedMediaTaskTarget(taskId, cancelProvider);
-        if (!cancelProvider?.cancel || !cancelTarget) {
-          return {
-            content: [{ type: 'text', text: `Task "${taskId}" is not tracked by a local media provider.` }],
-            isError: true,
-            details: { status: 'failed', warnings: ['MEDIA_TASK_UNKNOWN'] },
-          };
-        }
-        console.log(`[MediaGeneration] cancelling local video task ${taskId}.`);
-        const cancelResult = await cancelProvider.cancel(taskId, cancelTarget);
-        if (!isRequestAccountCurrent()) return staleAccountResult();
-        if (!cancelResult.cancelled) {
-          return {
-            content: [{ type: 'text', text: cancelResult.errorMessage || 'Failed to cancel task.' }],
-            isError: true,
-            details: { taskId, status: 'failed' },
-          };
-        }
-        return {
-          content: [{ type: 'text', text: `Task ${taskId} cancelled successfully.` }],
-          details: { taskId, status: 'cancelled' },
-        };
-      }
-
-      // action === 'generate'
-      const mediaType = tool === MediaGenerationTool.Image ? 'image' : 'video';
-
-      // The former server-side cost confirmation is gone: local providers are
-      // billed by the user's own account, so the app cannot estimate points.
-
-      let params: Record<string, unknown> = {};
-      if (args.image) {
-        const existing = (args.images as string[]) || [];
-        params.images = [args.image as string, ...existing];
-      } else if (args.images) {
-        params.images = args.images;
-      }
-      if (args.imageRoles) params.imageRoles = args.imageRoles;
-      if (args.firstFrame) params.firstFrame = args.firstFrame;
-      if (args.lastFrame) params.lastFrame = args.lastFrame;
-      if (args.referenceImages) params.referenceImages = args.referenceImages;
-      if (args.media) params.media = args.media;
-      if (args.video) {
-        const existing = (args.videos as string[]) || [];
-        params.videos = [args.video as string, ...existing];
-      } else if (args.videos) {
-        params.videos = args.videos;
-      }
-      if (args.videoRoles) params.videoRoles = args.videoRoles;
-      if (args.aspectRatio) params.aspectRatio = args.aspectRatio;
-      if (args.resolution) params.resolution = args.resolution;
-      if (args.size) params.size = args.size;
-      if (mediaType === 'image') {
-        if (args.n != null) params.n = args.n;
-        if (args.quality) params.quality = args.quality;
-        if (args.outputFormat) params.outputFormat = args.outputFormat;
-        if (args.output_format) params.output_format = args.output_format;
-        if (args.temperature != null) params.temperature = args.temperature;
-        if (args.imageSize) params.imageSize = args.imageSize;
-      }
-      if (args.count) params.count = args.count;
-      if (args.durationSeconds != null) params.durationSeconds = args.durationSeconds;
-      if (args.audio != null) params.audio = args.audio;
-      if (args.watermark != null) params.watermark = args.watermark;
-      if (args.seed != null) params.seed = args.seed;
-      if (args.returnLastFrame != null) params.returnLastFrame = args.returnLastFrame;
-      if (args.cameraFixed != null) params.cameraFixed = args.cameraFixed;
-      if (args.filename) params.filename = args.filename;
-      if (args.providerOptions) {
-        params.providerOptions = args.providerOptions;
-        const providerOptions = args.providerOptions;
-        if (providerOptions && typeof providerOptions === 'object' && !Array.isArray(providerOptions)) {
-          const rawMedia = (providerOptions as Record<string, unknown>).media;
-          if (!params.media && Array.isArray(rawMedia)) {
-            params.media = rawMedia;
-          }
-        }
-      }
-
-      const refs = sessionId ? mediaReferencesBySession.get(sessionId) : undefined;
-      params = applyMediaReferencesToGenerationParams({
-        mediaType: mediaType === MediaGenerationRequestType.Video
-          ? MediaGenerationRequestType.Video
-          : MediaGenerationRequestType.Image,
-        params,
-        refs,
-      });
-
-      // Convert local file paths to data URLs
-      const MEDIA_MIME: Record<string, string> = {
-        '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-        '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
-        '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm',
-      };
-      const resolveRef = async (ref: string): Promise<string> => {
-        if (!ref || ref.startsWith('http') || ref.startsWith('oss://') || ref.startsWith('data:')) return ref;
-        const filePath = ref.startsWith('file://') ? fileURLToPath(ref) : path.resolve(ref);
-        const buf = await fs.promises.readFile(filePath);
-        const mime = MEDIA_MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
-        return `data:${mime};base64,${buf.toString('base64')}`;
-      };
-      const resolveStringParam = async (name: string) => {
-        if (typeof params[name] === 'string') {
-          params[name] = await resolveRef(params[name] as string);
-        }
-      };
-      const resolveStringArrayParam = async (name: string) => {
-        if (Array.isArray(params[name])) {
-          params[name] = await Promise.all((params[name] as string[]).map(resolveRef));
-        }
-      };
-      const resolveMediaItem = async (item: unknown): Promise<unknown> => {
-        if (typeof item === 'string') {
-          return resolveRef(item);
-        }
-        if (!item || typeof item !== 'object' || Array.isArray(item)) {
-          return item;
-        }
-        const next: Record<string, unknown> = { ...(item as Record<string, unknown>) };
-        if (typeof next.url === 'string') {
-          next.url = await resolveRef(next.url);
-        }
-        for (const key of ['image_url', 'video_url', 'audio_url']) {
-          const nested = next[key];
-          if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
-            const nestedRecord = nested as Record<string, unknown>;
-            if (typeof nestedRecord.url === 'string') {
-              next[key] = { ...nestedRecord, url: await resolveRef(nestedRecord.url) };
-            }
-          }
-        }
-        return next;
-      };
-      if (Array.isArray(params.images)) {
-        params.images = await Promise.all((params.images as string[]).map(resolveRef));
-      }
-      await resolveStringParam('firstFrame');
-      await resolveStringParam('lastFrame');
-      await resolveStringArrayParam('referenceImages');
-      if (Array.isArray(params.videos)) {
-        params.videos = await Promise.all((params.videos as string[]).map(resolveRef));
-      }
-      if (Array.isArray(params.media)) {
-        params.media = await Promise.all((params.media as unknown[]).map(resolveMediaItem));
-      }
-
-      // Image generation runs locally against the user's own configured media
-      // provider; video follows further below.
-      if (mediaType === 'image') {
-        const imageProvider = getImageMediaProvider();
-        if (!imageProvider) {
-          return {
-            content: [{ type: 'text', text: t('mediaImageProviderNotConfigured') }],
-            isError: true,
-            details: { status: 'failed', warnings: ['MEDIA_IMAGE_PROVIDER_NOT_CONFIGURED'] },
-          };
-        }
-        const target = imageProvider.resolver.resolveTarget(selectedModel);
-        if (!target) {
-          const known = imageProvider.resolver.listModels();
-          const hint = known.length > 0
-            ? `Available image models: ${known.map(m => `"${m.modelId}"`).join(', ')}.`
-            : 'No image model has been configured in Settings.';
-          return {
-            content: [{ type: 'text', text: `Image model "${selectedModel}" is not configured for local generation. ${hint}` }],
-            isError: true,
-            details: { status: 'failed', warnings: ['MEDIA_IMAGE_MODEL_UNKNOWN'] },
-          };
-        }
-
-        console.log('[MediaGeneration] sending image generate request to local provider:', serializeForLog({
-          providerKey: target.providerKey,
-          model: target.modelId,
-          selectedModelSource,
-          promptLength: prompt.length,
-          promptPreview: prompt.slice(0, 120),
-          params: summarizeMediaGenerationParamsForLog(params),
-        }));
-
-        const output = await imageProvider.generate({ target, prompt, params });
-        if (!isRequestAccountCurrent()) return staleAccountResult();
-
-        const outputModel = mediaModelIdForOutput(output.model, target.modelId);
-        const assets = output.resultUrls.map((url, outputIndex) => ({
-          type: mediaType,
-          url,
-          outputIndex,
-          mimeType: resolveGeneratedMediaAssetMimeType(mediaType, url),
-          ...(args.filename ? { filename: args.filename as string } : {}),
-        }));
-        let detailsAssets: unknown[] = assets;
-        const lines = [
-          'Image generation task created.',
-          `Task ID: ${output.taskId}`,
-          `Model: ${outputModel}`,
-          `Status: ${output.status}`,
-        ];
-
-        if (sessionId) {
-          const persistResult = await persistGeneratedImages(sessionId, assets);
-          if (!isRequestAccountCurrent()) return staleAccountResult();
-          if (persistResult && persistResult.saved.length > 0) {
-            detailsAssets = persistResult.saved;
-            const fileLines = persistResult.saved.map(asset =>
-              `  - [${asset.filename}](${pathToFileURL(asset.filePath).toString()})`
-            );
-            lines.push(`Results:\n${fileLines.join('\n')}`);
-          } else {
-            const resultLines = output.resultUrls.map((url, index) => `  - ![Generated image ${index + 1}](${url})`);
-            lines.push(`Results:\n${resultLines.join('\n')}`);
-          }
-        } else {
-          const resultLines = output.resultUrls.map((url, index) => `  - ![Generated image ${index + 1}](${url})`);
-          lines.push(`Results:\n${resultLines.join('\n')}`);
-        }
-
-        return {
-          content: [{ type: 'text', text: lines.join('\n') }],
-          details: {
-            taskId: output.taskId,
-            status: output.status,
-            model: outputModel,
-            ...(output.upstreamModel ? { upstreamModel: output.upstreamModel } : {}),
-            mediaType,
-            ...(detailsAssets.length > 0 ? { assets: detailsAssets } : {}),
-          },
-        };
-      }
-
-      // Video generation also runs locally against the user's own provider.
-      const videoProvider = getVideoMediaProvider();
-      if (!videoProvider) {
-        return {
-          content: [{ type: 'text', text: t('mediaVideoProviderNotConfigured') }],
-          isError: true,
-          details: { status: 'failed', warnings: ['MEDIA_VIDEO_PROVIDER_NOT_CONFIGURED'] },
-        };
-      }
-      const videoTarget = videoProvider.resolver.resolveTarget(selectedModel);
-      if (!videoTarget) {
-        const known = videoProvider.resolver.listModels();
-        const hint = known.length > 0
-          ? `Available video models: ${known.map(m => `"${m.modelId}"`).join(', ')}.`
-          : 'No video model has been configured in Settings.';
-        return {
-          content: [{ type: 'text', text: `Video model "${selectedModel}" is not configured for local generation. ${hint}` }],
-          isError: true,
-          details: { status: 'failed', warnings: ['MEDIA_VIDEO_MODEL_UNKNOWN'] },
-        };
-      }
-
-      console.log('[MediaGeneration] sending video generate request to local provider:', serializeForLog({
-        providerKey: videoTarget.providerKey,
-        model: videoTarget.modelId,
-        selectedModelSource,
-        promptLength: prompt.length,
-        promptPreview: prompt.slice(0, 120),
-        params: summarizeMediaGenerationParamsForLog(params),
-      }));
-
-      // MiniMax rejects duplicate concurrent submissions, so a caller-provided
-      // marker is only used for logging; no server-side dedup exists locally.
-      const output = await videoProvider.generate({ target: videoTarget, prompt, params });
-      if (!isRequestAccountCurrent()) return staleAccountResult();
-
-      const outputModel = mediaModelIdForOutput(output.model, videoTarget.modelId);
-      const isTerminal = TERMINAL_MEDIA_TASK_STATUSES.has(output.status);
-      const videoAssets = output.resultUrls.map((url, outputIndex) => ({
-        type: mediaType,
-        url,
-        outputIndex,
-        mimeType: resolveGeneratedMediaAssetMimeType(mediaType, url),
-        ...(args.filename ? { filename: args.filename as string } : {}),
-      }));
-
-      let videoDetailsAssets: unknown[] = videoAssets;
-      const videoLines = [
-        'Video generation task created.',
-        `Task ID: ${output.taskId}`,
-        `Model: ${outputModel}`,
-        `Status: ${output.status}`,
-      ];
-
-      if (output.status === MediaTaskStatus.Succeeded && sessionId) {
-        const persistResult = await persistGeneratedVideos(sessionId, videoAssets);
-        if (!isRequestAccountCurrent()) return staleAccountResult();
-        if (persistResult && persistResult.saved.length > 0) {
-          videoDetailsAssets = persistResult.saved;
-          const fileLines = persistResult.saved.map(asset =>
-            `  - [${asset.filename}](${pathToFileURL(asset.filePath).toString()})`
-          );
-          videoLines.push(`Results:\n${fileLines.join('\n')}`);
-        } else if (output.resultUrls.length > 0) {
-          const resultLines = output.resultUrls.map(url => `  - ${url}`);
-          videoLines.push(`Results:\n${resultLines.join('\n')}`);
-        }
-      } else if (output.resultUrls.length > 0) {
-        const resultLines = output.resultUrls.map(url => `  - ${url}`);
-        videoLines.push(`Results:\n${resultLines.join('\n')}`);
-      }
-      if (output.errorMessage) {
-        videoLines.push(`Error: ${output.errorMessage}`);
-      }
-
-      // Poll in the background until the task reaches a terminal state.
-      if (!isTerminal && sessionId && requestAccountScope && isRequestAccountCurrent()) {
-        registerMediaTaskForPolling({
-          taskId: output.taskId,
-          sessionId,
-          mediaType,
-          model: output.upstreamModel || outputModel,
-          ownerAccountKey: requestAccountScope.ownerAccountKey,
-          accountGeneration: requestAccountScope.accountGeneration,
-          startedAt: Date.now(),
-          pollCount: 0,
-          timeoutMs: MEDIA_TASK_DEFAULT_TIMEOUT_MS,
-        });
-      }
-
-      return {
-        content: [{ type: 'text', text: videoLines.join('\n') }],
-        details: {
-          taskId: output.taskId,
-          ...(output.upstreamTaskId ? { upstreamTaskId: output.upstreamTaskId } : {}),
-          status: output.status,
-          model: outputModel,
-          ...(output.upstreamModel ? { upstreamModel: output.upstreamModel } : {}),
-          mediaType,
-          ...(videoDetailsAssets.length > 0 ? { assets: videoDetailsAssets } : {}),
-        },
-      };
-    } catch (error) {
-      if (!isRequestAccountCurrent()) return staleAccountResult();
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error('[MediaGeneration] media generation request failed:', error);
-      return { content: [{ type: 'text', text: `Media generation error: ${msg}` }], isError: true };
-    }
-  };
-
-  getMcpRuntime().setMediaGenerationHandler(handleMediaGenerationCallback);
-  // Media API keys are encrypted at rest with the OS keychain.
-  //
-  // This must stay on the post-`app.whenReady()` path: `safeStorage` throws if
-  // `encryptString`/`decryptString` are called before the app is ready (on
-  // Windows and Linux encryption is also unavailable until then). Every actual
-  // call happens later, inside IPC handlers and tool callbacks.
-  setMediaProviderCrypto(safeStorage);
-  // initMediaProviders needs the SQLite store, which only exists after
-  // initStore() inside initApp(). It is therefore invoked from initApp's
-  // post-store section (search INIT_MEDIA_PROVIDERS below), not here.
-
-
-  const registerMediaTaskForPolling = (tracker: MediaTaskTracker) => {
-    rememberMediaTaskOwnership(tracker.ownerAccountKey, tracker.taskId);
-    pendingMediaTasks.set(tracker.taskId, tracker);
-    ensureMediaPollTimerRunning();
-  };
-
-  const ensureMediaPollTimerRunning = () => {
-    if (mediaTaskPollTimer) return;
-    mediaTaskPollTimer = setInterval(() => {
-      if (mediaTaskPollInFlight) return;
-      mediaTaskPollInFlight = true;
-      void pollPendingMediaTasks().catch(error => {
-        console.warn('[MediaGeneration] pending task polling cycle failed:', error);
-      }).finally(() => {
-        mediaTaskPollInFlight = false;
-      });
-    }, MEDIA_POLL_FAST_MS);
-  };
-
-  const stopMediaPollTimer = () => {
-    if (mediaTaskPollTimer) {
-      clearInterval(mediaTaskPollTimer);
-      mediaTaskPollTimer = null;
-    }
-  };
-
-  const pollPendingMediaTasks = async () => {
-    if (pendingMediaTasks.size === 0) {
-      stopMediaPollTimer();
-      return;
-    }
-
-    const now = Date.now();
-    const tasksToRemove = new Map<string, MediaTaskTracker>();
-
-    for (const [taskId, tracker] of pendingMediaTasks) {
-      const reboundAccountScope = rebindMediaAccountScope(
-        tracker.ownerAccountKey,
-        getCurrentMediaOwnerScope(),
-      );
-      if (reboundAccountScope === null) {
-        // Keep the task paused in memory. If the user switches back to the
-        // owning account, polling resumes with that account's new generation.
-        continue;
-      }
-      if (tracker.accountGeneration !== reboundAccountScope.accountGeneration) {
-        tracker.accountGeneration = reboundAccountScope.accountGeneration;
-      }
-      const trackerAccountScope: MediaAccountScope = {
-        ownerAccountKey: tracker.ownerAccountKey,
-        accountGeneration: tracker.accountGeneration,
-      };
-
-      if (isMediaTaskHandledByStatusPolling(
-        tracker.sessionId,
-        tracker.ownerAccountKey,
-        taskId,
-      )) {
-        tasksToRemove.set(taskId, tracker);
-        continue;
-      }
-
-      if (now - tracker.startedAt > tracker.timeoutMs) {
-        tasksToRemove.set(taskId, tracker);
-        emitMediaTaskMessage(tracker.sessionId, `${tracker.mediaType === 'video' ? 'Video' : 'Image'} generation timed out.\nTask ID: ${taskId}\nStatus: timeout`);
-        continue;
-      }
-
-      if (tracker.pollCount >= MEDIA_POLL_FAST_COUNT) {
-        const lastPollTime = tracker.lastPollAt ?? tracker.startedAt;
-        const sinceLast = now - lastPollTime;
-        const totalSlowAndMedium = MEDIA_POLL_FAST_COUNT + MEDIA_POLL_SLOW_COUNT;
-        const totalBeforeIdle = totalSlowAndMedium + MEDIA_POLL_MEDIUM_COUNT;
-        if (tracker.pollCount >= totalBeforeIdle) {
-          if (sinceLast < MEDIA_POLL_IDLE_MS) continue;
-        } else if (tracker.pollCount >= totalSlowAndMedium) {
-          if (sinceLast < MEDIA_POLL_MEDIUM_MS) continue;
-        } else {
-          if (sinceLast < MEDIA_POLL_SLOW_MS) continue;
-        }
-      }
-
-      tracker.pollCount++;
-      tracker.lastPollAt = now;
-
-      try {
-        // Poll the owning local provider instead of the HiAi server.
-        const pollProvider = tracker.mediaType === 'video' ? getVideoMediaProvider() : getImageMediaProvider();
-        const pollTarget = resolveHydratedMediaTaskTarget(taskId, pollProvider);
-        if (!pollProvider || !pollTarget) {
-          tasksToRemove.set(taskId, tracker);
-          continue;
-        }
-        const polledTask = await pollProvider.status(taskId, pollTarget);
-
-        if (!isMediaAccountScopeCurrent(trackerAccountScope, getCurrentMediaOwnerScope())) {
-          continue;
-        }
-        const task = {
-          taskId: polledTask.taskId,
-          upstreamTaskId: polledTask.upstreamTaskId,
-          status: polledTask.status,
-          resultUrls: polledTask.resultUrls,
-          model: polledTask.model,
-          upstreamModel: polledTask.upstreamModel,
-          errorMessage: polledTask.errorMessage,
-        } as Record<string, unknown>;
-        rememberMediaTaskOwnership(
-          tracker.ownerAccountKey,
-          task.taskId,
-          task.upstreamTaskId,
-        );
-        const status = task.status as string;
-        if (isMediaTaskHandledByStatusPolling(
-          tracker.sessionId,
-          tracker.ownerAccountKey,
-          taskId,
-        )) {
-          tasksToRemove.set(taskId, tracker);
-          continue;
-        }
-
-        if (TERMINAL_MEDIA_TASK_STATUSES.has(status)) {
-          const resultUrls = (task.resultUrls as string[]) || [];
-          const outputModel = mediaModelIdForOutput(task.model, tracker.model);
-          const upstreamModel = typeof task.upstreamModel === 'string' && task.upstreamModel.trim()
-            ? task.upstreamModel.trim()
-            : undefined;
-          const modelSelectionReason = typeof task.modelSelectionReason === 'string' && task.modelSelectionReason.trim()
-            ? task.modelSelectionReason.trim()
-            : undefined;
-          const displayModel = upstreamModel || outputModel;
-          const assets = resultUrls.map((url, outputIndex) => ({
-            type: tracker.mediaType,
-            url,
-            outputIndex,
-            mimeType: resolveGeneratedMediaAssetMimeType(tracker.mediaType, url),
-          }));
-          if (status === 'succeeded' && tracker.mediaType === 'image') {
-            const persistResult = await persistGeneratedImages(tracker.sessionId, assets);
-            if (!isMediaAccountScopeCurrent(trackerAccountScope, getCurrentMediaOwnerScope())) {
-              continue;
-            }
-            if (persistResult && persistResult.saved.length > 0) {
-              const fileLines = persistResult.saved.map(asset => `  - [${asset.filename}](${pathToFileURL(asset.filePath).toString()})`);
-              emitMediaTaskMessage(
-                tracker.sessionId,
-                `Saved generated ${persistResult.saved.length === 1 ? 'image' : 'images'}:\n${fileLines.join('\n')}`,
-                {
-                  toolResultDetails: {
-                    taskId,
-                    status: 'succeeded',
-                    mediaType: 'image',
-                    assets: persistResult.saved,
-                  },
-                },
-              );
-            } else {
-              const resultLines = resultUrls.map((_url, index) => `  - Generated image ${index + 1}`);
-              emitMediaTaskMessage(tracker.sessionId, [
-                'Image generation succeeded.',
-                `Task ID: ${taskId}`,
-                `Model: ${displayModel}`,
-                ...(modelSelectionReason ? [`Selection reason: ${modelSelectionReason}`] : []),
-                ...(resultUrls.length > 0 ? [`Results:\n${resultLines.join('\n')}`] : []),
-                ...(task.errorMessage ? [`Error: ${task.errorMessage}`] : []),
-              ].join('\n'));
-            }
-          } else if (status === 'succeeded' && tracker.mediaType === 'video') {
-            const persistResult = await persistGeneratedVideos(tracker.sessionId, assets);
-            if (!isMediaAccountScopeCurrent(trackerAccountScope, getCurrentMediaOwnerScope())) {
-              continue;
-            }
-            if (persistResult && persistResult.saved.length > 0) {
-              const fileLines = persistResult.saved.map(asset => `  - [${asset.filename}](${pathToFileURL(asset.filePath).toString()})`);
-              emitMediaTaskMessage(
-                tracker.sessionId,
-                [
-                  `Saved generated ${persistResult.saved.length === 1 ? 'video' : 'videos'}:`,
-                  `Model: ${displayModel}`,
-                  ...(modelSelectionReason ? [`Selection reason: ${modelSelectionReason}`] : []),
-                  fileLines.join('\n'),
-                ].join('\n'),
-                {
-                  toolResultDetails: {
-                    taskId,
-                    status: 'succeeded',
-                    mediaType: 'video',
-                    model: outputModel,
-                    ...(upstreamModel ? { upstreamModel } : {}),
-                    ...(modelSelectionReason ? { modelSelectionReason } : {}),
-                    assets: persistResult.saved,
-                  },
-                },
-              );
-            } else {
-              const resultLines = resultUrls.map(url => `  - ${url}`);
-              emitMediaTaskMessage(
-                tracker.sessionId,
-                [
-                  'Video generation succeeded.',
-                  `Task ID: ${taskId}`,
-                  `Model: ${displayModel}`,
-                  ...(modelSelectionReason ? [`Selection reason: ${modelSelectionReason}`] : []),
-                  ...(resultUrls.length > 0 ? [`Results:\n${resultLines.join('\n')}`] : []),
-                  ...(task.errorMessage ? [`Error: ${task.errorMessage}`] : []),
-                ].join('\n'),
-                {
-                  toolResultDetails: {
-                    taskId,
-                    status: 'succeeded',
-                    mediaType: 'video',
-                    assets,
-                  },
-                },
-              );
-            }
-          } else {
-            const resultLines = tracker.mediaType === 'image'
-              ? resultUrls.map((_url, index) => `  - Generated image ${index + 1}`)
-              : resultUrls.map(url => `  - ${url}`);
-            const lines = [
-              `${tracker.mediaType === 'video' ? 'Video' : 'Image'} generation ${status}.`,
-              `Task ID: ${taskId}`,
-              `Model: ${tracker.model}`,
-              ...(resultUrls.length > 0 ? [`Results:\n${resultLines.join('\n')}`] : []),
-              ...(task.errorMessage ? [`Error: ${task.errorMessage}`] : []),
-            ];
-            emitMediaTaskMessage(tracker.sessionId, lines.join('\n'));
-          }
-          if (!shouldRemoveMediaTaskAfterPoll(
-            trackerAccountScope,
-            getCurrentMediaOwnerScope(),
-            true,
-          )) {
-            continue;
-          }
-          tasksToRemove.set(taskId, tracker);
-        }
-      } catch (error) {
-        // Keep retries quiet during transient failures while retaining enough
-        // sampled context to diagnose a task that remains stuck for hours.
-        if (tracker.pollCount === 1 || tracker.pollCount % 10 === 0) {
-          console.warn(
-            `[MediaGeneration] pending ${tracker.mediaType} task ${taskId} poll failed; retrying`,
-            error,
-          );
-        }
-      }
-    }
-
-    for (const [taskId, tracker] of tasksToRemove) {
-      if (pendingMediaTasks.get(taskId) === tracker) {
-        pendingMediaTasks.delete(taskId);
-      }
-    }
-
-    if (pendingMediaTasks.size === 0) {
-      stopMediaPollTimer();
-    }
-  };
-
-  const emitMediaTaskMessage = (sessionId: string, content: string, metadata?: Record<string, unknown>) => {
-    let message: CoworkMessage = {
-      id: `media-task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      type: 'system' as const,
-      content,
-      timestamp: Date.now(),
-      ...(metadata ? { metadata } : {}),
-    };
-    try {
-      message = getCoworkStore().addMessage(sessionId, {
-        type: 'system',
-        content,
-        ...(metadata ? { metadata } : {}),
-      });
-    } catch {
-      // Session may have been deleted
-    }
-    BrowserWindow.getAllWindows().forEach(win => {
-      if (!win.isDestroyed()) {
-        win.webContents.send('cowork:stream:message', { sessionId, message });
-      }
-    });
-  };
-
-  const persistGeneratedImages = async (
-    sessionId: string,
-    assets: RemoteGeneratedMediaAsset[],
-  ): Promise<PersistGeneratedImageAssetsResult | null> => {
-    const imageAssets = assets.filter(asset => asset.type === 'image' && asset.url.trim());
-    if (imageAssets.length === 0) return null;
-
-    const sessionForAssets = getCoworkStore().getSession(sessionId);
-    const cwd = sessionForAssets?.cwd?.trim();
-    if (!cwd) {
-      console.warn('[MediaGeneration] skipped image persistence because the session working directory was missing.');
-      return null;
-    }
-
-    const cachedAssets: PersistedGeneratedImageAsset[] = [];
-    const pendingAssets = imageAssets.filter(asset => {
-      const key = `${sessionId}:${asset.url.trim()}`;
-      const cached = persistedGeneratedImageAssetsByUrl.get(key);
-      if (cached) {
-        cachedAssets.push(cached);
-        return false;
-      }
-      return true;
-    });
-    if (pendingAssets.length === 0) {
-      return cachedAssets.length > 0 ? { saved: cachedAssets, failed: [] } : null;
-    }
-
-    try {
-      const result = await persistGeneratedImageAssets({
-        cwd,
-        assets: pendingAssets,
-        fetchAsset: url => session.defaultSession.fetch(url),
-      });
-      for (const saved of result.saved) {
-        persistedGeneratedImageAssetsByUrl.set(`${sessionId}:${saved.originalUrl || saved.url}`, saved);
-      }
-      for (const failed of result.failed) {
-        console.warn('[MediaGeneration] failed to persist generated image:', serializeForLog({ sessionId, error: failed.error }));
-      }
-      return {
-        saved: [...cachedAssets, ...result.saved],
-        failed: result.failed,
-      };
-    } catch (error) {
-      console.warn('[MediaGeneration] failed to persist generated image assets:', error);
-      return cachedAssets.length > 0 ? { saved: cachedAssets, failed: [] } : null;
-    }
-  };
-
-  const persistGeneratedVideos = async (
-    sessionId: string,
-    assets: RemoteGeneratedMediaAsset[],
-  ): Promise<PersistGeneratedImageAssetsResult | null> => {
-    const videoAssets = assets.filter(asset => asset.type === 'video' && asset.url.trim());
-    if (videoAssets.length === 0) return null;
-
-    const sessionForAssets = getCoworkStore().getSession(sessionId);
-    const cwd = sessionForAssets?.cwd?.trim();
-    if (!cwd) {
-      console.warn('[MediaGeneration] skipped video persistence because the session working directory was missing.');
-      return null;
-    }
-
-    const cachedAssets: PersistedGeneratedImageAsset[] = [];
-    const pendingAssets = videoAssets.filter(asset => {
-      const key = `${sessionId}:${asset.url.trim()}`;
-      const cached = persistedGeneratedVideoAssetsByUrl.get(key);
-      if (cached) {
-        cachedAssets.push(cached);
-        return false;
-      }
-      return true;
-    });
-    if (pendingAssets.length === 0) {
-      return cachedAssets.length > 0 ? { saved: cachedAssets, failed: [] } : null;
-    }
-
-    try {
-      const result = await persistGeneratedVideoAssets({
-        cwd,
-        assets: pendingAssets,
-        fetchAsset: url => session.defaultSession.fetch(url),
-      });
-      for (const saved of result.saved) {
-        persistedGeneratedVideoAssetsByUrl.set(`${sessionId}:${saved.originalUrl || saved.url}`, saved);
-      }
-      for (const failed of result.failed) {
-        console.warn('[MediaGeneration] failed to persist generated video:', serializeForLog({ sessionId, error: failed.error }));
-      }
-      return {
-        saved: [...cachedAssets, ...result.saved],
-        failed: result.failed,
-      };
-    } catch (error) {
-      console.warn('[MediaGeneration] failed to persist generated video assets:', error);
-      return cachedAssets.length > 0 ? { saved: cachedAssets, failed: [] } : null;
-    }
-  };
-
   ipcMain.handle(HtmlShareIpc.CreateFromHtmlFile, async (_event, input: unknown) => {
     let archivePath: string | undefined;
     try {
-      const { scopedFetch } = capturePublishingRequest();
-      const options = sanitizeCreateFromHtmlFileInput(input);
+            const options = sanitizeCreateFromHtmlFileInput(input);
       console.debug(
         `[HtmlShare] received HTML file share request for session ${options.sessionId} and artifact ${options.artifactId}`,
       );
@@ -6149,7 +4838,7 @@ if (!gotTheLock) {
       const result = await uploadHtmlShare(
         getServerApiBaseUrl(),
         getHtmlSharePublicBaseUrl(),
-        scopedFetch,
+        fetchWithAuth,
         {
           archivePath: packaged.archivePath,
           sourceType: HtmlShareSourceType.HtmlFile,
@@ -6205,15 +4894,14 @@ if (!gotTheLock) {
   ipcMain.handle(HtmlShareIpc.UpdateFromHtmlFile, async (_event, input: unknown) => {
     let archivePath: string | undefined;
     try {
-      const { scopedFetch } = capturePublishingRequest();
-      const options = sanitizeUpdateFromHtmlFileInput(input);
+            const options = sanitizeUpdateFromHtmlFileInput(input);
       const clientSourceKey = buildHtmlShareClientSourceKey(options.filePath);
       const packaged = await packageHtmlFile(options.filePath);
       archivePath = packaged.archivePath;
       const result = await updateHtmlShare(
         getServerApiBaseUrl(),
         getHtmlSharePublicBaseUrl(),
-        scopedFetch,
+        fetchWithAuth,
         options.shareId,
         {
           archivePath: packaged.archivePath,
@@ -6250,8 +4938,7 @@ if (!gotTheLock) {
   ipcMain.handle(HtmlShareIpc.CreateFromArtifactFile, async (_event, input: unknown) => {
     let archivePath: string | undefined;
     try {
-      const { scopedFetch } = capturePublishingRequest();
-      const options = sanitizeCreateFromArtifactFileInput(input);
+            const options = sanitizeCreateFromArtifactFileInput(input);
       console.debug(
         `[HtmlShare] received ${options.sourceType} share request for session ${options.sessionId} and artifact ${options.artifactId}`,
       );
@@ -6270,7 +4957,7 @@ if (!gotTheLock) {
       const result = await uploadHtmlShare(
         getServerApiBaseUrl(),
         getHtmlSharePublicBaseUrl(),
-        scopedFetch,
+        fetchWithAuth,
         {
           archivePath: packaged.archivePath,
           sourceType: options.sourceType,
@@ -6322,12 +5009,11 @@ if (!gotTheLock) {
 
   ipcMain.handle(HtmlShareIpc.CreateFromGeneratedVideo, async (_event, input: unknown) => {
     try {
-      const { scopedFetch } = capturePublishingRequest();
-      const options = sanitizeCreateFromGeneratedVideoInput(input);
+            const options = sanitizeCreateFromGeneratedVideoInput(input);
       return await createGeneratedVideoShare(
         getServerApiBaseUrl(),
         getHtmlSharePublicBaseUrl(),
-        scopedFetch,
+        fetchWithAuth,
         options,
       );
     } catch (error) {
@@ -6338,12 +5024,11 @@ if (!gotTheLock) {
 
   ipcMain.handle(HtmlShareIpc.GetGeneratedVideoSource, async (_event, input: unknown) => {
     try {
-      const { scopedFetch } = capturePublishingRequest();
-      const options = sanitizeGetGeneratedVideoSourceInput(input);
+            const options = sanitizeGetGeneratedVideoSourceInput(input);
       return await getGeneratedVideoShareSource(
         getServerApiBaseUrl(),
         getHtmlSharePublicBaseUrl(),
-        scopedFetch,
+        fetchWithAuth,
         options.taskId,
         options.outputIndex,
       );
@@ -6355,15 +5040,14 @@ if (!gotTheLock) {
 
   ipcMain.handle(HtmlShareIpc.ResolveLegacyGeneratedVideoSource, async (_event, input: unknown) => {
     try {
-      const { scopedFetch } = capturePublishingRequest();
-      const options = sanitizeResolveLegacyGeneratedVideoSourceInput(input);
+            const options = sanitizeResolveLegacyGeneratedVideoSourceInput(input);
       const resultUrlSha256 = crypto
         .createHash('sha256')
         .update(options.resultUrl, 'utf8')
         .digest('hex');
       return await resolveLegacyGeneratedVideoSource(
         getServerApiBaseUrl(),
-        scopedFetch,
+        fetchWithAuth,
         resultUrlSha256,
       );
     } catch (error) {
@@ -6391,8 +5075,7 @@ if (!gotTheLock) {
   ipcMain.handle(HtmlShareIpc.UpdateFromArtifactFile, async (_event, input: unknown) => {
     let archivePath: string | undefined;
     try {
-      const { scopedFetch } = capturePublishingRequest();
-      const options = sanitizeUpdateFromArtifactFileInput(input);
+            const options = sanitizeUpdateFromArtifactFileInput(input);
       const clientSourceKey = buildArtifactShareClientSourceKey(options);
       const packaged = await packageArtifactFile({
         sourceType: options.sourceType,
@@ -6405,7 +5088,7 @@ if (!gotTheLock) {
       const result = await updateHtmlShare(
         getServerApiBaseUrl(),
         getHtmlSharePublicBaseUrl(),
-        scopedFetch,
+        fetchWithAuth,
         options.shareId,
         {
           archivePath: packaged.archivePath,
@@ -6574,94 +5257,7 @@ if (!gotTheLock) {
     }
   });
 
-  // Media generation IPC handlers
-  ipcMain.handle(CoworkIpcChannel.GetMediaModels, async (_event, type: 'image' | 'video') => {
-    try {
-      if (type !== 'image' && type !== 'video') {
-        console.warn('[Media:getModels] rejected invalid media type');
-        return { success: false, error: 'Invalid media type' };
-      }
-      // Models come from the user's own provider config, so this no longer
-      // depends on a HiAi account or the server catalog.
-      const provider = type === 'image' ? getImageMediaProvider() : getVideoMediaProvider();
-      const models = (provider?.resolver.listModels() ?? []).map(model => ({
-        ...model,
-        modelId: canonicalizeMediaModelId(model.modelId),
-      }));
-      return { success: true, models };
-    } catch (e) {
-      console.error('[Media:getModels] Error:', e);
-      return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
-    }
-  });
 
-  ipcMain.handle(CoworkIpcChannel.GetMediaProviders, async () => {
-    try {
-      // Secrets are stripped: the renderer only learns whether a key is stored.
-      return { success: true, config: readMediaProvidersConfigForRenderer(getStore()) };
-    } catch (e) {
-      console.error('[Media:getProviders] Error:', e);
-      return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
-    }
-  });
-
-  ipcMain.handle(CoworkIpcChannel.SetMediaProviders, async (_event, config: unknown) => {
-    try {
-      const normalized = normalizeMediaProvidersConfig(config);
-      if (!normalized) {
-        return { success: false, error: 'Invalid media provider config.' };
-      }
-      // Carry the existing key over for any entry whose key the renderer did
-      // not (or could not) send back. Otherwise editing an unrelated field
-      // would blank a stored key, and a key that could not be decrypted would
-      // be destroyed outright.
-      const merged = mergeMediaProviderApiKeys(getStore(), normalized);
-      writeMediaProvidersConfig(getStore(), merged);
-      // Adapters read the store on every call, so the new config is live
-      // without an extra refresh step.
-      return { success: true, config: readMediaProvidersConfigForRenderer(getStore()) };
-    } catch (e) {
-      console.error('[Media:setProviders] Error:', e);
-      return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
-    }
-  });
-
-  ipcMain.handle('media:getTaskStatus', async (_event, taskId: string, type: 'image' | 'video') => {
-    try {
-      if (type !== 'image' && type !== 'video') {
-        console.warn('[Media:getTaskStatus] rejected invalid media type');
-        return { success: false, error: 'Invalid media type' };
-      }
-      const requestAccountScope = getCurrentMediaOwnerScope();
-      const taskOwnerAccountKey = resolveMediaTaskOwner(taskId);
-      if (
-        requestAccountScope === null
-        || !canAccessTrackedMediaTask(taskOwnerAccountKey, requestAccountScope)
-      ) {
-        return { success: false, error: t('mediaTaskAccountMismatch') };
-      }
-      // Task state now comes from the owning local provider.
-      const provider = type === 'video' ? getVideoMediaProvider() : getImageMediaProvider();
-      const target = resolveHydratedMediaTaskTarget(taskId, provider);
-      if (!provider || !target) {
-        return { success: false, error: 'Task is not tracked by a local media provider.' };
-      }
-      console.debug(`[Media:getTaskStatus] querying local ${type} task ${taskId}`);
-      const task = await provider.status(taskId, target);
-      if (!isMediaAccountScopeCurrent(requestAccountScope, getCurrentMediaOwnerScope())) {
-        return { success: false, error: t('authAccountChanged') };
-      }
-      rememberMediaTaskOwnership(
-        requestAccountScope.ownerAccountKey,
-        task.taskId,
-        task.upstreamTaskId,
-      );
-      return { success: true, task: task as unknown as Record<string, unknown> };
-    } catch (e) {
-      console.error('[Media:getTaskStatus] Error:', e);
-      return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
-    }
-  });
 
   // Skills IPC handlers
   registerSkillHandlers({
@@ -7337,21 +5933,12 @@ if (!gotTheLock) {
         agentId?: string;
         modelOverride?: string;
         thinkingLevel?: string;
-        mediaSelection?: {
-          mode: 'auto' | 'image' | 'video' | 'none';
-          modelId?: string;
-          modelName?: string;
-          imageModelId?: string;
-          videoModelId?: string;
-        };
-        mediaReferences?: MediaAttachmentRefMain[];
         selectedTextSnippets?: CoworkSelectedTextSnippet[];
         browserAnnotations?: CoworkBrowserAnnotationMessageBatch[];
       },
     ) => {
       try {
         const ipcStartedAtMs = Date.now();
-        const requestAccountScope = getCurrentMediaOwnerScope();
         console.log(
           '[CoworkFirstResponseTiming] start IPC received.',
           `Prompt length ${options.prompt.length}.`,
@@ -7375,15 +5962,6 @@ if (!gotTheLock) {
         });
         if (engineStatus.phase !== 'running') {
           return getEngineNotReadyResponse(engineStatus);
-        }
-        if (!isMediaAccountScopeSnapshotCurrent(
-          requestAccountScope,
-          getCurrentMediaOwnerScope(),
-        )) {
-          return {
-            success: false,
-            error: t('authAccountChanged'),
-          };
         }
 
         const coworkStoreInstance = getCoworkStore();
@@ -7458,33 +6036,8 @@ if (!gotTheLock) {
         const skinTurn = getSkinRuntimeController().prepareTurn({
           sessionId: session.id,
           kitIds: options.kitIds,
-          mediaSelection: normalizeMediaSelectionState(options.mediaSelection),
         });
-        const { workflowKind, mediaSelection: normalizedMediaSelection } = skinTurn;
-        if (requestAccountScope) {
-          mediaTurnAccountScopeBySession.set(session.id, requestAccountScope);
-        } else {
-          mediaTurnAccountScopeBySession.delete(session.id);
-        }
-        if (
-          requestAccountScope
-          && normalizedMediaSelection
-          && normalizedMediaSelection.mode !== 'none'
-        ) {
-          mediaSelectionBySession.set(
-            session.id,
-            bindAccountValue(normalizedMediaSelection, requestAccountScope),
-          );
-        } else {
-          mediaSelectionBySession.delete(session.id);
-        }
-
-        if (options.mediaReferences?.length) {
-          mediaReferencesBySession.set(session.id, options.mediaReferences);
-        } else {
-          mediaReferencesBySession.delete(session.id);
-        }
-
+        const { workflowKind } = skinTurn;
         if (options.imageAttachments?.length) {
           console.log('[Cowork:StartSession] imageAttachments received via IPC:', {
             count: options.imageAttachments.length,
@@ -7536,9 +6089,7 @@ if (!gotTheLock) {
             confirmationMode: 'modal',
             imageAttachments: options.imageAttachments,
             agentId: options.agentId,
-            mediaSelection: normalizedMediaSelection,
             workflowKind,
-            mediaReferences: options.mediaReferences,
             selectedTextSnippets,
             browserAnnotations,
           })
@@ -7592,21 +6143,12 @@ if (!gotTheLock) {
         kitReferences?: KitReference[];
         resolvedKitCapabilities?: ResolvedKitCapabilities;
         imageAttachments?: CoworkImageAttachmentMain[];
-        mediaSelection?: {
-          mode: 'auto' | 'image' | 'video' | 'none';
-          modelId?: string;
-          modelName?: string;
-          imageModelId?: string;
-          videoModelId?: string;
-        };
-        mediaReferences?: MediaAttachmentRefMain[];
         selectedTextSnippets?: CoworkSelectedTextSnippet[];
         browserAnnotations?: CoworkBrowserAnnotationMessageBatch[];
       },
     ) => {
       try {
         const ipcStartedAtMs = Date.now();
-        const requestAccountScope = getCurrentMediaOwnerScope();
         console.log(
           '[CoworkFirstResponseTiming] continue IPC received.',
           `Session ${options.sessionId}.`,
@@ -7624,15 +6166,6 @@ if (!gotTheLock) {
         });
         if (engineStatus.phase !== 'running') {
           return getEngineNotReadyResponse(engineStatus);
-        }
-        if (!isMediaAccountScopeSnapshotCurrent(
-          requestAccountScope,
-          getCurrentMediaOwnerScope(),
-        )) {
-          return {
-            success: false,
-            error: t('authAccountChanged'),
-          };
         }
 
         const runtime = getCoworkEngineRouter();
@@ -7671,33 +6204,8 @@ if (!gotTheLock) {
         const skinTurn = getSkinRuntimeController().prepareTurn({
           sessionId: options.sessionId,
           kitIds: options.kitIds,
-          mediaSelection: normalizeMediaSelectionState(options.mediaSelection),
         });
-        const { workflowKind, mediaSelection: normalizedMediaSelection } = skinTurn;
-        if (requestAccountScope) {
-          mediaTurnAccountScopeBySession.set(options.sessionId, requestAccountScope);
-        } else {
-          mediaTurnAccountScopeBySession.delete(options.sessionId);
-        }
-        if (
-          requestAccountScope
-          && normalizedMediaSelection
-          && normalizedMediaSelection.mode !== 'none'
-        ) {
-          mediaSelectionBySession.set(
-            options.sessionId,
-            bindAccountValue(normalizedMediaSelection, requestAccountScope),
-          );
-        } else {
-          mediaSelectionBySession.delete(options.sessionId);
-        }
-
-        if (options.mediaReferences?.length) {
-          mediaReferencesBySession.set(options.sessionId, options.mediaReferences);
-        } else {
-          mediaReferencesBySession.delete(options.sessionId);
-        }
-
+        const { workflowKind } = skinTurn;
         if (options.imageAttachments?.length) {
           console.log('[Cowork:ContinueSession] imageAttachments received via IPC:', {
             sessionId: options.sessionId,
@@ -7724,9 +6232,7 @@ if (!gotTheLock) {
             kitReferences: options.kitReferences,
             resolvedKitCapabilities: options.resolvedKitCapabilities,
             imageAttachments: options.imageAttachments,
-            mediaSelection: normalizedMediaSelection,
             workflowKind,
-            mediaReferences: options.mediaReferences,
             selectedTextSnippets,
             browserAnnotations,
           })
@@ -7911,7 +6417,6 @@ if (!gotTheLock) {
       ? options.clientSteerId.trim()
       : `steer-${Date.now()}`;
     try {
-      const requestAccountScope = getCurrentMediaOwnerScope();
       const sessionId = typeof options?.sessionId === 'string' ? options.sessionId.trim() : '';
       const text = typeof options?.text === 'string' ? options.text.trim() : '';
       if (!sessionId || !text) {
@@ -7921,19 +6426,6 @@ if (!gotTheLock) {
           clientSteerId,
           reason: CoworkSteerRejectReason.EmptyInput,
           error: 'Session id and steer input are required.',
-        };
-      }
-      const requestTurnAccountScope = resolveMediaTurnAccountScopeForSession(sessionId);
-      if (!isMediaAccountScopeSnapshotCurrent(
-        requestAccountScope,
-        requestTurnAccountScope,
-      )) {
-        return {
-          success: false,
-          status: CoworkSteerStatus.Rejected,
-          clientSteerId,
-          reason: CoworkSteerRejectReason.RuntimeRejected,
-          error: t('mediaTaskAccountMismatch'),
         };
       }
       console.debug(
@@ -7952,25 +6444,6 @@ if (!gotTheLock) {
           reason: CoworkSteerRejectReason.RuntimeRejected,
         };
       }
-      if (
-        !isMediaAccountScopeSnapshotCurrent(
-          requestAccountScope,
-          getCurrentMediaOwnerScope(),
-        )
-        || !isMediaAccountScopeSnapshotCurrent(
-          requestTurnAccountScope,
-          resolveMediaTurnAccountScopeForSession(sessionId),
-        )
-      ) {
-        return {
-          success: false,
-          status: CoworkSteerStatus.Rejected,
-          clientSteerId,
-          reason: CoworkSteerRejectReason.RuntimeRejected,
-          error: t('authAccountChanged'),
-        };
-      }
-
       const runtime = getCoworkEngineRouter();
       if (!runtime.submitSteer) {
         return {
@@ -7983,18 +6456,6 @@ if (!gotTheLock) {
       }
 
       const result = await runtime.submitSteer(sessionId, text, clientSteerId);
-      if (!isMediaAccountScopeSnapshotCurrent(
-        requestAccountScope,
-        getCurrentMediaOwnerScope(),
-      )) {
-        return {
-          success: false,
-          status: CoworkSteerStatus.Rejected,
-          clientSteerId,
-          reason: CoworkSteerRejectReason.RuntimeRejected,
-          error: t('authAccountChanged'),
-        };
-      }
       console.debug(
         '[CoworkSteer] steer IPC completed.',
         `Session ${sessionId}.`,
@@ -8204,17 +6665,8 @@ if (!gotTheLock) {
       getCoworkEngineRouter().stopSession(sessionId);
       const coworkStoreInstance = getCoworkStore();
       coworkStoreInstance.deleteSession(sessionId);
-      mediaSelectionBySession.delete(sessionId);
-      mediaTurnAccountScopeBySession.delete(sessionId);
       skinRuntimeController?.handleSessionDeleted(sessionId);
-      mediaReferencesBySession.delete(sessionId);
       getDesktopNotificationManager().handleSessionDeleted(sessionId);
-      // Remove any pending media tasks for this session
-      for (const [taskId, tracker] of pendingMediaTasks) {
-        if (tracker.sessionId === sessionId) pendingMediaTasks.delete(taskId);
-      }
-      clearHandledMediaTasksForSession(sessionId);
-      clearMediaStatusPollCountsForSession(sessionId);
       // Clean up IM session mapping so that new channel messages
       // create a fresh session instead of referencing a deleted one.
       try {
@@ -8748,39 +7200,6 @@ if (!gotTheLock) {
   registerCoworkSubagentHandlers({
     getOpenClawRuntimeAdapter: () => openClawRuntimeAdapter,
     getCoworkEngineRouter,
-  });
-
-  ipcMain.handle(CoworkIpcChannel.CancelMediaTask, async (_event, taskId: string) => {
-    try {
-      const requestAccountScope = getCurrentMediaOwnerScope();
-      const taskOwnerAccountKey = resolveMediaTaskOwner(taskId);
-      if (
-        requestAccountScope === null
-        || !canAccessTrackedMediaTask(taskOwnerAccountKey, requestAccountScope)
-      ) {
-        return { success: false, message: t('mediaTaskAccountMismatch') };
-      }
-      // Cancellation also runs against the local provider; the owning target
-      // is recovered from the registry recorded at creation time.
-      const provider = getVideoMediaProvider();
-      const target = resolveHydratedMediaTaskTarget(taskId, provider);
-      if (!provider?.cancel || !target) {
-        return { success: false, message: 'Task is not tracked by a local media provider.' };
-      }
-      const cancelResult = await provider.cancel(taskId, target);
-      if (!isMediaAccountScopeCurrent(requestAccountScope, getCurrentMediaOwnerScope())) {
-        return { success: false, message: t('authAccountChanged') };
-      }
-      if (!cancelResult.cancelled) {
-        return { success: false, message: cancelResult.errorMessage || 'Cancel failed' };
-      }
-      // Stop the background poll so it does not keep querying a cancelled task.
-      pendingMediaTasks.delete(taskId);
-      if (pendingMediaTasks.size === 0) stopMediaPollTimer();
-      return { success: true };
-    } catch (error) {
-      return { success: false, message: error instanceof Error ? error.message : 'Cancel failed' };
-    }
   });
 
   ipcMain.handle(CoworkIpcChannel.GetPendingQuestions, () => getCoworkEngineRouter().getPendingQuestions());
@@ -12427,13 +10846,6 @@ if (!gotTheLock) {
     console.log(`[Main] App cleanup started for ${reason}`);
     currentAppCleanupStep = 'sync-teardown';
     skillManager?.stopWatching();
-    stopMediaPollTimer();
-    pendingMediaTasks.clear();
-    mediaTaskOwnerById.clear();
-    mediaSelectionBySession.clear();
-    mediaTurnAccountScopeBySession.clear();
-    mediaTasksHandledByStatusPolling.clear();
-    mediaStatusPollCounts.clear();
     const browserHost = agentBrowserHost;
     agentBrowserHost = null;
 
@@ -12646,9 +11058,6 @@ if (!gotTheLock) {
     store = await initStore();
     profiler.measure('initStore');
     console.log('[Main] initApp: store initialized');
-    // INIT_MEDIA_PROVIDERS: must run after initStore(); the provider adapters
-    // read provider entries from SQLite during registration.
-    initMediaProviders({ store: getStore() });
     const libraryLocalStore = new LibraryLocalStore(store.getDatabase());
     const emitLibraryChanged = (payload: LibraryChangedPayload): void => {
       for (const window of BrowserWindow.getAllWindows()) {
@@ -12671,8 +11080,7 @@ if (!gotTheLock) {
       indexService: libraryIndexService,
       getServerApiBaseUrl,
       fetchWithAuth: (url, options) => {
-        const { scopedFetch } = capturePublishingRequest();
-        return scopedFetch(url, options);
+                return fetchWithAuth(url, options);
       },
     });
     libraryIndexService.start();
@@ -12714,7 +11122,6 @@ if (!gotTheLock) {
     }
     // Inject store getter into claudeSettings
     setStoreGetter(() => store);
-    setServerBaseUrlGetter(() => getServerApiBaseUrl());
 
     // Initialize Copilot token manager and restore token state if available
     initCopilotTokenManager(getStore);

@@ -1,7 +1,7 @@
 /**
  * McpBridgeServer — authenticated loopback callbacks shared by OpenClaw integrations.
  *
- * Provides AskUser, media-generation, decision-model, in-app browser and Office
+ * Provides AskUser, decision-model, in-app browser and Office
  * editor (Word, Excel, PowerPoint) endpoints. Binds to 127.0.0.1 only and
  * requires the bridge secret, which persists for an app version so OpenClaw's
  * config stays stable.
@@ -10,7 +10,6 @@ import crypto from 'crypto';
 import http from 'http';
 
 import { listenOnLoopback } from './loopbackListen';
-import { serializeForLog } from './sanitizeForLog';
 
 const log = (level: string, msg: string) => {
   const formatted = `[McpBridge:HTTP][${level}] ${msg}`;
@@ -51,21 +50,6 @@ type PendingAskUser = {
   timer: ReturnType<typeof setTimeout>;
 };
 
-export type MediaGenerationRequest = {
-  tool: string;
-  args: Record<string, unknown>;
-  context: {
-    sessionKey: string;
-    toolCallId: string;
-  };
-};
-
-export type MediaGenerationResponse = {
-  content: Array<{ type: string; text: string }>;
-  isError?: boolean;
-  details?: Record<string, unknown>;
-};
-
 export type BrowserToolRequest = {
   tool: string;
   args: Record<string, unknown>;
@@ -80,6 +64,21 @@ export type BrowserToolResponse = {
 /** Document editor tools (the Office editors) share the browser tools' request and result shapes. */
 export type EditorToolRequest = BrowserToolRequest;
 export type EditorToolResponse = BrowserToolResponse;
+export type SkinToolRequest = {
+  tool: string;
+  args: Record<string, unknown>;
+  context: {
+    sessionKey: string;
+    toolCallId: string;
+  };
+};
+
+export type SkinToolResponse = {
+  content: Array<{ type: string; text: string }>;
+  isError?: boolean;
+  details?: Record<string, unknown>;
+};
+
 export type EditorToolHandler = (request: EditorToolRequest) => Promise<EditorToolResponse>;
 
 export type DecisionToolRequest = {
@@ -108,9 +107,9 @@ export class McpBridgeServer {
   private readonly pendingAskUser = new Map<string, PendingAskUser>();
   private onAskUserCallback: ((request: AskUserRequest) => void) | null = null;
   private onAskUserDismissCallback: ((requestId: string) => void) | null = null;
-  private onMediaGenerationCallback: ((request: MediaGenerationRequest) => Promise<MediaGenerationResponse>) | null = null;
   private onBrowserToolCallback: ((request: BrowserToolRequest) => Promise<BrowserToolResponse>) | null = null;
   private onDecisionToolCallback: DecisionToolHandler | null = null;
+  private onSkinToolCallback: ((request: SkinToolRequest) => Promise<SkinToolResponse>) | null = null;
   /** Editor tool handlers by route, served at `/<route>/tool`. */
   private readonly editorTools = new Map<string, { editorName: string; handler: EditorToolHandler }>();
 
@@ -128,16 +127,16 @@ export class McpBridgeServer {
     return this._port ? `http://127.0.0.1:${this._port}/askuser` : null;
   }
 
-  get mediaCallbackUrl(): string | null {
-    return this._port ? `http://127.0.0.1:${this._port}/media-generation/tool` : null;
-  }
-
   get browserCallbackUrl(): string | null {
     return this._port ? `http://127.0.0.1:${this._port}/browser/tool` : null;
   }
 
   get decisionCallbackUrl(): string | null {
     return this._port ? `http://127.0.0.1:${this._port}/decision/tool` : null;
+  }
+
+  get skinCallbackUrl(): string | null {
+    return this._port ? `http://127.0.0.1:${this._port}/skin/tool` : null;
   }
 
   editorCallbackUrl(route: string): string | null {
@@ -160,14 +159,6 @@ export class McpBridgeServer {
     this.onAskUserDismissCallback = callback;
   }
 
-  /**
-   * Register a callback for media generation tool requests.
-   * The callback should call lobsterai-server and return the result.
-   */
-  onMediaGeneration(callback: (request: MediaGenerationRequest) => Promise<MediaGenerationResponse>): void {
-    this.onMediaGenerationCallback = callback;
-  }
-
   onBrowserTool(callback: (request: BrowserToolRequest) => Promise<BrowserToolResponse>): void {
     this.onBrowserToolCallback = callback;
   }
@@ -183,6 +174,11 @@ export class McpBridgeServer {
    */
   onDecisionTool(callback: DecisionToolHandler): void {
     this.onDecisionToolCallback = callback;
+  }
+
+  /** Serve the AI skin authoring tool at `/skin/tool`. */
+  onSkinTool(callback: (request: SkinToolRequest) => Promise<SkinToolResponse>): void {
+    this.onSkinToolCallback = callback;
   }
 
   /**
@@ -309,8 +305,8 @@ export class McpBridgeServer {
       return;
     }
 
-    if (req.url?.startsWith('/media-generation/tool')) {
-      await this.handleMediaGeneration(req, res);
+    if (req.url?.startsWith('/skin/tool')) {
+      await this.handleSkinTool(req, res);
       return;
     }
 
@@ -392,53 +388,49 @@ export class McpBridgeServer {
     }
   }
 
-  private async handleMediaGeneration(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    const t0 = Date.now();
+  private async handleSkinTool(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     try {
       const body = await this.readBody(req);
-      const request = JSON.parse(body) as MediaGenerationRequest;
-      const action = typeof request.args?.action === 'string' ? request.args.action : 'generate';
-      const model = typeof request.args?.model === 'string' ? request.args.model : '';
-      const prompt = typeof request.args?.prompt === 'string' ? request.args.prompt : '';
-      log('INFO', `Media generation request received for tool="${request.tool}" action="${action}" toolCallId="${request.context?.toolCallId ?? ''}" sessionKey="${request.context?.sessionKey?.slice(0, 30)}…" args=${serializeForLog({
-        action,
-        model,
-        promptLength: prompt.length,
-        hasImage: typeof request.args?.image === 'string',
-        imageCount: Array.isArray(request.args?.images) ? request.args.images.length : undefined,
-        hasVideo: typeof request.args?.video === 'string',
-        videoCount: Array.isArray(request.args?.videos) ? request.args.videos.length : undefined,
-        aspectRatio: request.args?.aspectRatio,
-        resolution: request.args?.resolution,
-        size: request.args?.size,
-        count: request.args?.count,
-        durationSeconds: request.args?.durationSeconds,
-      })}`);
-
-      if (!request.tool || !request.context?.sessionKey) {
+      const request = JSON.parse(body) as SkinToolRequest;
+      if (typeof request.tool !== 'string' || !request.tool.trim()) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ content: [{ type: 'text', text: 'Missing tool or context.sessionKey' }], isError: true }));
+        res.end(JSON.stringify({
+          content: [{ type: 'text', text: 'Missing skin tool name.' }],
+          isError: true,
+        }));
         return;
       }
-
-      if (!this.onMediaGenerationCallback) {
-        log('WARN', 'Media generation callback not registered');
+      if (!this.onSkinToolCallback) {
         res.writeHead(503, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ content: [{ type: 'text', text: 'Media generation service not available.' }], isError: true }));
+        res.end(JSON.stringify({
+          content: [{ type: 'text', text: 'Skin management is not ready.' }],
+          isError: true,
+        }));
         return;
       }
 
-      const result = await this.onMediaGenerationCallback(request);
-      const contentPreview = serializeForLog(result.content);
-      log('INFO', `Media generation completed for tool="${request.tool}" in ${Date.now() - t0}ms with isError=${result.isError ?? false}. Details=${serializeForLog(result.details ?? {})} Result=${contentPreview}`);
+      const result = await this.onSkinToolCallback({
+        tool: request.tool,
+        args: request.args && typeof request.args === 'object' && !Array.isArray(request.args)
+          ? request.args
+          : {},
+        context: {
+          sessionKey: typeof request.context?.sessionKey === 'string' ? request.context.sessionKey : '',
+          toolCallId: typeof request.context?.toolCallId === 'string' ? request.context.toolCallId : '',
+        },
+      });
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result));
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      log('ERROR', `Media generation request failed after ${Date.now() - t0}ms: ${errMsg}`);
-      if (!res.writableEnded) {
+      const message = error instanceof Error ? error.message : String(error);
+      log('ERROR', `Skin tool failed: ${message}`);
+      if (!res.headersSent) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ content: [{ type: 'text', text: `Media generation error: ${errMsg}` }], isError: true }));
+        res.end(JSON.stringify({
+          content: [{ type: 'text', text: `Skin management failed: ${message}` }],
+          isError: true,
+        }));
       }
     }
   }
